@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  dni       String    @unique
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city        String?
+  province    String?
+  mainNode    String?
+  panelId     String?
+  ipNumber    String?
+  cuit      String?
+  taxCondition String @default("CONSUMIDOR_FINAL")
+  status    String    @default("ACTIVE") // "ACTIVE", "SUSPENDED"
+  planId    Int?
+  plan      Plan?     @relation(fields: [planId], references: [id])
+  invoices  Invoice[]
+  tickets   Ticket[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Plan {
+  id        Int      @id @default(autoincrement())
+  name      String
+  megas     Int
+  basePrice  Float
+  ivaAmount  Float
+  totalPrice Float
+  clients    Client[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id            Int       @id @default(autoincrement())
+  clientId      Int
+  client        Client    @relation(fields: [clientId], references: [id])
+  month         Int
+  year          Int
+  originalAmount Float
+  dueDate       DateTime
+  status        String    @default("PENDING") // "PENDING", "PAID"
+  payments      Payment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  invoiceId     Int
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+  method        String   // "MERCADOPAGO", "CASH", "TRANSFER"
+  amountPaid    Float
+  lateFeeApplied Float    @default(0.0)
+  paymentDate   DateTime @default(now())
+  userId        Int?
+  user          User?    @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id             Int      @id @default(autoincrement())
+  username       String   @unique
+  passwordHash   String
+  role           String   @default("STAFF")
+  permissions    String   @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  cashMovements  CashMovement[]
+  payments       Payment[]
+}
+
+model CashMovement {
+  id          Int      @id @default(autoincrement())
+  type        String   // "IN" or "OUT"
+  amount      Float
+  description String
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  title       String
+  description String
+  status      String   @default("OPEN")
+  priority    String   @default("NORMAL")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
