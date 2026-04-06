@@ -12,7 +12,7 @@ export default function InvoicesList() {
 
   const fetchInvoices = async () => {
     try {
-      const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/invoices');
+      const res = await axios.get('http://localhost:4000/api/invoices');
       setInvoices(res.data);
     } catch (error) {
       console.error(error);
@@ -27,7 +27,7 @@ export default function InvoicesList() {
     if (!window.confirm('¿Estás seguro de generar las facturas del mes actual para todos los clientes activos?')) return;
     setLoading(true);
     try {
-      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/generate');
+      const res = await axios.post('http://localhost:4000/api/invoices/generate');
       alert(res.data.message);
       fetchInvoices();
     } catch (error) {
@@ -45,7 +45,7 @@ export default function InvoicesList() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
+      await axios.put(`http://localhost:4000/api/invoices/${payModal.inv.id}/pay`, {
         amountPaid: parseFloat(payModal.amount),
         lateFeeApplied: payModal.inv.calculatedLateFee,
         totalRequired: payModal.inv.totalAmount,
@@ -78,7 +78,7 @@ export default function InvoicesList() {
     
     setLoading(true);
     try {
-      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-notify', {
+      const res = await axios.post('http://localhost:4000/api/invoices/mass-notify', {
         invoiceIds: idsToSend
       });
       alert(res.data.message);
