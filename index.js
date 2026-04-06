@@ -82,8 +82,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: 'silent' }),
-    browser: ["INTERFAST CRM", "Chrome", "1.0.0"]
+    logger: pino({ level: 'silent' })
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -102,7 +101,7 @@ async function connectToWhatsApp() {
       console.log('📱 WhatsApp Desconectado. Razón:', lastDisconnect.error?.message, '| Reconectar:', shouldReconnect);
       waStatus = 'DISCONNECTED';
       if (shouldReconnect) {
-        connectToWhatsApp();
+        setTimeout(connectToWhatsApp, 3000);
       } else {
         console.log('📱 Sesión cerrada.');
       }
