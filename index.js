@@ -463,6 +463,69 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+app.put('/api/users/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador' });
+  try {
+    const userId = parseInt(req.params.id);
+    const { role, permissions } = req.body;
+    
+    // Check if modifying master admin tkip
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (targetUser.username === 'tkip' && role !== 'ADMIN') {
+      return res.status(403).json({ error: 'No puedes quitarle el rol de administrador a la cuenta maestra.' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { 
+        role: role || targetUser.role, 
+        permissions: JSON.stringify(permissions || []) 
+      },
+      select: { id: true, username: true, role: true, permissions: true }
+    });
+    res.json(updated);
+  } catch(err) {
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
+app.put('/api/users/:id/password', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador' });
+  try {
+    const userId = parseInt(req.params.id);
+    const { password } = req.body;
+    if (!password || password.length < 4) return res.status(400).json({ error: 'Contraseña muy corta' });
+    
+    const hash = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hash }
+    });
+    res.json({ message: 'Contraseña actualizada exitosamente' });
+  } catch(err) {
+    res.status(500).json({ error: 'Error al cambiar contraseña' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador' });
+  try {
+    const userId = parseInt(req.params.id);
+    const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    
+    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (targetUser.username === 'tkip') {
+      return res.status(403).json({ error: '¡Acción Bloqueada! No puedes eliminar la cuenta raíz (tkip).' });
+    }
+    
+    await prisma.user.delete({ where: { id: userId } });
+    res.json({ message: 'Usuario eliminado del sistema' });
+  } catch(err) {
+    res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+});
+
 // --- TICKETS AND SUPPORT ---
 app.get('/api/tickets', async (req, res) => {
   try {
