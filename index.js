@@ -482,9 +482,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         const prefs = await preference.create({
           body: {
             items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3,'0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
-            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
-            back_urls: { success: "http://localhost:5173/invoices", failure: "http://localhost:5173/invoices" },
-            auto_return: "approved"
+            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' }
           }
         });
         paymentLink = prefs.init_point;
@@ -793,11 +791,6 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
           name: invoice.client.name,
           email: invoice.client.email || 'test@test.com',
         },
-        back_urls: {
-          success: "https://interfast-backend.vercel.app/invoices",
-          failure: "https://interfast-backend.vercel.app/invoices",
-        },
-        auto_return: "approved",
         external_reference: invoice.id.toString(),
         notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
       }
