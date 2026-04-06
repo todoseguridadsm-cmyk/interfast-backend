@@ -249,13 +249,26 @@ app.get('/api/plans', async (req, res) => {
 
 app.post('/api/plans', async (req, res) => {
   try {
-    const { name, megas, basePrice } = req.body;
-    const base = parseFloat(basePrice);
-    const ivaAmount = base * 0.21;
-    const totalPrice = base + ivaAmount;
+    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3 } = req.body;
+    // Retro-compatibility (store priceV1 as base/total)
+    const basePrice = parseFloat(priceV1 || 0) / 1.21;
+    const ivaAmount = basePrice * 0.21;
+    const totalPrice = parseFloat(priceV1 || 0);
 
     const plan = await prisma.plan.create({ 
-      data: { name, megas, basePrice: base, ivaAmount, totalPrice } 
+      data: { 
+        name, 
+        megas: parseInt(megas || 0), 
+        basePrice, 
+        ivaAmount, 
+        totalPrice,
+        priceV1: parseFloat(priceV1 || 0),
+        dueDate1: parseInt(dueDate1 || 10),
+        priceV2: parseFloat(priceV2 || 0),
+        dueDate2: parseInt(dueDate2 || 15),
+        priceV3: parseFloat(priceV3 || 0),
+        dueDate3: parseInt(dueDate3 || 20)
+      } 
     });
     res.json(plan);
   } catch (error) {
@@ -279,14 +292,26 @@ app.delete('/api/plans/:id', async (req, res) => {
 
 app.put('/api/plans/:id', async (req, res) => {
   try {
-    const { name, megas, basePrice } = req.body;
-    const base = parseFloat(basePrice);
-    const ivaAmount = base * 0.21;
-    const totalPrice = base + ivaAmount;
+    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3 } = req.body;
+    const basePrice = parseFloat(priceV1 || 0) / 1.21;
+    const ivaAmount = basePrice * 0.21;
+    const totalPrice = parseFloat(priceV1 || 0);
     
     const plan = await prisma.plan.update({
       where: { id: parseInt(req.params.id) },
-      data: { name, megas, basePrice: base, ivaAmount, totalPrice }
+      data: { 
+        name, 
+        megas: parseInt(megas || 0),
+        basePrice, 
+        ivaAmount, 
+        totalPrice,
+        priceV1: parseFloat(priceV1 || 0),
+        dueDate1: parseInt(dueDate1 || 10),
+        priceV2: parseFloat(priceV2 || 0),
+        dueDate2: parseInt(dueDate2 || 15),
+        priceV3: parseFloat(priceV3 || 0),
+        dueDate3: parseInt(dueDate3 || 20)
+      }
     });
     res.json(plan);
   } catch (error) {
@@ -303,29 +328,36 @@ app.get('/api/invoices', async (req, res) => {
       orderBy: { dueDate: 'desc' }
     });
     
-    // Motor Dinámico de Mora
+    // Motor Dinámico de Mora Ponderada (Tiered)
     const dynamicInvoices = invoices.map(inv => {
       const today = new Date();
-      // Solo sumamos mora si está PENDING y la fecha de hoy es mayor al due date al final del día.
-      const dueDateEnd = new Date(inv.dueDate);
-      dueDateEnd.setHours(23, 59, 59, 999);
+      let totalAmount = inv.priceV1 || inv.originalAmount;
+      let calculatedLateFee = 0;
+      let isLate = false;
+
+      if (inv.status === 'PENDING') {
+        const d1 = new Date(inv.dueDate1 || inv.dueDate);
+        const d2 = new Date(inv.dueDate2 || inv.dueDate);
+        
+        // Si hoy es mayor a Vencimiento 2, paga Precio 3.
+        if (today > d2 && inv.priceV3) {
+           isLate = true;
+           totalAmount = inv.priceV3;
+           calculatedLateFee = totalAmount - inv.originalAmount;
+        } 
+        // Si no pasó el V2, pero sí pasó el V1, paga Precio 2.
+        else if (today > d1 && inv.priceV2) {
+           isLate = true;
+           totalAmount = inv.priceV2;
+           calculatedLateFee = totalAmount - inv.originalAmount;
+        }
+      }
       
-      const isLate = today > dueDateEnd && inv.status === 'PENDING';
-      
-      // Aplicar 10% de recargo si está vencida
-      const calculatedLateFee = isLate ? inv.originalAmount * 0.10 : 0;
-      const totalAmount = inv.originalAmount + calculatedLateFee;
-      
-      return {
-        ...inv,
-        isLate,
-        calculatedLateFee,
-        totalAmount
-      };
+      return { ...inv, isLate, calculatedLateFee, totalAmount };
     });
-    
     res.json(dynamicInvoices);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener facturas' });
   }
 });
@@ -340,7 +372,6 @@ app.post('/api/invoices/generate', async (req, res) => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    const dueDate = new Date(currentYear, currentMonth - 1, 15); // Vencimiento el 15 del mes actual
     
     let generatedCount = 0;
 
@@ -352,13 +383,23 @@ app.post('/api/invoices/generate', async (req, res) => {
       });
       
       if (!existing) {
+        const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
+        const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
+        const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
+
         await prisma.invoice.create({
           data: {
             clientId: client.id,
             month: currentMonth,
             year: currentYear,
-            originalAmount: client.plan.totalPrice,
-            dueDate: dueDate,
+            originalAmount: client.plan.priceV1 || client.plan.totalPrice,
+            dueDate: dueDate1Date,
+            priceV1: client.plan.priceV1 || client.plan.totalPrice,
+            dueDate1: dueDate1Date,
+            priceV2: client.plan.priceV2 || client.plan.totalPrice,
+            dueDate2: dueDate2Date,
+            priceV3: client.plan.priceV3 || client.plan.totalPrice,
+            dueDate3: dueDate3Date,
             status: 'PENDING'
           }
         });
