@@ -38,6 +38,16 @@ model Plan {
   basePrice  Float
   ivaAmount  Float
   totalPrice Float
+  
+  priceV1   Float    @default(0.0)
+  dueDate1  Int      @default(10)
+  
+  priceV2   Float    @default(0.0)
+  dueDate2  Int      @default(15)
+  
+  priceV3   Float    @default(0.0)
+  dueDate3  Int      @default(20)
+
   clients    Client[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -51,6 +61,14 @@ model Invoice {
   year          Int
   originalAmount Float
   dueDate       DateTime
+
+  priceV1   Float    @default(0.0)
+  dueDate1  DateTime?
+  priceV2   Float    @default(0.0)
+  dueDate2  DateTime?
+  priceV3   Float    @default(0.0)
+  dueDate3  DateTime?
+
   status        String    @default("PENDING") // "PENDING", "PAID"
   payments      Payment[]
   createdAt     DateTime  @default(now())
