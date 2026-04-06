@@ -766,10 +766,12 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
           email: invoice.client.email || 'test@test.com',
         },
         back_urls: {
-          success: "http://localhost:5173/invoices",
-          failure: "http://localhost:5173/invoices",
+          success: "https://interfast-backend.vercel.app/invoices",
+          failure: "https://interfast-backend.vercel.app/invoices",
         },
-        auto_return: "approved"
+        auto_return: "approved",
+        external_reference: invoice.id.toString(),
+        notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
       }
     });
 
@@ -777,6 +779,53 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
   } catch (error) {
     console.error('Error MP:', error);
     res.status(500).json({ error: 'Error al generar link de Mercado Pago' });
+  }
+});
+
+// 6. Mercado Pago Webhook
+app.post('/api/mercadopago/webhook', async (req, res) => {
+  // Respondemos 200 rápido a MercadoPago
+  res.sendStatus(200);
+
+  try {
+    const topic = req.query.topic || req.body.type;
+    const paymentId = req.query.id || req.body?.data?.id;
+
+    if (topic === 'payment' && paymentId) {
+      // 1. Ir a MP y preguntar los detalles de ese pago
+      const { data: mpPayment } = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` }
+      });
+
+      if (mpPayment.status === 'approved') {
+        const invoiceId = parseInt(mpPayment.external_reference);
+        if (!invoiceId) return;
+
+        // 2. Verificar si en nuestra DB existe y está pendiente
+        const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+        if (invoice && invoice.status !== 'PAID') {
+          // 3. Crear el recibo histórico
+          await prisma.payment.create({
+            data: {
+              invoiceId: invoiceId,
+              method: 'TRANSFER', // Se asume Transferencia/Digital
+              amountPaid: mpPayment.transaction_amount,
+              lateFeeApplied: 0,
+              userId: 1 // Admin o bot
+            }
+          });
+          
+          // 4. Marcar factura como pagada
+          await prisma.invoice.update({
+             where: { id: invoiceId },
+             data: { status: 'PAID' }
+          });
+          console.log(`✅ Webhook MP: Factura ${invoiceId} cobrada con éxito.`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error Webhook MP:', error.message);
   }
 });
 
@@ -801,7 +850,7 @@ app.get('/api/reports/sales', async (req, res) => {
       orderBy: { paymentDate: 'desc' }
     });
 
-    const totalCollected = payments.reduce((acc, p) => acc + p.amountPaid, 0);
+    const totalCollectedFromInvoices = payments.reduce((acc, p) => acc + p.amountPaid, 0);
     const totalLateFees = payments.reduce((acc, p) => acc + p.lateFeeApplied, 0);
 
     let invoiceFilter = { status: 'PENDING' };
@@ -814,10 +863,23 @@ app.get('/api/reports/sales', async (req, res) => {
 
     const activeClients = await prisma.client.count({ where: { status: 'ACTIVE' } });
 
+    // Sumar y restar los Movimientos de Caja manuales
+    let cashFilter = {};
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+      cashFilter.createdAt = { gte: startDate, lte: endDate };
+    }
+    const cashMovements = await prisma.cashMovement.findMany({ where: cashFilter });
+    
+    const manualIn = cashMovements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
+    const manualOut = cashMovements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
+    const absoluteTotalCaja = totalCollectedFromInvoices + manualIn - manualOut;
+
     res.json({
       metrics: {
         paymentsCount: payments.length,
-        totalCollected,
+        totalCollected: absoluteTotalCaja,
         totalLateFees,
         pendingAmount,
         pendingCount: pendingInvoices.length,
