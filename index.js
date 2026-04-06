@@ -23,6 +23,12 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 
+// Mercado Pago Auth
+let clientMP = null;
+if (process.env.MP_ACCESS_TOKEN) {
+  clientMP = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+}
+
 // Crypto Settings
 const JWT_SECRET = process.env.JWT_SECRET || 'TKIP_SUPER_PRIVATE_KEY_2026';
 
