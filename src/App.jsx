@@ -10,7 +10,8 @@ import Reports from './components/Reports';
 import DailyCash from './components/DailyCash';
 import TicketsList from './components/TicketsList';
 import POSCaja from './components/POSCaja';
-import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store } from 'lucide-react';
+import WhatsAppStatus from './components/WhatsAppStatus';
+import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -122,10 +123,16 @@ function AppContent() {
           )}
 
           {user.role === 'ADMIN' && (
-            <Link to="/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/users' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <ShieldAlert size={20} />
-              <span>Empleados</span>
-            </Link>
+            <>
+              <Link to="/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/users' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <ShieldAlert size={20} />
+                <span>Empleados</span>
+              </Link>
+              <Link to="/whatsapp" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/whatsapp' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <MessageSquare size={20} />
+                <span>Servidor WhatsApp</span>
+              </Link>
+            </>
           )}
         </nav>
 
@@ -148,6 +155,7 @@ function AppContent() {
             <Route path="/reports" element={isAllowed('REPORTES') ? <Reports /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cash" element={isAllowed('CAJA') ? <DailyCash /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/tickets" element={isAllowed('SOPORTE') ? <TicketsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/whatsapp" element={user.role === 'ADMIN' ? <WhatsAppStatus /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/users" element={user.role === 'ADMIN' ? <UsersList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/login" element={<Dashboard />} />
           </Routes>

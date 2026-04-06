@@ -7,6 +7,7 @@ export default function TicketsList() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ clientId: '', title: '', description: '', priority: 'NORMAL' });
 
   const fetchData = async () => {
@@ -26,21 +27,45 @@ export default function TicketsList() {
 
   useEffect(() => { fetchData() }, []);
 
-  const saveTicket = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('https://interfast-backend-95ww.onrender.com/api/tickets', form);
-      setShowModal(false);
-      setForm({ clientId: '', title: '', description: '', priority: 'NORMAL' });
-      fetchData();
-    } catch (e) { alert('Error creando ticket'); }
-  };
-
   const updateStatus = async (id, status) => {
     try {
       await axios.put(`https://interfast-backend-95ww.onrender.com/api/tickets/${id}`, { status });
       fetchData();
     } catch (e) { alert('Error actualizando estado'); }
+  };
+
+  const handleEdit = (ticket) => {
+    setEditingId(ticket.id);
+    setForm({
+      clientId: ticket.clientId,
+      title: ticket.title,
+      description: ticket.description,
+      priority: ticket.priority
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este ticket?')) return;
+    try {
+      await axios.delete(`https://interfast-backend-95ww.onrender.com/api/tickets/${id}`);
+      fetchData();
+    } catch (e) { alert('Error eliminando ticket'); }
+  };
+
+  const saveTicket = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingId) {
+        await axios.put(`https://interfast-backend-95ww.onrender.com/api/tickets/${editingId}`, form);
+      } else {
+        await axios.post('https://interfast-backend-95ww.onrender.com/api/tickets', form);
+      }
+      setShowModal(false);
+      setEditingId(null);
+      setForm({ clientId: '', title: '', description: '', priority: 'NORMAL' });
+      fetchData();
+    } catch (e) { alert('Error procesando ticket'); }
   };
 
   return (
@@ -83,6 +108,10 @@ export default function TicketsList() {
                 <div className="flex gap-2">
                    <button onClick={()=>updateStatus(t.id, 'IN_PROGRESS')} className="flex-1 text-xs font-bold py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 flex items-center justify-center gap-1"><Clock size={14}/> En Curso</button>
                    <button onClick={()=>updateStatus(t.id, 'RESOLVED')} className="flex-1 text-xs font-bold py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 flex items-center justify-center gap-1"><CheckCircle size={14}/> Solucionar</button>
+                </div>
+                <div className="flex gap-2 mt-2">
+                   <button onClick={()=>handleEdit(t)} className="flex-1 text-xs font-bold py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200">Editar</button>
+                   <button onClick={()=>handleDelete(t.id)} className="flex-1 text-xs font-bold py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Eliminar</button>
                 </div>
               </div>
             ))}
@@ -138,7 +167,7 @@ export default function TicketsList() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="bg-slate-50 p-6 border-b border-slate-100">
-              <h3 className="text-xl font-bold text-slate-800">Levantar Ticket</h3>
+              <h3 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Ticket' : 'Levantar Ticket'}</h3>
             </div>
             <form onSubmit={saveTicket} className="p-6 space-y-4">
               <div>
@@ -161,8 +190,8 @@ export default function TicketsList() {
                 <button type="button" onClick={()=>setForm({...form, priority: 'HIGH'})} className={`py-2 rounded-xl font-bold text-sm border-2 ${form.priority==='HIGH'?'border-red-500 bg-red-50 text-red-700':'border-slate-200 text-slate-400'}`}>Urgente / Cortado</button>
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold">Guardar</button>
+                <button type="button" onClick={() => { setShowModal(false); setEditingId(null); setForm({ clientId: '', title: '', description: '', priority: 'NORMAL' }); }} className="flex-1 bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold">Cancelar</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl font-bold">{editingId ? 'Actualizar' : 'Guardar'}</button>
               </div>
             </form>
           </div>

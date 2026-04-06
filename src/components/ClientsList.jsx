@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2 } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
   const [clients, setClients] = useState([]);
@@ -90,6 +91,39 @@ export default function ClientsList() {
     }
   };
 
+  const exportToExcel = () => {
+    if (clients.length === 0) return alert("No hay clientes para exportar.");
+    
+    // Filtramos si hay una búsqueda activa
+    const term = searchTerm.toLowerCase();
+    const dataToExport = clients.filter(c => {
+      const clientNum = `tk${String(c.id).padStart(3, '0')}`;
+      return c.name.toLowerCase().includes(term) || c.dni.includes(term) || clientNum.includes(term);
+    }).map(c => ({
+      "N° Cliente": `TK${String(c.id).padStart(3, '0')}`,
+      "Nombre Completo": c.name,
+      "DNI": c.dni,
+      "CUIT / CUIL": c.cuit || '-',
+      "Condición AFIP": c.taxCondition,
+      "Plan (Contratado)": c.plan?.name || 'Sin Plan',
+      "Estado": c.status,
+      "Email": c.email || '-',
+      "Teléfono": c.phone || '-',
+      "Dirección": c.address || '-',
+      "Localidad": `${c.city || ''} ${c.province || ''}`.trim() || '-',
+      "Nodo Principal": c.mainNode || '-',
+      "Panel": c.panelId || '-',
+      "IP Asignada": c.ipNumber || '-'
+    }));
+
+    if (dataToExport.length === 0) return alert("La búsqueda actual no tiene resultados para exportar.");
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes_Abonados");
+    XLSX.writeFile(workbook, `Base_Clientes_INTERFAST.xlsx`);
+  };
+
   return (
     <div className="space-y-6 relative">
       <header className="flex justify-between items-center">
@@ -97,13 +131,23 @@ export default function ClientsList() {
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Clientes</h2>
           <p className="text-slate-500 mt-1">Gestión de abonados y números de cliente (TK000).</p>
         </div>
-        <button 
-          onClick={() => { closeModal(); setIsModalOpen(true); }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm shadow-blue-200 transition-colors flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Nuevo Cliente
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+            title="Descargar Planilla Excel"
+          >
+            <Download size={18} />
+            Excel
+          </button>
+          <button 
+            onClick={() => { closeModal(); setIsModalOpen(true); }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+          >
+            <Plus size={18} />
+            Nuevo Cliente
+          </button>
+        </div>
       </header>
 
       {/* Table Section */}
