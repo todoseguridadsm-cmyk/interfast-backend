@@ -15,7 +15,7 @@ export default function PlansList() {
 
   const fetchPlans = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/plans');
+      const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/plans');
       setPlans(res.data);
     } catch (error) {
       console.error(error);
@@ -29,7 +29,7 @@ export default function PlansList() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este plan?')) return;
     try {
-      await axios.delete(`http://localhost:4000/api/plans/${id}`);
+      await axios.delete(`https://interfast-backend-95ww.onrender.com/api/plans/${id}`);
       fetchPlans();
     } catch (error) {
       console.error(error);
@@ -73,9 +73,9 @@ export default function PlansList() {
       };
       
       if (editingId) {
-        await axios.put(`http://localhost:4000/api/plans/${editingId}`, payload);
+        await axios.put(`https://interfast-backend-95ww.onrender.com/api/plans/${editingId}`, payload);
       } else {
-        await axios.post('http://localhost:4000/api/plans', payload);
+        await axios.post('https://interfast-backend-95ww.onrender.com/api/plans', payload);
       }
       
       setFormData({ name: '', megas: '', priceV1: '', dueDate1: 10, priceV2: '', dueDate2: 15, priceV3: '', dueDate3: 20 });
@@ -241,4 +241,3 @@ export default function PlansList() {
     </div>
   );
 }
-

@@ -15,7 +15,7 @@ export default function UsersList() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:4000/api/users', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
+      const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/users', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
       setUsers(res.data);
     } catch(err) {
       console.error(err);
@@ -43,9 +43,9 @@ export default function UsersList() {
       };
       
       if (editingId) {
-        await axios.put(`http://localhost:4000/api/users/${editingId}`, payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
+        await axios.put(`https://interfast-backend-95ww.onrender.com/api/users/${editingId}`, payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
       } else {
-        await axios.post('http://localhost:4000/api/users', payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
+        await axios.post('https://interfast-backend-95ww.onrender.com/api/users', payload, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
       }
       
       setShowModal(false);
@@ -64,7 +64,7 @@ export default function UsersList() {
     }
     if(window.confirm(`¿Estás 100% seguro de dar de baja al empleado "${username}"?\nNo podrá volver a ingresar al sistema.`)) {
       try {
-         await axios.delete(`http://localhost:4000/api/users/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
+         await axios.delete(`https://interfast-backend-95ww.onrender.com/api/users/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
          fetchUsers();
       } catch(err) {
          alert(err.response?.data?.error || 'Error al eliminar');
@@ -77,7 +77,7 @@ export default function UsersList() {
     if(newPassword.length < 4) return alert('La contraseña debe tener al menos 4 caracteres');
     setLoading(true);
     try {
-      await axios.put(`http://localhost:4000/api/users/${editingId}/password`, { password: newPassword }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
+      await axios.put(`https://interfast-backend-95ww.onrender.com/api/users/${editingId}/password`, { password: newPassword }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`} });
       alert('¡Contraseña actualizada exitosamente!');
       setShowPasswordModal(false);
       setEditingId(null);
