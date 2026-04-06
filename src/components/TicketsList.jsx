@@ -133,8 +133,10 @@ export default function TicketsList() {
                 <div className="text-sm font-medium text-slate-700 bg-white p-2 rounded border border-slate-100 mb-3">
                   🙍‍♂️ {t.client?.name} | {t.client?.mainNode}
                 </div>
-                <div className="flex gap-2">
-                   <button onClick={()=>updateStatus(t.id, 'RESOLVED')} className="w-full text-xs font-bold py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 flex items-center justify-center gap-1"><CheckCircle size={14}/> Solucionar</button>
+                <div className="flex gap-2.5">
+                   <button onClick={()=>updateStatus(t.id, 'RESOLVED')} className="flex-1 text-xs font-bold py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 flex items-center justify-center gap-1"><CheckCircle size={14}/> Solucionar</button>
+                   <button onClick={()=>handleEdit(t)} className="px-3 text-xs font-bold py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200">Editar</button>
+                   <button onClick={()=>handleDelete(t.id)} className="px-3 text-xs font-bold py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">X</button>
                 </div>
               </div>
             ))}
@@ -155,6 +157,10 @@ export default function TicketsList() {
                 <p className="text-xs text-slate-400 mb-3">{t.description}</p>
                 <div className="text-xs font-medium text-slate-400">
                   Resuelto a las: {new Date(t.updatedAt).toLocaleTimeString()}
+                </div>
+                <div className="flex gap-2 mt-3 pt-3 border-t border-emerald-100/50">
+                   <button onClick={()=>handleEdit(t)} className="flex-1 text-xs font-bold py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200">Editar</button>
+                   <button onClick={()=>handleDelete(t.id)} className="flex-1 text-xs font-bold py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Eliminar</button>
                 </div>
               </div>
             ))}
