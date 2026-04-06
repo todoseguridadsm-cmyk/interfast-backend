@@ -103,7 +103,9 @@ waClient.on('ready', () => {
 });
 
 waClient.on('authenticated', () => {
-  console.log('📱 WhatsApp Autenticado correctamente con la sesión guardada.');
+  waStatus = 'CONNECTED';
+  waQrCode = null;
+  console.log('📱 WhatsApp Autenticado correctamente con el celular.');
 });
 
 waClient.on('auth_failure', (msg) => {
