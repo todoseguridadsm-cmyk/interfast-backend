@@ -102,13 +102,26 @@ waClient.on('ready', () => {
   console.log('📱 WhatsApp Web Headless Client está LISTO y conectado!');
 });
 
-waClient.on('disconnected', () => {
+waClient.on('authenticated', () => {
+  console.log('📱 WhatsApp Autenticado correctamente con la sesión guardada.');
+});
+
+waClient.on('auth_failure', (msg) => {
+  console.error('📱 Fallo de Autenticación en WhatsApp:', msg);
+});
+
+waClient.on('loading_screen', (percent, message) => {
+  console.log(`📱 WhatsApp Cargando Interface: ${percent}% - ${message}`);
+});
+
+waClient.on('disconnected', (reason) => {
   waStatus = 'DISCONNECTED';
-  console.log('📱 WhatsApp Desconectado');
+  console.log('📱 WhatsApp Desconectado. Razón:', reason);
   waClient.initialize().catch(e => console.error("Error auto-reconnect WA", e));
 });
 
-waClient.initialize().catch(e => console.error("Error inicializando WA:", e));
+console.log('📱 Inicializando cliente de WhatsApp...');
+waClient.initialize().catch(e => console.error("Error SUPER FATAL inicializando WA:", e));
 
 // --- ROUTES ---
 
