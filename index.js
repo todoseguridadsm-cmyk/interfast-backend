@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const { MercadoPagoConfig, Preference } = require('mercadopago');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
@@ -72,62 +73,50 @@ app.use('/api', (req, res, next) => {
 // WhatsApp Headless Client variables
 let waStatus = 'DISCONNECTED';
 let waQrCode = null;
+let waSocket = null;
 
-const waClient = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: { 
-    args: [
-      '--no-sandbox', 
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
-    ] 
-  },
-  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-  }
-});
+async function connectToWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+  console.log('📱 Inicializando cliente de WhatsApp (Baileys)...');
 
-waClient.on('qr', (qr) => {
-  waStatus = 'QR_READY';
-  waQrCode = qr;
-  console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
-});
+  const sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: false,
+    logger: pino({ level: 'silent' }),
+    browser: ["INTERFAST CRM", "Chrome", "1.0.0"]
+  });
 
-waClient.on('ready', () => {
-  waStatus = 'CONNECTED';
-  waQrCode = null;
-  console.log('📱 WhatsApp Web Headless Client está LISTO y conectado!');
-});
+  sock.ev.on('creds.update', saveCreds);
 
-waClient.on('authenticated', () => {
-  waStatus = 'CONNECTED';
-  waQrCode = null;
-  console.log('📱 WhatsApp Autenticado correctamente con el celular.');
-});
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
+    
+    if (qr) {
+      waStatus = 'QR_READY';
+      waQrCode = qr; // Baileys produces raw strings for QR, perfectly compatible with our react QRCodeSVG
+      console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
+    }
+    
+    if (connection === 'close') {
+      const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('📱 WhatsApp Desconectado. Razón:', lastDisconnect.error?.message, '| Reconectar:', shouldReconnect);
+      waStatus = 'DISCONNECTED';
+      if (shouldReconnect) {
+        connectToWhatsApp();
+      } else {
+        console.log('📱 Sesión cerrada.');
+      }
+    } else if (connection === 'open') {
+      waStatus = 'CONNECTED';
+      waQrCode = null;
+      console.log('📱 WhatsApp Web Headless Client está LISTO y conectado (Baileys)!');
+    }
+  });
 
-waClient.on('auth_failure', (msg) => {
-  console.error('📱 Fallo de Autenticación en WhatsApp:', msg);
-});
+  waSocket = sock;
+}
 
-waClient.on('loading_screen', (percent, message) => {
-  console.log(`📱 WhatsApp Cargando Interface: ${percent}% - ${message}`);
-});
-
-waClient.on('disconnected', (reason) => {
-  waStatus = 'DISCONNECTED';
-  console.log('📱 WhatsApp Desconectado. Razón:', reason);
-  waClient.initialize().catch(e => console.error("Error auto-reconnect WA", e));
-});
-
-console.log('📱 Inicializando cliente de WhatsApp...');
-waClient.initialize().catch(e => console.error("Error SUPER FATAL inicializando WA:", e));
+connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
 
 // --- ROUTES ---
 
@@ -468,7 +457,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       if (!inv.client.phone) continue;
       
       const phone = inv.client.phone.replace(/\D/g, '');
-      const targetPhone = phone.startsWith('54') ? `${phone}@c.us` : `549${phone}@c.us`;
+      const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
       
       const today = new Date();
       const dueDateEnd = new Date(inv.dueDate);
@@ -495,7 +484,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       
       const message = `Hola ${inv.client.name}! 👋🏻\n\nTe recordamos que tienes una factura pendiente por tu servicio de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${totalAmountWithFee.toFixed(2)}*.\n\nPuedes saldar tu cuenta de forma rápida y 100% segura a través de Mercado Pago en el siguiente enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
       
-      await waClient.sendMessage(targetPhone, message);
+      if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       notifiedCount++;
       
       // Delay 3 seconds between messages to prevent WA Ban
