@@ -4,13 +4,18 @@ import { Plus, Wifi, Server, Trash2, Edit2 } from 'lucide-react';
 
 export default function PlansList() {
   const [plans, setPlans] = useState([]);
-  const [formData, setFormData] = useState({ name: '', megas: '', basePrice: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', megas: '', 
+    priceV1: '', dueDate1: 10,
+    priceV2: '', dueDate2: 15,
+    priceV3: '', dueDate3: 20
+  });
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
   const fetchPlans = async () => {
     try {
-      const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/plans');
+      const res = await axios.get('http://localhost:4000/api/plans');
       setPlans(res.data);
     } catch (error) {
       console.error(error);
@@ -24,7 +29,7 @@ export default function PlansList() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este plan?')) return;
     try {
-      await axios.delete(`https://interfast-backend-95ww.onrender.com/api/plans/${id}`);
+      await axios.delete(`http://localhost:4000/api/plans/${id}`);
       fetchPlans();
     } catch (error) {
       console.error(error);
@@ -34,12 +39,22 @@ export default function PlansList() {
 
   const handleEdit = (plan) => {
     setEditingId(plan.id);
-    setFormData({ name: plan.name, megas: plan.megas, basePrice: plan.basePrice });
+    setFormData({ 
+      name: plan.name, megas: plan.megas, 
+      priceV1: plan.priceV1 || plan.totalPrice, dueDate1: plan.dueDate1 || 10,
+      priceV2: plan.priceV2 || plan.totalPrice, dueDate2: plan.dueDate2 || 15,
+      priceV3: plan.priceV3 || plan.totalPrice, dueDate3: plan.dueDate3 || 20
+    });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFormData({ name: '', megas: '', basePrice: '' });
+    setFormData({ 
+      name: '', megas: '', 
+      priceV1: '', dueDate1: 10,
+      priceV2: '', dueDate2: 15,
+      priceV3: '', dueDate3: 20
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -49,16 +64,21 @@ export default function PlansList() {
       const payload = {
         name: formData.name,
         megas: parseInt(formData.megas),
-        basePrice: parseFloat(formData.basePrice)
+        priceV1: parseFloat(formData.priceV1),
+        dueDate1: parseInt(formData.dueDate1),
+        priceV2: parseFloat(formData.priceV2),
+        dueDate2: parseInt(formData.dueDate2),
+        priceV3: parseFloat(formData.priceV3),
+        dueDate3: parseInt(formData.dueDate3)
       };
       
       if (editingId) {
-        await axios.put(`https://interfast-backend-95ww.onrender.com/api/plans/${editingId}`, payload);
+        await axios.put(`http://localhost:4000/api/plans/${editingId}`, payload);
       } else {
-        await axios.post('https://interfast-backend-95ww.onrender.com/api/plans', payload);
+        await axios.post('http://localhost:4000/api/plans', payload);
       }
       
-      setFormData({ name: '', megas: '', basePrice: '' });
+      setFormData({ name: '', megas: '', priceV1: '', dueDate1: 10, priceV2: '', dueDate2: 15, priceV3: '', dueDate3: 20 });
       setEditingId(null);
       fetchPlans();
     } catch (error) {
@@ -108,22 +128,41 @@ export default function PlansList() {
                 <span className="absolute right-4 top-2.5 text-slate-400 text-sm font-medium">Mbps</span>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Precio Base (Sin IVA)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-2.5 text-slate-400 font-medium">$</span>
-                <input 
-                  type="number" required step="0.01"
-                  value={formData.basePrice} onChange={e => setFormData({...formData, basePrice: e.target.value})}
-                  className="w-full pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="10000"
-                />
+            <div className="border-t border-slate-100 pt-4 mt-2">
+              <h4 className="text-sm font-semibold text-slate-800 mb-3">Configuración de Vencimientos</h4>
+              
+              <div className="grid grid-cols-2 gap-3 mb-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimiento 1 (Día)</label>
+                  <input type="number" min="1" max="31" required value={formData.dueDate1} onChange={e => setFormData({...formData, dueDate1: e.target.value})} className="w-full px-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Precio Total (Con IVA)</label>
+                  <div className="relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm font-medium">$</span><input type="number" required step="0.01" value={formData.priceV1} onChange={e => setFormData({...formData, priceV1: e.target.value})} className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" placeholder="15000" /></div>
+                </div>
               </div>
-              {formData.basePrice && (
-                <p className="text-xs text-slate-500 mt-2">
-                  Total estimado: ${(parseFloat(formData.basePrice) * 1.21).toFixed(2)}
-                </p>
-              )}
+              
+              <div className="grid grid-cols-2 gap-3 mb-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimiento 2 (Día)</label>
+                  <input type="number" min="1" max="31" required value={formData.dueDate2} onChange={e => setFormData({...formData, dueDate2: e.target.value})} className="w-full px-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Precio Total (Con IVA)</label>
+                  <div className="relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm font-medium">$</span><input type="number" required step="0.01" value={formData.priceV2} onChange={e => setFormData({...formData, priceV2: e.target.value})} className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" placeholder="16500" /></div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimiento 3 (Día)</label>
+                  <input type="number" min="1" max="31" required value={formData.dueDate3} onChange={e => setFormData({...formData, dueDate3: e.target.value})} className="w-full px-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Precio Total (Con IVA)</label>
+                  <div className="relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm font-medium">$</span><input type="number" required step="0.01" value={formData.priceV3} onChange={e => setFormData({...formData, priceV3: e.target.value})} className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" placeholder="18000" /></div>
+                </div>
+              </div>
             </div>
             
             <div className="flex gap-2 pt-2">
@@ -149,9 +188,9 @@ export default function PlansList() {
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-100">
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider">Plan / Velocidad</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right">Precio Base</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-400">IVA (21%)</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-blue-600">Total Final</th>
+                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 1</th>
+                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 2</th>
+                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 3</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-center">Acciones</th>
                 </tr>
               </thead>
@@ -170,14 +209,17 @@ export default function PlansList() {
                         <p className="font-semibold text-slate-800">{plan.name}</p>
                         <p className="text-sm text-slate-500">{plan.megas} Mbps</p>
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-600 font-medium">
-                        ${plan.basePrice.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      <td className="px-6 py-4 text-right text-slate-700 font-medium whitespace-nowrap">
+                        <span className="text-xs text-slate-400 mr-2">Día {plan.dueDate1 || 10}:</span>
+                        ${(plan.priceV1 || plan.totalPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-400 text-sm">
-                        + ${plan.ivaAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      <td className="px-6 py-4 text-right text-slate-700 font-medium whitespace-nowrap">
+                        <span className="text-xs text-slate-400 mr-2">Día {plan.dueDate2 || 15}:</span>
+                        ${(plan.priceV2 || plan.totalPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900">
-                        ${plan.totalPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      <td className="px-6 py-4 text-right text-slate-700 font-medium whitespace-nowrap">
+                        <span className="text-xs text-slate-400 mr-2">Día {plan.dueDate3 || 20}:</span>
+                        ${(plan.priceV3 || plan.totalPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button onClick={() => handleEdit(plan)} className="text-blue-500 hover:text-blue-700 transition-colors p-2 rounded-lg hover:bg-blue-50 mr-2" title="Editar plan">
