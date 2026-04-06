@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
-const { MercadoPagoConfig, Preference } = require('mercadopago');
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const bcrypt = require('bcryptjs');
@@ -812,11 +812,10 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
     const topic = req.query.topic || req.body.type;
     const paymentId = req.query.id || req.body?.data?.id;
 
-    if (topic === 'payment' && paymentId) {
+    if (topic === 'payment' && paymentId && clientMP) {
       // 1. Ir a MP y preguntar los detalles de ese pago
-      const { data: mpPayment } = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` }
-      });
+      const payment = new Payment(clientMP);
+      const mpPayment = await payment.get({ id: paymentId });
 
       if (mpPayment.status === 'approved') {
         const invoiceId = parseInt(mpPayment.external_reference);
