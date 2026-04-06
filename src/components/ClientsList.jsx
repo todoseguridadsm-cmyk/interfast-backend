@@ -41,13 +41,13 @@ export default function ClientsList() {
   };
 
   const fetchClients = () => {
-    axios.get('https://interfast-backend-95ww.onrender.com/api/clients')
+    axios.get('http://localhost:4000/api/clients')
       .then(res => setClients(res.data))
       .catch(err => console.error(err));
   };
 
   const fetchPlans = () => {
-    axios.get('https://interfast-backend-95ww.onrender.com/api/plans')
+    axios.get('http://localhost:4000/api/plans')
       .then(res => setPlans(res.data))
       .catch(err => console.error(err));
   };
@@ -69,8 +69,8 @@ export default function ClientsList() {
     };
 
     const request = editingId 
-      ? axios.put(`https://interfast-backend-95ww.onrender.com/api/clients/${editingId}`, payload)
-      : axios.post('https://interfast-backend-95ww.onrender.com/api/clients', payload);
+      ? axios.put(`http://localhost:4000/api/clients/${editingId}`, payload)
+      : axios.post('http://localhost:4000/api/clients', payload);
 
     request.then(() => {
       closeModal();
@@ -82,7 +82,7 @@ export default function ClientsList() {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Estás seguro de eliminar este cliente?')) return;
     try {
-      await axios.delete(`https://interfast-backend-95ww.onrender.com/api/clients/${id}`);
+      await axios.delete(`http://localhost:4000/api/clients/${id}`);
       fetchClients();
     } catch (error) {
       console.error(error);
