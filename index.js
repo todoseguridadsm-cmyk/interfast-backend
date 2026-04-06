@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const { MercadoPagoConfig, Preference } = require('mercadopago');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -77,12 +77,15 @@ let waSocket = null;
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-  console.log('📱 Inicializando cliente de WhatsApp (Baileys)...');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`📱 Inicializando cliente de WhatsApp (Baileys v${version.join('.')})...`);
 
   const sock = makeWASocket({
+    version,
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: 'silent' })
+    logger: pino({ level: 'silent' }),
+    browser: Browsers.macOS('Desktop')
   });
 
   sock.ev.on('creds.update', saveCreds);
