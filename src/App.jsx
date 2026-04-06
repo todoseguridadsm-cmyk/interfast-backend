@@ -67,7 +67,7 @@ function AppContent() {
           <div className="text-sm font-bold text-blue-400 capitalize">{user.username}</div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4">
+        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
           <Link to="/" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
             <LayoutDashboard size={20} />
             <span>Dashboard</span>
