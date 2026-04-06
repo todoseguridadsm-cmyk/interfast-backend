@@ -598,16 +598,33 @@ app.post('/api/tickets', async (req, res) => {
 app.put('/api/tickets/:id', async (req, res) => {
   try {
     const ticketId = parseInt(req.params.id);
-    const { status } = req.body;
+    const { status, title, description, priority } = req.body;
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (priority !== undefined) updateData.priority = priority;
+
     const ticket = await prisma.ticket.update({
       where: { id: ticketId },
-      data: { status },
+      data: updateData,
       include: { client: true }
     });
     res.json(ticket);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error updating ticket' });
+  }
+});
+
+app.delete('/api/tickets/:id', async (req, res) => {
+  try {
+    const ticketId = parseInt(req.params.id);
+    await prisma.ticket.delete({ where: { id: ticketId } });
+    res.json({ message: 'Ticket eliminado correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error deleting ticket' });
   }
 });
 
@@ -668,7 +685,7 @@ app.post('/api/cash/movement', async (req, res) => {
         type, 
         amount: parseFloat(amount),
         description,
-        userId: req.user.id
+        userId: parseInt(req.user?.id) || 1
       },
       include: { user: { select: { username: true } } }
     });
