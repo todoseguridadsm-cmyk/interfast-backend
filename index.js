@@ -815,9 +815,11 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
     const paymentId = req.query.id || req.body?.data?.id;
 
     if (topic === 'payment' && paymentId && clientMP) {
+      console.log(`🔔 Webhook MP DISPARADO: Recibido pago ID ${paymentId}`);
       // 1. Ir a MP y preguntar los detalles de ese pago
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
+      console.log(`⏳ Webhook MP: Leyendo pago ${paymentId}: Estado -> ${mpPayment.status}`);
 
       if (mpPayment.status === 'approved') {
         const invoiceId = parseInt(mpPayment.external_reference);
@@ -830,10 +832,9 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           await prisma.payment.create({
             data: {
               invoiceId: invoiceId,
-              method: 'TRANSFER', // Se asume Transferencia/Digital
+              method: 'MERCADOPAGO',
               amountPaid: mpPayment.transaction_amount,
-              lateFeeApplied: 0,
-              userId: 1 // Admin o bot
+              lateFeeApplied: 0
             }
           });
           
