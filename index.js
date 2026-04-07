@@ -482,7 +482,9 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         const prefs = await preference.create({
           body: {
             items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3,'0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
-            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' }
+            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
+            external_reference: inv.id.toString(),
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
           }
         });
         paymentLink = prefs.init_point;
