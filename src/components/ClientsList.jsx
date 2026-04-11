@@ -106,6 +106,7 @@ export default function ClientsList() {
       "CUIT / CUIL": c.cuit || '-',
       "Condición AFIP": c.taxCondition,
       "Plan (Contratado)": c.plan?.name || 'Sin Plan',
+      "Saldo a Favor": `$${(c.walletBalance || 0).toFixed(2)}`,
       "Estado": c.status,
       "Email": c.email || '-',
       "Teléfono": c.phone || '-',
@@ -172,6 +173,7 @@ export default function ClientsList() {
               <th className="px-6 py-4 font-medium">DNI</th>
               <th className="px-6 py-4 font-medium">Plan Actual</th>
               <th className="px-6 py-4 font-medium">Red IP</th>
+              <th className="px-6 py-4 font-medium">Billetera</th>
               <th className="px-6 py-4 font-medium">Estado</th>
               <th className="px-6 py-4 font-medium text-right">Acciones</th>
             </tr>
@@ -201,6 +203,13 @@ export default function ClientsList() {
                   <td className="px-6 py-4 text-xs font-mono text-slate-500">
                     <span className="font-bold block text-slate-700">{client.ipNumber || '---'}</span>
                     {client.mainNode && <span className="mt-1 block">{client.mainNode}</span>}
+                  </td>
+                  <td className="px-6 py-4">
+                    {client.walletBalance > 0 ? (
+                       <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold border border-emerald-200">
+                         +${client.walletBalance.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                       </span>
+                    ) : ( <span className="text-slate-400 text-xs">$0.00</span> )}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
