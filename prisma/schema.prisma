@@ -70,6 +70,13 @@ model Invoice {
   dueDate3  DateTime?
 
   status        String    @default("PENDING") // "PENDING", "PAID"
+  
+  afipCae         String?
+  afipVtoCae      String?
+  afipCbteTip     Int?
+  afipPuntoVenta  Int?
+  afipCbteNro     Int?
+
   payments      Payment[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
