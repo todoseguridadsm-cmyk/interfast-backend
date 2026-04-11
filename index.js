@@ -12,11 +12,15 @@ require('dotenv').config();
 const Afip = require('@afipsdk/afip.js');
 let afip = null;
 try {
-  // Cuando tengas los certificados, reemplaza el cuit y coloca los archivos cert y key en una carpeta /afip_certs
-  // afip = new Afip({ CUIT: 20111111112, res_folder: './afip_certs/' });
-  console.log('AFIP Module Loaded: Pendiente de certificados para inicialización real.');
+  // Cuando subas los certificados crt y key ponlos en la carpeta /afip_certs
+  afip = new Afip({ 
+    CUIT: 30717010554, 
+    res_folder: './afip_certs/',
+    production: false // Puedes pasarlo a true cuando pruebes con certs reales en Vercel
+  });
+  console.log('AFIP Module Loaded para CUIT: 30717010554');
 } catch (e) {
-  console.error('Error inicializando AFIP:', e);
+  console.error('Error inicializando AFIP (pendientes certs físicos):', e.message);
 }
 
 const app = express();
@@ -439,6 +443,103 @@ app.post('/api/invoices/generate', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al generar facturas' });
+  }
+});
+
+app.post('/api/invoices/:id/afip', async (req, res) => {
+  if (!afip) return res.status(400).json({ error: 'Módulo ARCA/AFIP no está configurado (faltan los archivos cert/key en tu carpeta afip_certs).' });
+
+  try {
+    const invoiceId = parseInt(req.params.id);
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { client: true }
+    });
+
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+    if (invoice.status !== 'PAID') return res.status(400).json({ error: 'La factura debe estar en estado PAGADA antes de declararla en ARCA.' });
+    if (invoice.afipCae) return res.status(400).json({ error: 'Operación denegada: La factura ya había sido emitida a ARCA previamente.' });
+
+    let cbteTipo = 6; // Factura B default
+    let docTipo = 99; // DNI o Consumidor Final default
+    let docNro = 0;
+
+    if (invoice.client.taxCondition === 'RESPONSABLE_INSCRIPTO' && invoice.client.cuit) {
+      cbteTipo = 1; // Factura A
+      docTipo = 80; // CUIT
+      docNro = invoice.client.cuit.replace(/\D/g, '');
+    } else if (invoice.client.dni || invoice.client.cuit) {
+      const rawId = (invoice.client.cuit || invoice.client.dni).replace(/\D/g, '');
+      if (rawId.length === 11) {
+        docTipo = 80;
+        docNro = rawId;
+      } else if (rawId.length >= 7) {
+        docTipo = 96; // DNI
+        docNro = rawId;
+      }
+    }
+
+    const puntoVenta = 1;
+    const lastVoucher = await afip.ElectronicBilling.getLastVoucher(puntoVenta, cbteTipo);
+    const cbteNro = lastVoucher + 1;
+
+    // Cálculo IVA 21%
+    const totalAmount = invoice.totalAmount;
+    const netAmount = totalAmount / 1.21;
+    const ivaAmount = totalAmount - netAmount;
+
+    const todayDateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0,10).replace(/-/g, '');
+    const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0,10).replace(/-/g, '');
+
+    const data = {
+      'CantReg': 1,
+      'PtoVta': puntoVenta,
+      'CbteTipo': cbteTipo, 
+      'Concepto': 2, // Servicios
+      'DocTipo': docTipo,
+      'DocNro': docNro,
+      'CbteDesde': cbteNro,
+      'CbteHasta': cbteNro,
+      'CbteFch': parseInt(todayDateStr),
+      'ImpTotal': parseFloat(totalAmount.toFixed(2)),
+      'ImpTotConc': 0,
+      'ImpNeto': parseFloat(netAmount.toFixed(2)),
+      'ImpOpEx': 0,
+      'ImpIVA': parseFloat(ivaAmount.toFixed(2)),
+      'ImpTrib': 0,
+      'FchServDesde': parseInt(firstDayMonth),
+      'FchServHasta': parseInt(lastDayMonth),
+      'FchVtoPago': parseInt(todayDateStr),
+      'MonId': 'PES',
+      'MonCotiz': 1,
+      'Iva': [
+        {
+          'Id': 5, // 21%
+          'BaseImp': parseFloat(netAmount.toFixed(2)),
+          'Importe': parseFloat(ivaAmount.toFixed(2))
+        }
+      ]
+    };
+
+    const resAfip = await afip.ElectronicBilling.createVoucher(data);
+    
+    // Guardar trazabilidad ARCA en DB
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        afipCae: resAfip.CAE,
+        afipVtoCae: resAfip.CAEFchVto,
+        afipPuntoVenta: puntoVenta,
+        afipCbteTip: cbteTipo,
+        afipCbteNro: cbteNro
+      }
+    });
+
+    res.json({ message: 'Comprobante emitido en ARCA con éxito.', cae: resAfip.CAE });
+  } catch (error) {
+    console.error('Error ARCA:', error);
+    res.status(500).json({ error: error.message || 'Fallo de conectividad o validación en los servidores de ARCA.' });
   }
 });
 
