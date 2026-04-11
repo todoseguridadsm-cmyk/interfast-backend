@@ -543,6 +543,96 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
   }
 });
 
+app.post('/api/invoices/mass-afip', async (req, res) => {
+  if (!afip) return res.status(400).json({ error: 'Módulo ARCA/AFIP no está configurado (faltan los archivos cert/key).' });
+
+  try {
+    const { invoiceIds } = req.body;
+    if (!invoiceIds || !Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+      return res.status(400).json({ error: 'No se enviaron facturas para procesar.' });
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: { id: { in: invoiceIds } },
+      include: { client: true }
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+    let errors = [];
+
+    // Facturar iterativamente, uno a uno, para evitar choques en el CbteNro autoincremental de la AFIP
+    for (const invoice of invoices) {
+      try {
+        if (invoice.status !== 'PAID') throw new Error('No está en estado Pagada');
+        if (invoice.afipCae) throw new Error('Ya fue emitida a ARCA');
+
+        let cbteTipo = 6;
+        let docTipo = 99;
+        let docNro = 0;
+
+        if (invoice.client.taxCondition === 'RESPONSABLE_INSCRIPTO' && invoice.client.cuit) {
+          cbteTipo = 1;
+          docTipo = 80;
+          docNro = invoice.client.cuit.replace(/\D/g, '');
+        } else if (invoice.client.dni || invoice.client.cuit) {
+          const rawId = (invoice.client.cuit || invoice.client.dni).replace(/\D/g, '');
+          if (rawId.length === 11) {
+            docTipo = 80; docNro = rawId;
+          } else if (rawId.length >= 7) {
+            docTipo = 96; docNro = rawId;
+          }
+        }
+
+        const puntoVenta = 1;
+        const lastVoucher = await afip.ElectronicBilling.getLastVoucher(puntoVenta, cbteTipo);
+        const cbteNro = lastVoucher + 1;
+
+        const totalAmount = invoice.totalAmount || invoice.originalAmount;
+        const netAmount = totalAmount / 1.21;
+        const ivaAmount = totalAmount - netAmount;
+
+        const todayDateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+        const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0,10).replace(/-/g, '');
+        const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0,10).replace(/-/g, '');
+
+        const data = {
+          'CantReg': 1, 'PtoVta': puntoVenta, 'CbteTipo': cbteTipo, 'Concepto': 2, 'DocTipo': docTipo,
+          'DocNro': docNro, 'CbteDesde': cbteNro, 'CbteHasta': cbteNro, 'CbteFch': parseInt(todayDateStr),
+          'ImpTotal': parseFloat(totalAmount.toFixed(2)), 'ImpTotConc': 0, 'ImpNeto': parseFloat(netAmount.toFixed(2)),
+          'ImpOpEx': 0, 'ImpIVA': parseFloat(ivaAmount.toFixed(2)), 'ImpTrib': 0,
+          'FchServDesde': parseInt(firstDayMonth), 'FchServHasta': parseInt(lastDayMonth), 'FchVtoPago': parseInt(todayDateStr),
+          'MonId': 'PES', 'MonCotiz': 1,
+          'Iva': [{ 'Id': 5, 'BaseImp': parseFloat(netAmount.toFixed(2)), 'Importe': parseFloat(ivaAmount.toFixed(2)) }]
+        };
+
+        const resAfip = await afip.ElectronicBilling.createVoucher(data);
+        
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { afipCae: resAfip.CAE, afipVtoCae: resAfip.CAEFchVto, afipPuntoVenta: puntoVenta, afipCbteTip: cbteTipo, afipCbteNro: cbteNro }
+        });
+
+        successCount++;
+      } catch (err) {
+        failCount++;
+        errors.push(`Factura del cliente ${invoice.client.name}: ${err.message}`);
+      }
+    }
+
+    res.json({
+      message: `Lote completado. Éxitos: ${successCount}, Errores: ${failCount}`,
+      successCount,
+      failCount,
+      errors
+    });
+
+  } catch (error) {
+    console.error('Error ARCA Masivo:', error);
+    res.status(500).json({ error: 'Fallo general procesando comprobantes AFIP masivos.' });
+  }
+});
+
 app.delete('/api/invoices/:id', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
