@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import ClientsList from './components/ClientsList';
@@ -47,6 +48,36 @@ function AppContent() {
     localStorage.removeItem('user');
     window.location.href = '/login';
   };
+
+  useEffect(() => {
+    if (!token) return;
+    
+    let inactivityTimer;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      // 10 minutes = 600,000 milisegundos
+      inactivityTimer = setTimeout(() => {
+        alert('Sesión expirada por inactividad. Por favor, vuelva a iniciar sesión por seguridad.');
+        handleLogout();
+      }, 600000);
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('scroll', resetTimer);
+    window.addEventListener('click', resetTimer);
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('scroll', resetTimer);
+      window.removeEventListener('click', resetTimer);
+    };
+  }, [token]);
 
   const isAllowed = (menuKey) => {
     if (user.role === 'ADMIN') return true;
