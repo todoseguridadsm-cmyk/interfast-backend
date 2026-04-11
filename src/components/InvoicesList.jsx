@@ -8,6 +8,7 @@ export default function InvoicesList() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
 
   const fetchInvoices = async () => {
@@ -61,6 +62,33 @@ export default function InvoicesList() {
     } catch (error) {
       console.error(error);
       alert('Error ARCA: ' + (error.response?.data?.error || error.message));
+    }
+    setLoading(false);
+  };
+
+  const handleMassAfip = async () => {
+    const invoicesToEmit = selectedInvoices.filter(id => {
+      const inv = invoices.find(i => i.id === id);
+      return inv && inv.status === 'PAID' && !inv.afipCae;
+    });
+
+    if (invoicesToEmit.length === 0) {
+      return alert('No hay facturas válidas seleccionadas. Tienen que estar Pagadas y sin emitir.');
+    }
+
+    if (!window.confirm(`¿Emitir ${invoicesToEmit.length} facturas a ARCA masivamente? Las que fallen revelarán el motivo pero continuará el bloque.`)) return;
+    
+    setLoading(true);
+    try {
+      const res = await axios.post(`https://interfast-backend-95ww.onrender.com/api/invoices/mass-afip`, {
+        invoiceIds: invoicesToEmit
+      });
+      alert(res.data.message);
+      setSelectedInvoices([]);
+      fetchInvoices();
+    } catch (error) {
+      console.error(error);
+      alert('Error ARCA Masivo: ' + (error.response?.data?.error || error.message));
     }
     setLoading(false);
   };
@@ -223,10 +251,17 @@ export default function InvoicesList() {
     }
   };
 
+  const filteredInvoices = invoices.filter(inv => {
+    if (paymentFilter === 'ALL') return true;
+    if (paymentFilter === 'CASH') return inv.payments && inv.payments.some(p => p.method === 'CASH');
+    if (paymentFilter === 'MERCADOPAGO') return inv.payments && inv.payments.some(p => p.method === 'MERCADOPAGO');
+    return true;
+  });
+
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allPendingIds = invoices.filter(inv => inv.status === 'PENDING').map(inv => inv.id);
-      setSelectedInvoices(allPendingIds);
+      const allSelectableIds = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
+      setSelectedInvoices(allSelectableIds);
     } else {
       setSelectedInvoices([]);
     }
@@ -240,8 +275,8 @@ export default function InvoicesList() {
     }
   };
 
-  const pendingCount = invoices.filter(i => i.status === 'PENDING').length;
-  const isAllSelected = pendingCount > 0 && selectedInvoices.length === pendingCount;
+  const selectableCount = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).length;
+  const isAllSelected = selectableCount > 0 && selectedInvoices.length === selectableCount;
 
   return (
     <div className="space-y-6 relative">
@@ -251,17 +286,36 @@ export default function InvoicesList() {
             <FileText className="text-blue-600" size={32} />
             Facturación Mensual
           </h2>
-          <p className="text-slate-500 mt-1 ml-11">Control de emisiones, estado de cuenta y morosidad.</p>
+          <div className="mt-2 flex items-center gap-3">
+            <p className="text-slate-500 text-sm">Filtro de Pago:</p>
+            <select 
+              value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}
+              className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none p-1"
+            >
+              <option value="ALL">Todas las Facturas</option>
+              <option value="CASH">💰 Solo Punto de Venta (Efectivo)</option>
+              <option value="MERCADOPAGO">💳 Solo MercadoPago / Web</option>
+            </select>
+          </div>
         </div>
         <div className="flex gap-3 items-center">
           {selectedInvoices.length > 0 && (
-            <button 
-              onClick={() => startMassiveNotify(true)} disabled={loading}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 disabled:opacity-70"
-            >
-              <MessageCircle size={18} />
-              Enviar Seleccionados ({selectedInvoices.length})
-            </button>
+            <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+              <button 
+                onClick={handleMassAfip} disabled={loading}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2 text-sm"
+              >
+                <Landmark size={18} />
+                Lote AFIP ({selectedInvoices.length})
+              </button>
+              <button 
+                onClick={() => startMassiveNotify(true)} disabled={loading}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2 text-sm"
+              >
+                <MessageCircle size={18} />
+                WhatsApp ({selectedInvoices.length})
+              </button>
+            </div>
           )}
           <button 
             onClick={() => startMassiveNotify(false)} disabled={loading}
@@ -305,25 +359,26 @@ export default function InvoicesList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {invoices.length === 0 ? (
+              {filteredInvoices.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="px-6 py-16 text-center text-slate-400">
                     <FileText className="mx-auto mb-3 opacity-20" size={48} />
-                    <p className="text-lg font-medium text-slate-500">Aún no hay facturas emitidas.</p>
+                    <p className="text-lg font-medium text-slate-500">Aún no hay facturas aquí.</p>
                   </td>
                 </tr>
               ) : (
-                invoices.map(inv => {
+                filteredInvoices.map(inv => {
                   const isPaid = inv.status === 'PAID';
+                  const isSelectable = !isPaid || (isPaid && !inv.afipCae);
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
                       <td className="px-6 py-4 text-center">
-                        {!isPaid && (
+                        {isSelectable && (
                           <input 
                             type="checkbox" 
                             onChange={() => handleSelectOne(inv.id)}
                             checked={selectedInvoices.includes(inv.id)}
-                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer mt-1"
                           />
                         )}
                       </td>
