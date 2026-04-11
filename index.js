@@ -468,12 +468,26 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
       
       const today = new Date();
-      const dueDateEnd = new Date(inv.dueDate);
-      dueDateEnd.setHours(23, 59, 59, 999);
-      const isLate = today > dueDateEnd;
-      const calculatedLateFee = isLate ? inv.originalAmount * 0.10 : 0;
-      const totalAmountWithFee = inv.originalAmount + calculatedLateFee;
+      let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
+      let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
+      expirationDate.setHours(23, 59, 59, 999);
       
+      if (inv.dueDate1) {
+        const d1 = new Date(inv.dueDate1); d1.setHours(23,59,59,999);
+        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23,59,59,999);
+        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23,59,59,999);
+        
+        if (today > d2 && inv.priceV3) {
+           totalAmountWithFee = inv.priceV3;
+           expirationDate = d3;
+        } else if (today > d1 && inv.priceV2) {
+           totalAmountWithFee = inv.priceV2;
+           expirationDate = d2;
+        } else {
+           expirationDate = d1;
+        }
+      }
+
       let paymentLink = '';
       if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
         paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${inv.id}`;
@@ -484,6 +498,8 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
             items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3,'0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
             payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
             external_reference: inv.id.toString(),
+            expires: true,
+            expiration_date_to: expirationDate.toISOString(),
             notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
           }
         });
@@ -773,6 +789,21 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
     
     if(!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
     
+    // Determinamos caducidad exacta para prevenir que paguen días después
+    const today = new Date();
+    let expirationDate = new Date(invoice.dueDate);
+    expirationDate.setHours(23, 59, 59, 999);
+    
+    if (invoice.dueDate1) {
+      const d1 = new Date(invoice.dueDate1); d1.setHours(23,59,59,999);
+      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23,59,59,999);
+      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23,59,59,999);
+      
+      if (today <= d1) expirationDate = d1;
+      else if (today <= d2) expirationDate = d2;
+      else expirationDate = d3;
+    }
+
     // Si no hay Token real configurado, devolvemos un link de prueba para que WhatsApp siga funcionando
     if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
       return res.json({ init_point: `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${invoice.id}` });
@@ -794,6 +825,8 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
           email: invoice.client.email || 'test@test.com',
         },
         external_reference: invoice.id.toString(),
+        expires: true,
+        expiration_date_to: expirationDate.toISOString(),
         notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
       }
     });
@@ -807,33 +840,46 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
 
 // 6. Mercado Pago Webhook
 app.post('/api/mercadopago/webhook', async (req, res) => {
-  // Respondemos 200 rápido a MercadoPago
+  // Respondemos 200 rápido a MercadoPago para que no reintente
   res.sendStatus(200);
 
   try {
-    const topic = req.query.topic || req.body.type;
-    const paymentId = req.query.id || req.body?.data?.id;
+    // Extracción ultra-robusta de los IDs sin importar la versión del SDK
+    const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
+    let paymentId = req.query['data.id'] || req.query.id || req.body?.data?.id;
+    if (!paymentId && req.body?.id && topic === 'payment.created') paymentId = req.body.id;
 
-    if (topic === 'payment' && paymentId && clientMP) {
-      console.log(`🔔 Webhook MP DISPARADO: Recibido pago ID ${paymentId}`);
-      // 1. Ir a MP y preguntar los detalles de ese pago
+    console.log(`🔔 Webhook MP DISPARADO: topic=${topic}, ID detectado=${paymentId}`);
+
+    if ((topic === 'payment' || topic === 'payment.created') && paymentId && clientMP) {
+      // 1. Ir a MP y preguntar los detalles reales del pago por seguridad
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
-      console.log(`⏳ Webhook MP: Leyendo pago ${paymentId}: Estado -> ${mpPayment.status}`);
+      console.log(`⏳ Webhook MP: Leyendo status del pago en la API -> Estado: ${mpPayment.status}, Referencia: ${mpPayment.external_reference}`);
 
       if (mpPayment.status === 'approved') {
         const invoiceId = parseInt(mpPayment.external_reference);
-        if (!invoiceId) return;
+        if (!invoiceId || isNaN(invoiceId)) {
+          console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${mpPayment.external_reference}).`);
+          return;
+        }
 
-        // 2. Verificar si en nuestra DB existe y está pendiente
+        // 2. Verificar si en nuestra base existe y está pendiente
         const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-        if (invoice && invoice.status !== 'PAID') {
-          // 3. Crear el recibo histórico
+        
+        if (!invoice) {
+          console.error(`❌ Webhook MP: La factura ID ${invoiceId} no existe en la base de datos local.`);
+          return;
+        }
+
+        if (invoice.status !== 'PAID') {
+          // 3. Crear el recibo histórico (Clasificado estrictamente como MERCADOPAGO)
+          const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
           await prisma.payment.create({
             data: {
               invoiceId: invoiceId,
               method: 'MERCADOPAGO',
-              amountPaid: mpPayment.transaction_amount,
+              amountPaid: transactionAmount,
               lateFeeApplied: 0
             }
           });
@@ -843,12 +889,14 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
              where: { id: invoiceId },
              data: { status: 'PAID' }
           });
-          console.log(`✅ Webhook MP: Factura ${invoiceId} cobrada con éxito.`);
+          console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
+        } else {
+          console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya figuraba como PAGADA. Se omitió la duplicación.`);
         }
       }
     }
   } catch (error) {
-    console.error('❌ Error Webhook MP:', error.message);
+    console.error('❌ Error fatal en Webhook MP:', error.message || error);
   }
 });
 
