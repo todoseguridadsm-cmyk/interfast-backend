@@ -72,7 +72,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
