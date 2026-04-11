@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2 } from 'lucide-react';
+import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -47,6 +47,20 @@ export default function InvoicesList() {
     } catch (error) {
       console.error(error);
       alert('Error al eliminar factura: ' + (error.response?.data?.error || error.message));
+    }
+    setLoading(false);
+  };
+
+  const handleAfipEmit = async (id) => {
+    if (!window.confirm('¿Confirmar emisión de Factura Electrónica a ARCA/AFIP? Esto generará un CAE oficial.')) return;
+    setLoading(true);
+    try {
+      const res = await axios.post(`https://interfast-backend-95ww.onrender.com/api/invoices/${id}/afip`);
+      alert(res.data.message + ' CAE: ' + res.data.cae);
+      fetchInvoices();
+    } catch (error) {
+      console.error(error);
+      alert('Error ARCA: ' + (error.response?.data?.error || error.message));
     }
     setLoading(false);
   };
@@ -386,13 +400,30 @@ export default function InvoicesList() {
                           </div>
                         )}
                         {(inv.status === 'PAID' || inv.status === 'PARTIAL') && (
-                          <button 
-                            onClick={() => generatePDF(inv)}
-                            className="bg-slate-800 hover:bg-slate-700 text-white transition-colors px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 w-full text-xs font-medium shadow-sm mt-2"
-                            title="Descargar Comprobante PDF"
-                          >
-                            <Download size={14} /> PDF
-                          </button>
+                          <div className="flex flex-col gap-2 mt-2">
+                            <button 
+                              onClick={() => generatePDF(inv)}
+                              className="bg-slate-800 hover:bg-slate-700 text-white transition-colors px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 w-full text-xs font-medium shadow-sm"
+                              title="Descargar Comprobante PDF"
+                            >
+                              <Download size={14} /> Descargar PDF
+                            </button>
+                            {inv.status === 'PAID' && !inv.afipCae && (
+                              <button 
+                                onClick={() => handleAfipEmit(inv.id)}
+                                className="bg-sky-600 hover:bg-sky-700 text-white transition-colors px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 w-full text-xs font-bold shadow-sm"
+                                title="Declarar recibo a ARCA"
+                              >
+                                <Landmark size={14} /> Emitir ARCA
+                              </button>
+                            )}
+                            {inv.afipCae && (
+                              <div className="bg-emerald-50 text-emerald-800 px-3 py-2 rounded-lg flex flex-col items-center justify-center border border-emerald-200">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">CAE APROBADO</span>
+                                <span className="font-mono text-xs font-bold">{inv.afipCae}</span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>

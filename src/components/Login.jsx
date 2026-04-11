@@ -42,7 +42,7 @@ export default function Login() {
           </div>
         )}
         
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-5" autoComplete="off">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">Usuario</label>
             <div className="relative group">
@@ -51,6 +51,9 @@ export default function Login() {
                 value={username} onChange={e=>setUsername(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all font-medium text-slate-800 placeholder-slate-400" 
                 placeholder="Nombre de usuario"
+                autoComplete="off"
+                data-lpignore="true"
+                spellCheck="false"
                 required />
             </div>
           </div>
@@ -62,6 +65,8 @@ export default function Login() {
                 value={password} onChange={e=>setPassword(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all font-medium text-slate-800 placeholder-slate-400" 
                 placeholder="••••••••"
+                autoComplete="new-password"
+                data-lpignore="true"
                 required />
             </div>
           </div>
