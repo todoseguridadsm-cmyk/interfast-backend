@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download } from 'lucide-react';
+import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -33,6 +33,20 @@ export default function InvoicesList() {
     } catch (error) {
       console.error(error);
       alert('Error al generar facturas');
+    }
+    setLoading(false);
+  };
+
+  const handleDeleteInvoice = async (id) => {
+    if (!window.confirm('¿Estás seguro de que deseas anular y eliminar esta factura? Si te equivocaste de monto, podrás generarla nuevamente tras corregir el Plan del cliente.')) return;
+    
+    setLoading(true);
+    try {
+      await axios.delete(`https://interfast-backend-95ww.onrender.com/api/invoices/${id}`);
+      fetchInvoices();
+    } catch (error) {
+      console.error(error);
+      alert('Error al eliminar factura: ' + (error.response?.data?.error || error.message));
     }
     setLoading(false);
   };
@@ -360,6 +374,15 @@ export default function InvoicesList() {
                             >
                               <MessageCircle size={16} />
                             </button>
+                            {inv.status === 'PENDING' && (
+                              <button 
+                                onClick={() => handleDeleteInvoice(inv.id)} 
+                                className="text-red-500 hover:text-red-700 transition-colors p-2 rounded-lg hover:bg-red-50 bg-white border border-red-200" 
+                                title="Anular Factura"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         )}
                         {(inv.status === 'PAID' || inv.status === 'PARTIAL') && (
