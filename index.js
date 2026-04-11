@@ -442,6 +442,37 @@ app.post('/api/invoices/generate', async (req, res) => {
   }
 });
 
+app.delete('/api/invoices/:id', async (req, res) => {
+  try {
+    const invoiceId = parseInt(req.params.id);
+    
+    // Verificar si existe y su estado
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId }
+    });
+    
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+    
+    if (invoice.status === 'PAID') {
+      return res.status(400).json({ error: 'No se puede eliminar una factura que figura como PAGADA. Esta acción afectaría la caja general.' });
+    }
+    
+    // Si la factura tiene pagos parciales, eliminarlos por Foreign Key antes de borrarla
+    await prisma.payment.deleteMany({
+      where: { invoiceId: invoiceId }
+    });
+    
+    await prisma.invoice.delete({
+      where: { id: invoiceId }
+    });
+    
+    res.json({ message: 'Factura anulada y eliminada correctamente.' });
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    res.status(500).json({ error: 'Error al eliminar factura' });
+  }
+});
+
 app.post('/api/invoices/mass-notify', async (req, res) => {
   if (waStatus !== 'CONNECTED') {
     return res.status(400).json({ error: 'El Robot de WhatsApp no está conectado (Escanea el QR).' });
