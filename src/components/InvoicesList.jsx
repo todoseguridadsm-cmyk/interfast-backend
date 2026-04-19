@@ -206,18 +206,41 @@ export default function InvoicesList() {
     const originalAmountRounded = inv.originalAmount ? inv.originalAmount.toFixed(2) : '0.00';
     const amountPaid = inv.payments && inv.payments.length > 0 ? inv.payments.reduce((acc, p) => acc + p.amountPaid, 0) : inv.totalAmount;
     
+    const lateFee = amountPaid > parseFloat(originalAmountRounded) ? amountPaid - parseFloat(originalAmountRounded) : 0;
+    
+    const tableBody = [
+      [
+        `Abono de Internet (${inv.client?.plan?.name || 'Plan Base'})`,
+        `${String(inv.month).padStart(2, '0')}/${inv.year}`,
+        `$ ${originalAmountRounded}`,
+        `$ ${parseFloat(originalAmountRounded).toFixed(2)}`
+      ]
+    ];
+
+    if (lateFee > 0) {
+      tableBody.push([
+        `Recargo por Mora (Pago fuera de término)`,
+        `---`,
+        `---`,
+        `$ ${lateFee.toFixed(2)}`
+      ]);
+      // Fila sumatoria
+      tableBody.push([
+        `TOTAL ABONADO`,
+        ``,
+        ``,
+        `$ ${amountPaid.toFixed(2)}`
+      ]);
+    } else {
+      // Si no hubo mora, simplemente dejamos explícito que el total abonado es el base
+       tableBody[0][3] = `$ ${amountPaid.toFixed(2)}`;
+    }
+    
     try {
       autoTable(doc, {
         startY: 100,
-        head: [['Descripción', 'Período', 'Importe Original', 'Total Abonado']],
-        body: [
-          [
-            `Abono de Internet (${inv.client?.plan?.name || 'Plan Base'})`,
-            `${String(inv.month).padStart(2, '0')}/${inv.year}`,
-            `$ ${originalAmountRounded}`,
-            `$ ${amountPaid.toFixed(2)}`
-          ]
-        ],
+        head: [['Descripción', 'Período', 'Precio Base', 'Importe Abonado']],
+        body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 10, cellPadding: 6 },
