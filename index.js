@@ -204,7 +204,7 @@ app.get('/api/clients', async (req, res) => {
 
 app.post('/api/clients', async (req, res) => {
   try {
-    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition } = req.body;
+    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast } = req.body;
     
     // Buscar si hay un número/ID disponible por eliminación (huecos en la secuencia)
     const activeClients = await prisma.client.findMany({ 
@@ -222,7 +222,7 @@ app.post('/api/clients', async (req, res) => {
       expected++;
     }
 
-    const dataPayload = { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition };
+    const dataPayload = { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -258,10 +258,10 @@ app.delete('/api/clients/:id', async (req, res) => {
 
 app.put('/api/clients/:id', async (req, res) => {
   try {
-    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition } = req.body;
+    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast } = req.body;
     const client = await prisma.client.update({
       where: { id: parseInt(req.params.id) },
-      data: { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition },
+      data: { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast },
     });
     res.json(client);
   } catch (error) {
