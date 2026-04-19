@@ -40,10 +40,11 @@ export default function PlansList() {
   const handleEdit = (plan) => {
     setEditingId(plan.id);
     setFormData({ 
-      name: plan.name, megas: plan.megas, 
-      priceV1: plan.priceV1 || plan.totalPrice, dueDate1: plan.dueDate1 || 10,
-      priceV2: plan.priceV2 || plan.totalPrice, dueDate2: plan.dueDate2 || 15,
-      priceV3: plan.priceV3 || plan.totalPrice, dueDate3: plan.dueDate3 || 20
+      name: plan.name || '', 
+      megas: plan.megas || '', 
+      priceV1: plan.priceV1 ?? plan.totalPrice ?? '', dueDate1: plan.dueDate1 || 10,
+      priceV2: plan.priceV2 ?? plan.totalPrice ?? '', dueDate2: plan.dueDate2 || 15,
+      priceV3: plan.priceV3 ?? plan.totalPrice ?? '', dueDate3: plan.dueDate3 || 20
     });
   };
 
@@ -63,13 +64,13 @@ export default function PlansList() {
     try {
       const payload = {
         name: formData.name,
-        megas: parseInt(formData.megas),
-        priceV1: parseFloat(formData.priceV1),
-        dueDate1: parseInt(formData.dueDate1),
-        priceV2: parseFloat(formData.priceV2),
-        dueDate2: parseInt(formData.dueDate2),
-        priceV3: parseFloat(formData.priceV3),
-        dueDate3: parseInt(formData.dueDate3)
+        megas: parseInt(formData.megas) || 0,
+        priceV1: parseFloat(formData.priceV1) || 0,
+        dueDate1: parseInt(formData.dueDate1) || 10,
+        priceV2: parseFloat(formData.priceV2) || 0,
+        dueDate2: parseInt(formData.dueDate2) || 15,
+        priceV3: parseFloat(formData.priceV3) || 0,
+        dueDate3: parseInt(formData.dueDate3) || 20
       };
       
       if (editingId) {
