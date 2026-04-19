@@ -118,13 +118,26 @@ model CashMovement {
 }
 
 model Ticket {
-  id          Int      @id @default(autoincrement())
-  clientId    Int
-  client      Client   @relation(fields: [clientId], references: [id])
-  title       String
-  description String
-  status      String   @default("OPEN")
-  priority    String   @default("NORMAL")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int             @id @default(autoincrement())
+  clientId       Int
+  client         Client          @relation(fields: [clientId], references: [id])
+  title          String
+  description    String
+  status         String          @default("OPEN")
+  priority       String          @default("NORMAL")
+  scheduledAt    DateTime?
+  routerProvided Boolean         @default(false)
+  mastProvided   Boolean         @default(false)
+  history        TicketHistory[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model TicketHistory {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  action    String
+  notes     String?
+  createdAt DateTime @default(now())
 }
