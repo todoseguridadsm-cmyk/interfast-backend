@@ -24,6 +24,8 @@ model Client {
   taxCondition String @default("CONSUMIDOR_FINAL")
   status    String    @default("ACTIVE") // "ACTIVE", "SUSPENDED"
   walletBalance Float @default(0.0)
+  hasRouter Boolean @default(false)
+  hasMast   Boolean @default(false)
   planId    Int?
   plan      Plan?     @relation(fields: [planId], references: [id])
   invoices  Invoice[]
