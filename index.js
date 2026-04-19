@@ -837,7 +837,10 @@ app.delete('/api/users/:id', async (req, res) => {
 app.get('/api/tickets', async (req, res) => {
   try {
     const tickets = await prisma.ticket.findMany({
-      include: { client: true },
+      include: { 
+        client: true,
+        history: { orderBy: { createdAt: 'desc' } }
+      },
       orderBy: { createdAt: 'desc' }
     });
     res.json(tickets);
@@ -851,8 +854,19 @@ app.post('/api/tickets', async (req, res) => {
   try {
     const { clientId, title, description, priority } = req.body;
     const ticket = await prisma.ticket.create({
-      data: { clientId: parseInt(clientId), title, description, priority: priority || 'NORMAL' },
-      include: { client: true }
+      data: { 
+        clientId: parseInt(clientId), 
+        title, 
+        description, 
+        priority: priority || 'NORMAL',
+        history: {
+          create: { action: 'CREADO', notes: 'Ticket abierto.' }
+        }
+      },
+      include: { 
+        client: true,
+        history: { orderBy: { createdAt: 'desc' } }
+      }
     });
     res.json(ticket);
   } catch (err) {
@@ -864,17 +878,34 @@ app.post('/api/tickets', async (req, res) => {
 app.put('/api/tickets/:id', async (req, res) => {
   try {
     const ticketId = parseInt(req.params.id);
-    const { status, title, description, priority } = req.body;
+    const { status, title, description, priority, scheduledAt, routerProvided, mastProvided, statusAction, resolutionNotes } = req.body;
     const updateData = {};
     if (status !== undefined) updateData.status = status;
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (priority !== undefined) updateData.priority = priority;
+    
+    // Novedades
+    if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    if (routerProvided !== undefined) updateData.routerProvided = routerProvided;
+    if (mastProvided !== undefined) updateData.mastProvided = mastProvided;
+
+    if (statusAction) {
+       updateData.history = {
+         create: {
+           action: statusAction,
+           notes: resolutionNotes || ''
+         }
+       };
+    }
 
     const ticket = await prisma.ticket.update({
       where: { id: ticketId },
       data: updateData,
-      include: { client: true }
+      include: { 
+        client: true,
+        history: { orderBy: { createdAt: 'desc' } }
+      }
     });
     res.json(ticket);
   } catch (err) {
