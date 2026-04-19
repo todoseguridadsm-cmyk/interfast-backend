@@ -9,7 +9,8 @@ export default function InvoicesList() {
   const [loading, setLoading] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
   const [paymentFilter, setPaymentFilter] = useState('ALL');
-  const [periodFilter, setPeriodFilter] = useState('RECENT');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
 
   const fetchInvoices = async () => {
@@ -253,26 +254,31 @@ export default function InvoicesList() {
   };
 
   const filteredInvoices = invoices.filter(inv => {
-    // 1. Period Filter (hide paid invoices older than previous month)
-    if (periodFilter === 'RECENT' && inv.status === 'PAID') {
-       const today = new Date();
-       const m1 = today.getMonth() + 1;
-       const y1 = today.getFullYear();
-       
-       const prevDate = new Date(y1, m1 - 2, 1);
-       const m2 = prevDate.getMonth() + 1;
-       const y2 = prevDate.getFullYear();
+    const isSearching = (startDate !== '' && endDate !== '');
 
-       const isCurrent = inv.month === m1 && inv.year === y1;
-       const isPrevious = inv.month === m2 && inv.year === y2;
+    // Ocultar facturas con CAE (emitidas ARCA) de la página principal, a menos que estemos buscando fechadas explícitamente
+    if (inv.afipCae && !isSearching) {
+      return false;
+    }
+
+    // 1. Period Filter (Date Range Calendar)
+    if (isSearching) {
+       const start = new Date(startDate);
+       start.setHours(0, 0, 0, 0); // Ajustar a inicio de día en hora local
+       const end = new Date(endDate);
+       end.setHours(23, 59, 59, 999); // Ajustar a fin de día en hora local
        
-       if (!isCurrent && !isPrevious) return false;
+       const invDate = new Date(inv.dueDate); // Buscamos por la fecha de vencimiento configurada
+       
+       if (invDate < start || invDate > end) {
+         return false;
+       }
     }
 
     // 2. Payment Method Filter
-    if (paymentFilter === 'ALL') return true;
     if (paymentFilter === 'CASH') return inv.payments && inv.payments.some(p => p.method === 'CASH');
     if (paymentFilter === 'MERCADOPAGO') return inv.payments && inv.payments.some(p => p.method === 'MERCADOPAGO');
+    
     return true;
   });
 
@@ -305,21 +311,27 @@ export default function InvoicesList() {
             Facturación Mensual
           </h2>
           <div className="mt-2 flex items-center gap-3">
-            <p className="text-slate-500 text-sm">Filtros:</p>
-            <select 
-              value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)}
-              className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none p-1"
-            >
-              <option value="RECENT">📅 Mes Actual y Anterior</option>
-              <option value="ALL">📅 Historial Completo</option>
-            </select>
+            <p className="text-slate-500 text-sm">Buscar:</p>
+            <input 
+              type="date"
+              value={startDate} onChange={e=>setStartDate(e.target.value)}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none"
+              title="Fecha Desde"
+            />
+            <span className="text-slate-400">-</span>
+            <input 
+              type="date"
+              value={endDate} onChange={e=>setEndDate(e.target.value)}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none"
+              title="Fecha Hasta"
+            />
             <select 
               value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)}
               className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none p-1"
             >
               <option value="ALL">Todas las Facturas</option>
-              <option value="CASH">💰 Solo Punto de Venta (Efectivo)</option>
-              <option value="MERCADOPAGO">💳 Solo MercadoPago / Web</option>
+              <option value="CASH">💰 Solo Efectivo</option>
+              <option value="MERCADOPAGO">💳 Solo Web</option>
             </select>
           </div>
         </div>
