@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Dashboard from './components/Dashboard';
 import ClientsList from './components/ClientsList';
@@ -12,7 +12,7 @@ import DailyCash from './components/DailyCash';
 import TicketsList from './components/TicketsList';
 import POSCaja from './components/POSCaja';
 import WhatsAppStatus from './components/WhatsAppStatus';
-import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -42,6 +42,9 @@ function AppContent() {
 
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : { role: 'STAFF', permissions: [], username: 'Usuario' };
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const handleLinkClick = () => setIsMobileMenuOpen(false);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -86,48 +89,62 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans">
+    <div className="flex flex-col md:flex-row h-screen bg-slate-50 font-sans">
+      
+      {/* Mobile Top Bar */}
+      <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between shadow-md z-30">
+        <h1 className="text-xl font-bold tracking-tight">tkip<span className="text-blue-500">.net</span></h1>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-1 text-slate-300 hover:text-white transition-colors">
+          {isMobileMenuOpen ? <X size={26}/> : <Menu size={26}/>}
+        </button>
+      </div>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col">
-        <div className="p-6">
+      <aside className={`fixed md:static top-0 bottom-0 left-0 z-50 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-out w-64 bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col`}>
+        <div className="p-6 hidden md:block">
           <h1 className="text-2xl font-bold text-white tracking-tight">tkip<span className="text-blue-500">.net</span></h1>
           <p className="text-xs text-slate-500 uppercase mt-1 tracking-wider font-semibold">ISP Management</p>
         </div>
         
-        <div className="px-6 py-2">
+        <div className="px-6 py-4 md:py-2 border-b border-slate-800 md:border-none">
           <div className="text-xs text-slate-500 font-medium">Sesión iniciada como:</div>
           <div className="text-sm font-bold text-blue-400 capitalize">{user.username}</div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
-          <Link to="/" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar pb-6">
+          <Link onClick={handleLinkClick} to="/" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
             <LayoutDashboard size={20} />
             <span>Dashboard</span>
           </Link>
           
           {isAllowed('CLIENTES') && (
-            <Link to="/clients" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/clients' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Link onClick={handleLinkClick} to="/clients" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/clients' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Users size={20} />
               <span>Clientes</span>
             </Link>
           )}
 
           {isAllowed('FACTURACION') && (
-            <Link to="/invoices" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/invoices' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Link onClick={handleLinkClick} to="/invoices" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/invoices' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <CreditCard size={20} />
               <span>Facturación</span>
             </Link>
           )}
 
           {isAllowed('PLANES') && (
-            <Link to="/plans" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/plans' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Link onClick={handleLinkClick} to="/plans" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/plans' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Wifi size={20} />
               <span>Planes</span>
             </Link>
           )}
 
           {isAllowed('REPORTES') && (
-            <Link to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Link onClick={handleLinkClick} to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <BarChart3 size={20} />
               <span>Reportes y Ventas</span>
             </Link>
@@ -135,11 +152,11 @@ function AppContent() {
 
           {isAllowed('CAJA') && (
             <>
-              <Link to="/pos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/pos' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Link onClick={handleLinkClick} to="/pos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/pos' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Store size={20} />
                 <span>Punto de Venta / Caja</span>
               </Link>
-              <Link to="/cash" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/cash' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Link onClick={handleLinkClick} to="/cash" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/cash' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Wallet size={20} />
                 <span>Cierre y Arqueo Diario</span>
               </Link>
@@ -147,7 +164,7 @@ function AppContent() {
           )}
 
           {isAllowed('SOPORTE') && (
-            <Link to="/tickets" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/tickets' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+            <Link onClick={handleLinkClick} to="/tickets" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/tickets' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Ticket size={20} />
               <span>Soporte Técnico</span>
             </Link>
@@ -155,11 +172,11 @@ function AppContent() {
 
           {user.role === 'ADMIN' && (
             <>
-              <Link to="/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/users' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Link onClick={handleLinkClick} to="/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/users' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <ShieldAlert size={20} />
                 <span>Empleados</span>
               </Link>
-              <Link to="/whatsapp" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/whatsapp' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Link onClick={handleLinkClick} to="/whatsapp" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/whatsapp' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <MessageSquare size={20} />
                 <span>Servidor WhatsApp</span>
               </Link>
@@ -175,8 +192,8 @@ function AppContent() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50/50">
-        <div className="p-8">
+      <main className="flex-1 overflow-auto bg-slate-50/50 md:mt-0 relative">
+        <div className="p-4 md:p-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={isAllowed('CLIENTES') ? <ClientsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
