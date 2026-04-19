@@ -10,7 +10,7 @@ export default function ClientsList() {
   const [formData, setFormData] = useState({
     dni: '', name: '', email: '', phone: '', address: '', 
     city: '', province: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
-    cuit: '', taxCondition: 'CONSUMIDOR_FINAL'
+    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', hasRouter: false, hasMast: false
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -30,15 +30,22 @@ export default function ClientsList() {
       ipNumber: client.ipNumber || '',
       planId: client.planId || '',
       cuit: client.cuit || '',
-      taxCondition: client.taxCondition || 'CONSUMIDOR_FINAL'
+      taxCondition: client.taxCondition || 'CONSUMIDOR_FINAL',
+      hasRouter: client.hasRouter || false,
+      hasMast: client.hasMast || false
     });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', email: '', phone: '', address: '', city: '', province: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL' });
+    setFormData({ dni: '', name: '', email: '', phone: '', address: '', city: '', province: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', hasRouter: false, hasMast: false });
     setIsModalOpen(false);
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const fetchClients = () => {
@@ -58,9 +65,7 @@ export default function ClientsList() {
     fetchPlans();
   }, []);
 
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+// Replaced handleInputChange above
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -114,7 +119,9 @@ export default function ClientsList() {
       "Localidad": `${c.city || ''} ${c.province || ''}`.trim() || '-',
       "Nodo Principal": c.mainNode || '-',
       "Panel": c.panelId || '-',
-      "IP Asignada": c.ipNumber || '-'
+      "IP Asignada": c.ipNumber || '-',
+      "Router Entregado": c.hasRouter ? 'Sí' : 'No',
+      "Mástil Entregado": c.hasMast ? 'Sí' : 'No'
     }));
 
     if (dataToExport.length === 0) return alert("La búsqueda actual no tiene resultados para exportar.");
@@ -203,6 +210,10 @@ export default function ClientsList() {
                   <td className="px-6 py-4 text-xs font-mono text-slate-500">
                     <span className="font-bold block text-slate-700">{client.ipNumber || '---'}</span>
                     {client.mainNode && <span className="mt-1 block">{client.mainNode}</span>}
+                    <div className="flex gap-1 mt-1">
+                      {client.hasRouter && <span className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded font-bold">RTR</span>}
+                      {client.hasMast && <span className="text-[9px] bg-sky-100 text-sky-700 px-1 rounded font-bold">MST</span>}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {client.walletBalance > 0 ? (
@@ -325,6 +336,20 @@ export default function ClientsList() {
                       <label className="block text-xs font-medium text-slate-500 mb-1">Número de IP Asignada</label>
                       <input type="text" name="ipNumber" value={formData.ipNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm font-bold border-l-4 border-l-blue-500" placeholder="192.168.1.50" />
                     </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
+                  <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Inventario Entregado (Equipos de la Empresa)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-sky-50 p-4 border border-sky-100 rounded-xl">
+                    <label className="flex items-center gap-3 cursor-pointer text-sm font-semibold text-slate-700">
+                      <input type="checkbox" name="hasRouter" checked={formData.hasRouter} onChange={handleInputChange} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
+                      Se le entregó Router Wi-Fi
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer text-sm font-semibold text-slate-700">
+                      <input type="checkbox" name="hasMast" checked={formData.hasMast} onChange={handleInputChange} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
+                      Se le entregó Mástil / Antena
+                    </label>
                   </div>
                 </div>
 
