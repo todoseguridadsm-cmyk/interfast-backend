@@ -13,8 +13,8 @@ const Afip = require('@afipsdk/afip.js');
 let afip = null;
 try {
   // Los certificados deben estar en la carpeta /afip_certs con los nombres 'cert' y 'key'
-  afip = new Afip({ 
-    CUIT: 30717010554, 
+  afip = new Afip({
+    CUIT: 30717010554,
     res_folder: './afip_certs/',
     production: true // Cambiado a true para producción
   });
@@ -62,9 +62,9 @@ seedAdmin();
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
+
   if (!token) return res.status(401).json({ error: 'Acceso Denegado. Faltan Credenciales JWT.' });
-  
+
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Token Inválido o Expirado.' });
     req.user = user;
@@ -102,13 +102,13 @@ async function connectToWhatsApp() {
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
-    
+
     if (qr) {
       waStatus = 'QR_READY';
       waQrCode = qr; // Baileys produces raw strings for QR, perfectly compatible with our react QRCodeSVG
       console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
     }
-    
+
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log('📱 WhatsApp Desconectado. Razón:', lastDisconnect.error?.message, '| Reconectar:', shouldReconnect);
@@ -137,21 +137,21 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await prisma.user.findUnique({ where: { username } });
-    
+
     if (!user) return res.status(401).json({ error: 'Credenciales incorrectas' });
-    
+
     const validPassword = await bcrypt.compare(password, user.passwordHash);
     if (!validPassword) return res.status(401).json({ error: 'Credenciales incorrectas' });
-    
+
     // Generate JWT
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, permissions: user.permissions }, 
-      JWT_SECRET, 
+      { id: user.id, username: user.username, role: user.role, permissions: user.permissions },
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
-    
+
     res.json({ token, user: { username: user.username, role: user.role, permissions: JSON.parse(user.permissions) } });
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error del servidor en el login' });
   }
@@ -178,7 +178,7 @@ app.get('/api/dashboard', async (req, res) => {
   try {
     const clientsCount = await prisma.client.count();
     const invoices = await prisma.invoice.findMany({ where: { status: 'PENDING' } });
-    
+
     const pendingTotal = invoices.reduce((acc, inv) => acc + inv.originalAmount, 0);
 
     res.json({
@@ -205,13 +205,13 @@ app.get('/api/clients', async (req, res) => {
 app.post('/api/clients', async (req, res) => {
   try {
     const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast } = req.body;
-    
+
     // Buscar si hay un número/ID disponible por eliminación (huecos en la secuencia)
-    const activeClients = await prisma.client.findMany({ 
-      select: { id: true }, 
-      orderBy: { id: 'asc' } 
+    const activeClients = await prisma.client.findMany({
+      select: { id: true },
+      orderBy: { id: 'asc' }
     });
-    
+
     let reusableId = null;
     let expected = 1;
     for (const c of activeClients) {
@@ -240,14 +240,14 @@ app.post('/api/clients', async (req, res) => {
 app.delete('/api/clients/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    
+
     const invoices = await prisma.invoice.findMany({ where: { clientId: id } });
     const invoiceIds = invoices.map(i => i.id);
     if (invoiceIds.length > 0) {
       await prisma.payment.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
       await prisma.invoice.deleteMany({ where: { clientId: id } });
     }
-    
+
     await prisma.client.delete({ where: { id: id } });
     res.json({ message: 'Cliente eliminado' });
   } catch (error) {
@@ -287,12 +287,12 @@ app.post('/api/plans', async (req, res) => {
     const ivaAmount = basePrice * 0.21;
     const totalPrice = parseFloat(priceV1 || 0);
 
-    const plan = await prisma.plan.create({ 
-      data: { 
-        name, 
-        megas: parseInt(megas || 0), 
-        basePrice, 
-        ivaAmount, 
+    const plan = await prisma.plan.create({
+      data: {
+        name,
+        megas: parseInt(megas || 0),
+        basePrice,
+        ivaAmount,
         totalPrice,
         priceV1: parseFloat(priceV1 || 0),
         dueDate1: parseInt(dueDate1 || 10),
@@ -300,7 +300,7 @@ app.post('/api/plans', async (req, res) => {
         dueDate2: parseInt(dueDate2 || 15),
         priceV3: parseFloat(priceV3 || 0),
         dueDate3: parseInt(dueDate3 || 20)
-      } 
+      }
     });
     res.json(plan);
   } catch (error) {
@@ -313,7 +313,7 @@ app.delete('/api/plans/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const inUse = await prisma.client.findFirst({ where: { planId: id } });
     if (inUse) return res.status(400).json({ error: 'No se puede eliminar el plan porque hay clientes asociados a él.' });
-    
+
     await prisma.plan.delete({ where: { id } });
     res.json({ message: 'Plan eliminado' });
   } catch (error) {
@@ -328,14 +328,14 @@ app.put('/api/plans/:id', async (req, res) => {
     const basePrice = parseFloat(priceV1 || 0) / 1.21;
     const ivaAmount = basePrice * 0.21;
     const totalPrice = parseFloat(priceV1 || 0);
-    
+
     const plan = await prisma.plan.update({
       where: { id: parseInt(req.params.id) },
-      data: { 
-        name, 
+      data: {
+        name,
         megas: parseInt(megas || 0),
-        basePrice, 
-        ivaAmount, 
+        basePrice,
+        ivaAmount,
         totalPrice,
         priceV1: parseFloat(priceV1 || 0),
         dueDate1: parseInt(dueDate1 || 10),
@@ -355,11 +355,11 @@ app.put('/api/plans/:id', async (req, res) => {
 // 4. Invoices and Late Fee Engine
 app.get('/api/invoices', async (req, res) => {
   try {
-    const invoices = await prisma.invoice.findMany({ 
+    const invoices = await prisma.invoice.findMany({
       include: { client: true, payments: true },
       orderBy: { dueDate: 'desc' }
     });
-    
+
     // Motor Dinámico de Mora Ponderada (Tiered)
     const dynamicInvoices = invoices.map(inv => {
       const today = new Date();
@@ -370,21 +370,21 @@ app.get('/api/invoices', async (req, res) => {
       if (inv.status === 'PENDING') {
         const d1 = new Date(inv.dueDate1 || inv.dueDate);
         const d2 = new Date(inv.dueDate2 || inv.dueDate);
-        
+
         // Si hoy es mayor a Vencimiento 2, paga Precio 3.
         if (today > d2 && inv.priceV3) {
-           isLate = true;
-           totalAmount = inv.priceV3;
-           calculatedLateFee = totalAmount - inv.originalAmount;
-        } 
+          isLate = true;
+          totalAmount = inv.priceV3;
+          calculatedLateFee = totalAmount - inv.originalAmount;
+        }
         // Si no pasó el V2, pero sí pasó el V1, paga Precio 2.
         else if (today > d1 && inv.priceV2) {
-           isLate = true;
-           totalAmount = inv.priceV2;
-           calculatedLateFee = totalAmount - inv.originalAmount;
+          isLate = true;
+          totalAmount = inv.priceV2;
+          calculatedLateFee = totalAmount - inv.originalAmount;
         }
       }
-      
+
       return { ...inv, isLate, calculatedLateFee, totalAmount };
     });
     res.json(dynamicInvoices);
@@ -396,24 +396,24 @@ app.get('/api/invoices', async (req, res) => {
 
 app.post('/api/invoices/generate', async (req, res) => {
   try {
-    const clients = await prisma.client.findMany({ 
-      where: { status: 'ACTIVE' }, 
+    const clients = await prisma.client.findMany({
+      where: { status: 'ACTIVE' },
       include: { plan: true }
     });
-    
+
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    
+
     let generatedCount = 0;
 
     for (const client of clients) {
       if (!client.plan) continue;
-      
+
       const existing = await prisma.invoice.findFirst({
         where: { clientId: client.id, month: currentMonth, year: currentYear }
       });
-      
+
       if (!existing) {
         const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
         const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
@@ -438,7 +438,7 @@ app.post('/api/invoices/generate', async (req, res) => {
         generatedCount++;
       }
     }
-    
+
     res.json({ message: `${generatedCount} facturas nuevas generadas para el mes actual.` });
   } catch (error) {
     console.error(error);
@@ -489,14 +489,14 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
     const netAmount = totalAmount / 1.21;
     const ivaAmount = totalAmount - netAmount;
 
-    const todayDateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
-    const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0,10).replace(/-/g, '');
-    const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0,10).replace(/-/g, '');
+    const todayDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0, 10).replace(/-/g, '');
+    const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0, 10).replace(/-/g, '');
 
     const data = {
       'CantReg': 1,
       'PtoVta': puntoVenta,
-      'CbteTipo': cbteTipo, 
+      'CbteTipo': cbteTipo,
       'Concepto': 2, // Servicios
       'DocTipo': docTipo,
       'DocNro': docNro,
@@ -524,7 +524,7 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
     };
 
     const resAfip = await afip.ElectronicBilling.createVoucher(data);
-    
+
     // Guardar trazabilidad ARCA en DB
     await prisma.invoice.update({
       where: { id: invoice.id },
@@ -593,9 +593,9 @@ app.post('/api/invoices/mass-afip', async (req, res) => {
         const netAmount = totalAmount / 1.21;
         const ivaAmount = totalAmount - netAmount;
 
-        const todayDateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
-        const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0,10).replace(/-/g, '');
-        const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0,10).replace(/-/g, '');
+        const todayDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const firstDayMonth = new Date(invoice.year, invoice.month - 1, 1).toISOString().slice(0, 10).replace(/-/g, '');
+        const lastDayMonth = new Date(invoice.year, invoice.month, 0).toISOString().slice(0, 10).replace(/-/g, '');
 
         const data = {
           'CantReg': 1, 'PtoVta': puntoVenta, 'CbteTipo': cbteTipo, 'Concepto': 2, 'DocTipo': docTipo,
@@ -608,7 +608,7 @@ app.post('/api/invoices/mass-afip', async (req, res) => {
         };
 
         const resAfip = await afip.ElectronicBilling.createVoucher(data);
-        
+
         await prisma.invoice.update({
           where: { id: invoice.id },
           data: { afipCae: resAfip.CAE, afipVtoCae: resAfip.CAEFchVto, afipPuntoVenta: puntoVenta, afipCbteTip: cbteTipo, afipCbteNro: cbteNro }
@@ -637,27 +637,27 @@ app.post('/api/invoices/mass-afip', async (req, res) => {
 app.delete('/api/invoices/:id', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
-    
+
     // Verificar si existe y su estado
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId }
     });
-    
+
     if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
-    
+
     if (invoice.status === 'PAID') {
       return res.status(400).json({ error: 'No se puede eliminar una factura que figura como PAGADA. Esta acción afectaría la caja general.' });
     }
-    
+
     // Si la factura tiene pagos parciales, eliminarlos por Foreign Key antes de borrarla
     await prisma.payment.deleteMany({
       where: { invoiceId: invoiceId }
     });
-    
+
     await prisma.invoice.delete({
       where: { id: invoiceId }
     });
-    
+
     res.json({ message: 'Factura anulada y eliminada correctamente.' });
   } catch (error) {
     console.error('Error deleting invoice:', error);
@@ -672,7 +672,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
 
   try {
     const { invoiceIds } = req.body;
-    
+
     let whereClause = { status: 'PENDING' };
     if (invoiceIds && Array.isArray(invoiceIds) && invoiceIds.length > 0) {
       whereClause.id = { in: invoiceIds };
@@ -682,32 +682,32 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       where: whereClause,
       include: { client: true }
     });
-    
+
     let notifiedCount = 0;
     for (const inv of invoices) {
       if (!inv.client.phone) continue;
-      
+
       const phone = inv.client.phone.replace(/\D/g, '');
       const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
-      
+
       const today = new Date();
       let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
       let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
       expirationDate.setHours(23, 59, 59, 999);
-      
+
       if (inv.dueDate1) {
-        const d1 = new Date(inv.dueDate1); d1.setHours(23,59,59,999);
-        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23,59,59,999);
-        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23,59,59,999);
-        
+        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+
         if (today > d2 && inv.priceV3) {
-           totalAmountWithFee = inv.priceV3;
-           expirationDate = d3;
+          totalAmountWithFee = inv.priceV3;
+          expirationDate = d3;
         } else if (today > d1 && inv.priceV2) {
-           totalAmountWithFee = inv.priceV2;
-           expirationDate = d2;
+          totalAmountWithFee = inv.priceV2;
+          expirationDate = d2;
         } else {
-           expirationDate = d1;
+          expirationDate = d1;
         }
       }
 
@@ -718,7 +718,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         const preference = new Preference(clientMP);
         const prefs = await preference.create({
           body: {
-            items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3,'0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
+            items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
             payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
             external_reference: inv.id.toString(),
             expires: true,
@@ -728,16 +728,16 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         });
         paymentLink = prefs.init_point;
       }
-      
+
       const message = `Hola ${inv.client.name}! 👋🏻\n\nTe recordamos que tienes una factura pendiente por tu servicio de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${totalAmountWithFee.toFixed(2)}*.\n\nPuedes saldar tu cuenta de forma rápida y 100% segura a través de Mercado Pago en el siguiente enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
-      
+
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       notifiedCount++;
-      
+
       // Delay 3 seconds between messages to prevent WA Ban
       await new Promise(r => setTimeout(r, 3000));
     }
-    
+
     res.json({ message: `¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot.` });
   } catch (err) {
     console.error(err);
@@ -751,7 +751,7 @@ app.get('/api/users', async (req, res) => {
   try {
     const users = await prisma.user.findMany({ select: { id: true, username: true, role: true, permissions: true, createdAt: true } });
     res.json(users);
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -776,7 +776,7 @@ app.put('/api/users/:id', async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const { role, permissions } = req.body;
-    
+
     // Check if modifying master admin tkip
     const targetUser = await prisma.user.findUnique({ where: { id: userId } });
     if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -786,14 +786,14 @@ app.put('/api/users/:id', async (req, res) => {
 
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { 
-        role: role || targetUser.role, 
-        permissions: JSON.stringify(permissions || []) 
+      data: {
+        role: role || targetUser.role,
+        permissions: JSON.stringify(permissions || [])
       },
       select: { id: true, username: true, role: true, permissions: true }
     });
     res.json(updated);
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: 'Error al actualizar usuario' });
   }
 });
@@ -804,14 +804,14 @@ app.put('/api/users/:id/password', async (req, res) => {
     const userId = parseInt(req.params.id);
     const { password } = req.body;
     if (!password || password.length < 4) return res.status(400).json({ error: 'Contraseña muy corta' });
-    
+
     const hash = await bcrypt.hash(password, 10);
     await prisma.user.update({
       where: { id: userId },
       data: { passwordHash: hash }
     });
     res.json({ message: 'Contraseña actualizada exitosamente' });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: 'Error al cambiar contraseña' });
   }
 });
@@ -821,15 +821,15 @@ app.delete('/api/users/:id', async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const targetUser = await prisma.user.findUnique({ where: { id: userId } });
-    
+
     if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (targetUser.username === 'tkip') {
       return res.status(403).json({ error: '¡Acción Bloqueada! No puedes eliminar la cuenta raíz (tkip).' });
     }
-    
+
     await prisma.user.delete({ where: { id: userId } });
     res.json({ message: 'Usuario eliminado del sistema' });
-  } catch(err) {
+  } catch (err) {
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 });
@@ -838,7 +838,7 @@ app.delete('/api/users/:id', async (req, res) => {
 app.get('/api/tickets', async (req, res) => {
   try {
     const tickets = await prisma.ticket.findMany({
-      include: { 
+      include: {
         client: true,
         history: { orderBy: { createdAt: 'desc' } }
       },
@@ -855,16 +855,16 @@ app.post('/api/tickets', async (req, res) => {
   try {
     const { clientId, title, description, priority } = req.body;
     const ticket = await prisma.ticket.create({
-      data: { 
-        clientId: parseInt(clientId), 
-        title, 
-        description, 
+      data: {
+        clientId: parseInt(clientId),
+        title,
+        description,
         priority: priority || 'NORMAL',
         history: {
           create: { action: 'CREADO', notes: 'Ticket abierto.' }
         }
       },
-      include: { 
+      include: {
         client: true,
         history: { orderBy: { createdAt: 'desc' } }
       }
@@ -885,25 +885,25 @@ app.put('/api/tickets/:id', async (req, res) => {
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (priority !== undefined) updateData.priority = priority;
-    
+
     // Novedades
     if (scheduledAt !== undefined) updateData.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
     if (routerProvided !== undefined) updateData.routerProvided = routerProvided;
     if (mastProvided !== undefined) updateData.mastProvided = mastProvided;
 
     if (statusAction) {
-       updateData.history = {
-         create: {
-           action: statusAction,
-           notes: resolutionNotes || ''
-         }
-       };
+      updateData.history = {
+        create: {
+          action: statusAction,
+          notes: resolutionNotes || ''
+        }
+      };
     }
 
     const ticket = await prisma.ticket.update({
       where: { id: ticketId },
       data: updateData,
-      include: { 
+      include: {
         client: true,
         history: { orderBy: { createdAt: 'desc' } }
       }
@@ -929,9 +929,9 @@ app.delete('/api/tickets/:id', async (req, res) => {
 // --- DAILY CASH MANAGER ---
 app.get('/api/cash/daily', async (req, res) => {
   try {
-    const { date, endDate } = req.query; 
+    const { date, endDate } = req.query;
     let startOfDay, endOfDay;
-    
+
     if (date && endDate) {
       const [year, month, day] = date.split('-');
       const [eyear, emonth, eday] = endDate.split('-');
@@ -943,9 +943,9 @@ app.get('/api/cash/daily', async (req, res) => {
       endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
     } else {
       startOfDay = new Date();
-      startOfDay.setHours(0,0,0,0);
+      startOfDay.setHours(0, 0, 0, 0);
       endOfDay = new Date();
-      endOfDay.setHours(23,59,59,999);
+      endOfDay.setHours(23, 59, 59, 999);
     }
 
     console.log(`Parsed Range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
@@ -977,10 +977,10 @@ app.get('/api/cash/daily', async (req, res) => {
 app.post('/api/cash/movement', async (req, res) => {
   try {
     const { type, amount, description } = req.body;
-    
+
     const m = await prisma.cashMovement.create({
       data: {
-        type, 
+        type,
         amount: parseFloat(amount),
         description,
         userId: parseInt(req.user?.id) || 1
@@ -998,7 +998,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
     const { amountPaid, lateFeeApplied, method, totalRequired } = req.body;
-    
+
     // Inyectar el pago en el historial de la factura
     const payment = await prisma.payment.create({
       data: {
@@ -1013,7 +1013,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     // Recalcular saldo iterando todos los pagos historicos
     const allPayments = await prisma.payment.findMany({ where: { invoiceId } });
     const totalGathered = allPayments.reduce((acc, p) => acc + p.amountPaid, 0);
-    
+
     // Comparar contra la meta enviada por el front (o originalAmount si falta)
     const requiredTarget = totalRequired ? parseFloat(totalRequired) : 9999999;
     const finalStatus = totalGathered >= requiredTarget ? 'PAID' : 'PARTIAL';
@@ -1022,7 +1022,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       where: { id: invoiceId },
       data: { status: finalStatus }
     });
-    
+
     res.json({ message: `Factura cobrada (${finalStatus})`, invoice });
   } catch (error) {
     console.error(error);
@@ -1035,24 +1035,24 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
     const { totalAmount } = req.body;
-    
+
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       include: { client: true }
     });
-    
-    if(!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
-    
+
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+
     // Determinamos caducidad exacta para prevenir que paguen días después
     const today = new Date();
     let expirationDate = new Date(invoice.dueDate);
     expirationDate.setHours(23, 59, 59, 999);
-    
+
     if (invoice.dueDate1) {
-      const d1 = new Date(invoice.dueDate1); d1.setHours(23,59,59,999);
-      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23,59,59,999);
-      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23,59,59,999);
-      
+      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+
       if (today <= d1) expirationDate = d1;
       else if (today <= d2) expirationDate = d2;
       else expirationDate = d3;
@@ -1069,7 +1069,7 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
         items: [
           {
             id: `INV-${invoice.id}`,
-            title: `Abono de Internet TK${String(invoice.clientId).padStart(3,'0')} - ${invoice.month}/${invoice.year}`,
+            title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
             quantity: 1,
             unit_price: parseFloat(totalAmount)
           }
@@ -1120,7 +1120,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
         // 2. Verificar si en nuestra base existe y está pendiente
         const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-        
+
         if (!invoice) {
           console.error(`❌ Webhook MP: La factura ID ${invoiceId} no existe en la base de datos local.`);
           return;
@@ -1137,11 +1137,11 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               lateFeeApplied: 0
             }
           });
-          
+
           // 4. Marcar factura como pagada
           await prisma.invoice.update({
-             where: { id: invoiceId },
-             data: { status: 'PAID' }
+            where: { id: invoiceId },
+            data: { status: 'PAID' }
           });
           console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
         } else {
@@ -1196,7 +1196,7 @@ app.get('/api/reports/sales', async (req, res) => {
       cashFilter.createdAt = { gte: startDate, lte: endDate };
     }
     const cashMovements = await prisma.cashMovement.findMany({ where: cashFilter });
-    
+
     const manualIn = cashMovements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
     const manualOut = cashMovements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
     const absoluteTotalCaja = totalCollectedFromInvoices + manualIn - manualOut;
@@ -1212,13 +1212,17 @@ app.get('/api/reports/sales', async (req, res) => {
       },
       payments
     });
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error consultando metricas de ventas' });
   }
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor CRM corriendo en http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Servidor CRM corriendo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
