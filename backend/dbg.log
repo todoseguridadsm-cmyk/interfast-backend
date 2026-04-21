@@ -1,0 +1,6 @@
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+🚀 Servidor CRM corriendo en http://localhost:4000
+Error inicializando WA: Error: The browser is already running for C:\Users\TODOSEGURIDADSM\Desktop\INTERFAST\backend\.wwebjs_auth\session. Use a different `userDataDir` or stop the running browser first.
+    at ChromeLauncher.launch (C:\Users\TODOSEGURIDADSM\Desktop\INTERFAST\backend\node_modules\puppeteer-core\lib\cjs\puppeteer\node\BrowserLauncher.js:175:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Client.initialize (C:\Users\TODOSEGURIDADSM\Desktop\INTERFAST\backend\node_modules\whatsapp-web.js\src\Client.js:331:23)

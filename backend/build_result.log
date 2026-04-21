@@ -1,0 +1,35 @@
+--- STDOUT ---
+
+> frontend@0.0.0 build
+> vite build
+
+[36mvite v8.0.2 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...✓ 1993 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                          0.45 kB │ gzip:   0.29 kB
+dist/assets/index-CVuyHxlL.css          47.33 kB │ gzip:   8.14 kB
+dist/assets/purify.es-y41lKIN9.js       21.03 kB │ gzip:   8.47 kB
+dist/assets/index.es-k1pXbgF7.js       151.37 kB │ gzip:  48.87 kB
+dist/assets/html2canvas-BJ7MGluB.js    199.56 kB │ gzip:  46.78 kB
+dist/assets/index-BGkqAhse.js        1,106.31 kB │ gzip: 351.90 kB
+
+[32m✓ built in 17.98s[39m
+
+
+--- STDERR ---
+[33m[33m[PLUGIN_TIMINGS] Warning:[0m Your build spent significant time in plugins. Here is a breakdown:
+  - @tailwindcss/vite:generate:build (41%)
+  - rolldown:vite-resolve (38%)
+  - vite:worker (6%)
+See https://rolldown.rs/options/checks#plugintimings for more details.
+[39m
+[33m[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+
+
+--- ERROR ---
+No Error

@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient({datasourceUrl: 'postgres://postgres:nnYle4IDdKif3SvC@db.rtxgtlwffewlmqhdedzv.supabase.co:5432/postgres'}); prisma.user.findMany().then(() => console.log('OK')).catch(console.error).finally(()=>prisma.\$disconnect());
