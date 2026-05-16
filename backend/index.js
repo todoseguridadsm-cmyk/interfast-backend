@@ -1,3 +1,6 @@
+const tls = require('tls');
+tls.DEFAULT_CIPHERS = 'DEFAULT@SECLEVEL=0'; // Fix for AFIP's small DH keys
+
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
