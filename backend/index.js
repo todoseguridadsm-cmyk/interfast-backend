@@ -511,7 +511,7 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
       }
     }
 
-    const puntoVenta = 1;
+    const puntoVenta = 2;
     const lastVoucher = await afip.ElectronicBilling.getLastVoucher(puntoVenta, cbteTipo);
     const cbteNro = lastVoucher + 1;
 
@@ -617,7 +617,7 @@ app.post('/api/invoices/mass-afip', async (req, res) => {
           }
         }
 
-        const puntoVenta = 1;
+        const puntoVenta = 2;
         const lastVoucher = await afip.ElectronicBilling.getLastVoucher(puntoVenta, cbteTipo);
         const cbteNro = lastVoucher + 1;
 
