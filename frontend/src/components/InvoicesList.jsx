@@ -259,9 +259,20 @@ export default function InvoicesList() {
       doc.text("Este documento es un comprobante válido de certificación de pago emitido por el sistema TKIP.", 14, finalY);
       doc.text("Cualquier duda administrativa comuníquese con nuestro soporte oficial.", 14, finalY + 6);
       
+      let nextY = finalY + 16;
+      if (inv.afipCae) {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(`Comprobante Autorizado por ARCA (AFIP)`, 14, nextY);
+        doc.setFont("helvetica", "normal");
+        doc.text(`CAE: ${inv.afipCae}`, 14, nextY + 6);
+        doc.text(`Vencimiento CAE: ${inv.afipVtoCae ? inv.afipVtoCae.replace(/(\d{4})(\d{2})(\d{2})/, '$3/$2/$1') : '---'}`, 14, nextY + 12);
+        nextY += 22;
+      }
+
       doc.setFont("helvetica", "bold");
       doc.setTextColor(37, 99, 235);
-      doc.text("¡Gracias por confiar en TKIP ISP!", 14, finalY + 16);
+      doc.text("¡Gracias por confiar en TKIP ISP!", 14, nextY);
       
       // Guardar
       const safeClientName = (inv.client?.name || 'Cliente').replace(/[^a-z0-9]/gi, '_');
