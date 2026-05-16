@@ -145,7 +145,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
+    "start": "NODE_OPTIONS=--tls-cipher-list=DEFAULT@SECLEVEL=0 node index.js",
     "postinstall": "prisma generate --schema=prisma/schema.prisma"
   },
   "engines": {
