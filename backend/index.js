@@ -1238,10 +1238,8 @@ app.get('/api/reports/sales', async (req, res) => {
 });
 
 // Start server
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`🚀 Servidor CRM corriendo en http://localhost:${PORT}`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor CRM corriendo en puerto ${PORT}`);
+});
 
 module.exports = app;
