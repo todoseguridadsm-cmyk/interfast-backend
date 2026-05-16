@@ -79,7 +79,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
@@ -192,6 +192,16 @@ app.get('/api/test-afip', async (req, res) => {
         data: err.response.data
       } : null
     });
+  }
+});
+
+app.get('/api/test-ptosventa', async (req, res) => {
+  if (!afip) return res.json({ error: 'AFIP module is null' });
+  try {
+    const ptos = await afip.ElectronicBilling.getSalesPoints();
+    res.json({ success: true, ptos });
+  } catch (err) {
+    res.json({ success: false, message: err.message, stack: err.stack });
   }
 });
 
