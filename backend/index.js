@@ -76,7 +76,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
@@ -170,6 +170,25 @@ app.get('/api/afip/status', async (req, res) => {
     res.json({ status: 'CONNECTED', serverStatus });
   } catch (error) {
     res.status(500).json({ error: 'Error conectando a AFIP', details: error.message });
+  }
+});
+
+app.get('/api/test-afip', async (req, res) => {
+  if (!afip) return res.json({ error: 'AFIP module is null' });
+  try {
+    const status = await afip.ElectronicBilling.getServerStatus();
+    res.json({ success: true, status });
+  } catch (err) {
+    console.error("Test AFIP Error:", err);
+    res.json({ 
+      success: false, 
+      message: err.message, 
+      stack: err.stack,
+      response: err.response ? {
+        status: err.response.status,
+        data: err.response.data
+      } : null
+    });
   }
 });
 
