@@ -127,6 +127,7 @@ export default function TicketsList() {
       </div>
       <div className="flex gap-2"><b>📍 Dirección:</b> {c?.address} - {c?.city}</div>
       <div className="flex gap-2"><b>📞 Teléfono:</b> {c?.phone}</div>
+      {c?.email && <div className="flex gap-2"><b>✉️ Email:</b> {c?.email}</div>}
       <div className="flex gap-2"><b>🌐 Nodo/Panel:</b> {c?.mainNode} | {c?.panelId} </div>
       <div className="flex gap-2"><b>🖥️ IP:</b> {c?.ipNumber}</div>
     </div>
@@ -268,11 +269,29 @@ export default function TicketsList() {
                   <option value="">Seleccione un cliente...</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name} - {c.address}</option>)}
                 </select>
+                {form.clientId && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800 space-y-1">
+                    {(() => {
+                      const selClient = clients.find(c => String(c.id) === String(form.clientId));
+                      if (!selClient) return null;
+                      return (
+                        <>
+                          <div><b>📍 Dirección:</b> {selClient.address} {selClient.city ? `- ${selClient.city}` : ''}</div>
+                          <div><b>📞 Celular/Teléfono:</b> {selClient.phone || 'No registrado'}</div>
+                          <div><b>✉️ Email:</b> {selClient.email || 'No registrado'}</div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Agendar Visita (Opcional)</label>
-                <input type="datetime-local" value={form.scheduledAt} onChange={e=>setForm({...form, scheduledAt: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none text-slate-600" />
-              </div>
+              
+              {editingId && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Agendar Visita (Opcional)</label>
+                  <input type="datetime-local" value={form.scheduledAt} onChange={e=>setForm({...form, scheduledAt: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none text-slate-600" />
+                </div>
+              )}
               <div className="border-t border-slate-100 pt-3">
                 <label className="block text-sm font-bold text-slate-700 mb-1">Titulo de la Falla / Motivo</label>
                 <input required type="text" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none" placeholder="Ej: Instalación, Sin internet..." />

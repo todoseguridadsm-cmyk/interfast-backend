@@ -47,3 +47,4 @@ certs/
 *.crt
 *.key
 *.csr
+node_modules

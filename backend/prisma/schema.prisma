@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Client {
@@ -141,4 +142,12 @@ model TicketHistory {
   action    String
   notes     String?
   createdAt DateTime @default(now())
+}
+
+model historial_mensajes {
+  id         Int      @id @default(autoincrement())
+  phone      String
+  remitente  String
+  mensaje    String
+  created_at DateTime @default(now())
 }
