@@ -950,6 +950,13 @@ app.put('/api/tickets/:id', async (req, res) => {
 app.delete('/api/tickets/:id', async (req, res) => {
   try {
     const ticketId = parseInt(req.params.id);
+    
+    // Primero eliminamos el historial del ticket para evitar el error de clave foránea (Foreign Key constraint)
+    await prisma.ticketHistory.deleteMany({
+      where: { ticketId: ticketId }
+    });
+
+    // Luego eliminamos el ticket principal
     await prisma.ticket.delete({ where: { id: ticketId } });
     res.json({ message: 'Ticket eliminado correctamente' });
   } catch (err) {
