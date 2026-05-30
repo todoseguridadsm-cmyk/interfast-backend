@@ -236,7 +236,7 @@ app.get('/api/clients', async (req, res) => {
 
 app.post('/api/clients', async (req, res) => {
   try {
-    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast } = req.body;
+    const { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;
 
     // Buscar si hay un número/ID disponible por eliminación (huecos en la secuencia)
     const activeClients = await prisma.client.findMany({
@@ -254,7 +254,7 @@ app.post('/api/clients', async (req, res) => {
       expected++;
     }
 
-    const dataPayload = { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast };
+    const dataPayload = { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -290,14 +290,53 @@ app.delete('/api/clients/:id', async (req, res) => {
 
 app.put('/api/clients/:id', async (req, res) => {
   try {
-    const { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast } = req.body;
+    const { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;
     const client = await prisma.client.update({
       where: { id: parseInt(req.params.id) },
-      data: { dni, name, email, phone, address, city, province, mainNode, panelId, ipNumber, planId, cuit, taxCondition, hasRouter, hasMast },
+      data: { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate },
     });
     res.json(client);
   } catch (error) {
     res.status(500).json({ error: 'Error al editar cliente' });
+  }
+});
+
+app.post('/api/clients/bulk', async (req, res) => {
+  try {
+    const { clients } = req.body;
+    if (!clients || !Array.isArray(clients)) {
+      return res.status(400).json({ error: 'Formato inválido. Se esperaba un array de clientes.' });
+    }
+
+    const created = await prisma.client.createMany({
+      data: clients.map(c => ({
+        dni: c.dni,
+        name: c.name,
+        businessName: c.businessName || null,
+        email: c.email || null,
+        phone: c.phone || null,
+        address: c.address || null,
+        fiscalAddress: c.fiscalAddress || null,
+        city: c.city || null,
+        province: c.province || null,
+        zipCode: c.zipCode || null,
+        mainNode: c.mainNode || null,
+        panelId: c.panelId || null,
+        ipNumber: c.ipNumber || null,
+        cuit: c.cuit || null,
+        taxCondition: c.taxCondition || 'CONSUMIDOR_FINAL',
+        status: c.status || 'ACTIVE',
+        hasRouter: c.hasRouter || false,
+        hasMast: c.hasMast || false,
+        planId: c.planId || null,
+        registrationDate: c.registrationDate ? new Date(c.registrationDate) : null
+      }))
+    });
+
+    res.json({ message: `${created.count} clientes importados con éxito.` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al importar clientes masivamente' });
   }
 });
 

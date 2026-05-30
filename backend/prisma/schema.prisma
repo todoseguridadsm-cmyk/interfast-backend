@@ -10,19 +10,22 @@ datasource db {
 
 model Client {
   id        Int       @id @default(autoincrement())
-  dni       String    @unique
+  dni       String
   name      String
+  businessName String?
   email     String?
   phone     String?
   address   String?
+  fiscalAddress String?
   city        String?
   province    String?
+  zipCode     String?
   mainNode    String?
   panelId     String?
   ipNumber    String?
   cuit      String?
   taxCondition String @default("CONSUMIDOR_FINAL")
-  status    String    @default("ACTIVE") // "ACTIVE", "SUSPENDED"
+  status    String    @default("ACTIVE") // "ACTIVE", "SUSPENDED", "BAJA"
   walletBalance Float @default(0.0)
   hasRouter Boolean @default(false)
   hasMast   Boolean @default(false)
@@ -30,6 +33,7 @@ model Client {
   plan      Plan?     @relation(fields: [planId], references: [id])
   invoices  Invoice[]
   tickets   Ticket[]
+  registrationDate DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }

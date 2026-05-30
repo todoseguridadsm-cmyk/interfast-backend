@@ -8,9 +8,9 @@ export default function ClientsList() {
   const [plans, setPlans] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    dni: '', name: '', email: '', phone: '', address: '', 
-    city: '', province: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
-    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', hasRouter: false, hasMast: false
+    dni: '', name: '', businessName: '', email: '', phone: '', address: '', fiscalAddress: '', 
+    city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
+    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -20,26 +20,31 @@ export default function ClientsList() {
     setFormData({
       dni: client.dni || '',
       name: client.name || '',
+      businessName: client.businessName || '',
       email: client.email || '',
       phone: client.phone || '',
       address: client.address || '',
+      fiscalAddress: client.fiscalAddress || '',
       city: client.city || '',
       province: client.province || '',
+      zipCode: client.zipCode || '',
       mainNode: client.mainNode || '',
       panelId: client.panelId || '',
       ipNumber: client.ipNumber || '',
       planId: client.planId || '',
       cuit: client.cuit || '',
       taxCondition: client.taxCondition || 'CONSUMIDOR_FINAL',
+      status: client.status || 'ACTIVE',
       hasRouter: client.hasRouter || false,
-      hasMast: client.hasMast || false
+      hasMast: client.hasMast || false,
+      registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : ''
     });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', email: '', phone: '', address: '', city: '', province: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', hasRouter: false, hasMast: false });
+    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
     setIsModalOpen(false);
   };
 
@@ -106,20 +111,25 @@ export default function ClientsList() {
       return c.name.toLowerCase().includes(term) || c.dni.includes(term) || clientNum.includes(term);
     }).map(c => ({
       "N° Cliente": `TK${String(c.id).padStart(3, '0')}`,
-      "Nombre Completo": c.name,
+      "Nombre": c.name,
+      "Razón Social": c.businessName || '-',
       "DNI": c.dni,
-      "CUIT / CUIL": c.cuit || '-',
-      "Condición AFIP": c.taxCondition,
+      "Nº CUIT": c.cuit || '-',
+      "Condición IVA": c.taxCondition === 'RESPONSABLE_INSCRIPTO' ? 'Responsable Inscripto' : (c.taxCondition === 'MONOTRIBUTISTA' ? 'Monotributista' : (c.taxCondition === 'EXENTO' ? 'Exento' : 'Consumidor Final')),
       "Plan (Contratado)": c.plan?.name || 'Sin Plan',
       "Saldo a Favor": `$${(c.walletBalance || 0).toFixed(2)}`,
-      "Estado": c.status,
-      "Email": c.email || '-',
-      "Teléfono": c.phone || '-',
+      "Estado": c.status === 'ACTIVE' ? 'Activo' : (c.status === 'SUSPENDED' ? 'Suspendido' : 'Baja'),
+      "Fecha de Alta": c.registrationDate ? new Date(c.registrationDate).toLocaleDateString('es-AR') : '-',
+      "e-mail": c.email || '-',
+      "Tel. Particular": c.phone || '-',
       "Dirección": c.address || '-',
-      "Localidad": `${c.city || ''} ${c.province || ''}`.trim() || '-',
-      "Nodo Principal": c.mainNode || '-',
+      "Dirección Fiscal": c.fiscalAddress || '-',
+      "Localidad": c.city || '-',
+      "Provincia": c.province || '-',
+      "Cód.Pos": c.zipCode || '-',
+      "Grupo": c.mainNode || '-',
       "Panel": c.panelId || '-',
-      "IP Asignada": c.ipNumber || '-',
+      "Campo Libre": c.ipNumber || '-',
       "Router Entregado": c.hasRouter ? 'Sí' : 'No',
       "Mástil Entregado": c.hasMast ? 'Sí' : 'No'
     }));
@@ -132,6 +142,60 @@ export default function ClientsList() {
     XLSX.writeFile(workbook, `Base_Clientes_INTERFAST.xlsx`);
   };
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const bstr = evt.target.result;
+      const workbook = XLSX.read(bstr, { type: 'binary' });
+      const wsname = workbook.SheetNames[0];
+      const ws = workbook.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws);
+
+      const mappedClients = data.map(row => {
+        let parsedDate = null;
+        if (row['Fecha de Alta']) {
+          const parts = String(row['Fecha de Alta']).split('/');
+          if (parts.length === 3) {
+            parsedDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
+          }
+        }
+        return {
+          name: String(row['Nombre'] || ''),
+          businessName: row['Razón Social'] ? String(row['Razón Social']) : null,
+          address: row['Dirección'] ? String(row['Dirección']) : null,
+          fiscalAddress: row['Dirección Fiscal'] ? String(row['Dirección Fiscal']) : null,
+          city: row['Localidad'] ? String(row['Localidad']) : null,
+          zipCode: row['Cód.Pos'] ? String(row['Cód.Pos']) : null,
+          province: row['Provincia'] ? String(row['Provincia']) : null,
+          phone: row['Tel. Particular'] ? String(row['Tel. Particular']) : null,
+          status: row['Estado'] === 'Baja' ? 'BAJA' : (row['Estado'] === 'Suspendido' ? 'SUSPENDED' : 'ACTIVE'),
+          registrationDate: parsedDate,
+          taxCondition: row['Condición IVA'] === 'Responsable Inscripto' ? 'RESPONSABLE_INSCRIPTO' : (row['Condición IVA'] === 'Monotributista' ? 'MONOTRIBUTISTA' : (row['Condición IVA'] === 'Exento' ? 'EXENTO' : 'CONSUMIDOR_FINAL')),
+          cuit: row['Nº CUIT'] ? String(row['Nº CUIT']) : null,
+          dni: row['DNI'] ? String(row['DNI']) : (row['Nº CUIT'] ? String(row['Nº CUIT']) : '0'),
+          email: row['e-mail'] ? String(row['e-mail']) : null,
+          mainNode: row['Grupo'] ? String(row['Grupo']) : null,
+          ipNumber: row['Campo Libre'] ? String(row['Campo Libre']) : null
+        };
+      });
+
+      try {
+        const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/clients/bulk', { clients: mappedClients });
+        alert(res.data.message);
+        fetchClients();
+      } catch (err) {
+        console.error(err);
+        alert('Error al importar clientes masivamente.');
+      }
+    };
+    reader.readAsBinaryString(file);
+    // Reset the input value so we can upload the same file again if needed
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-6 relative">
       <header className="flex justify-between items-center">
@@ -140,6 +204,11 @@ export default function ClientsList() {
           <p className="text-slate-500 mt-1">Gestión de abonados y números de cliente (TK000).</p>
         </div>
         <div className="flex gap-3">
+          <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 cursor-pointer" title="Importar Planilla Excel">
+            <Download className="rotate-180" size={18} />
+            Importar
+            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
+          </label>
           <button 
             onClick={exportToExcel}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
@@ -272,11 +341,18 @@ export default function ClientsList() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
                   <input required type="text" name="dni" value={formData.dni} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="12345678" />
                 </div>
+                
+                {formData.taxCondition === 'RESPONSABLE_INSCRIPTO' && (
+                  <div className="md:col-span-12">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Razón Social</label>
+                    <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Empresa S.A." />
+                  </div>
+                )}
 
                 {/* Tax Data */}
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
                   <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Datos Impositivos (AFIP)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">C.U.I.T / C.U.I.L</label>
                       <input type="text" name="cuit" value={formData.cuit} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Opcional..." />
@@ -288,6 +364,14 @@ export default function ClientsList() {
                         <option value="RESPONSABLE_INSCRIPTO">Responsable Inscripto</option>
                         <option value="MONOTRIBUTISTA">Monotributista</option>
                         <option value="EXENTO">Exento</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Estado de la Cuenta</label>
+                      <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white font-bold">
+                        <option value="ACTIVE" className="text-emerald-700">Activo</option>
+                        <option value="SUSPENDED" className="text-orange-600">Suspendido</option>
+                        <option value="BAJA" className="text-red-600">Baja (No factura)</option>
                       </select>
                     </div>
                   </div>
@@ -309,13 +393,25 @@ export default function ClientsList() {
                       <label className="block text-sm font-medium text-slate-700 mb-1">Dirección Física</label>
                       <input type="text" name="address" value={formData.address} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Calle Falsa 123" />
                     </div>
+                    <div className="md:col-span-6">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Dirección Fiscal</label>
+                      <input type="text" name="fiscalAddress" value={formData.fiscalAddress} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ej: Av. San Martín 456" />
+                    </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Ciudad</label>
                       <input type="text" name="city" value={formData.city} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ciudad" />
                     </div>
                     <div className="md:col-span-3">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Cód. Postal</label>
+                      <input type="text" name="zipCode" value={formData.zipCode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="5570" />
+                    </div>
+                    <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Provincia</label>
                       <input type="text" name="province" value={formData.province} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Provincia" />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Alta</label>
+                      <input type="date" name="registrationDate" value={formData.registrationDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
                     </div>
                   </div>
                 </div>
