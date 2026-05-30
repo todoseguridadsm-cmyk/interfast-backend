@@ -262,7 +262,7 @@ export default function ClientsList() {
                 </td>
               </tr>
             ) : (
-              clients.filter(c => {
+              [...clients].sort((a, b) => a.name.localeCompare(b.name)).filter(c => {
                 const term = searchTerm.toLowerCase();
                 const clientNum = `tk${String(c.id).padStart(3, '0')}`;
                 return c.name.toLowerCase().includes(term) || 

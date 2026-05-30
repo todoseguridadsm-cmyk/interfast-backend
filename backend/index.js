@@ -78,8 +78,49 @@ const authenticateToken = (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/admin/fix-june-invoices', async (req, res) => {
+  try {
+    const invoices = await prisma.invoice.findMany({
+      where: { month: 5, year: 2026, status: 'PENDING' }
+    });
+
+    let count = 0;
+    for (const inv of invoices) {
+      // Current dates are in May (month=4 in JS). We want them in June (month=5 in JS).
+      const newMonth = 6;
+      
+      const newDueDate1 = new Date(inv.dueDate1);
+      newDueDate1.setMonth(5); // June
+      
+      const newDueDate2 = new Date(inv.dueDate2);
+      newDueDate2.setMonth(5); // June
+      
+      const newDueDate3 = new Date(inv.dueDate3);
+      newDueDate3.setMonth(5); // June
+      
+      const newDueDate = new Date(inv.dueDate);
+      newDueDate.setMonth(5); // June
+
+      await prisma.invoice.update({
+        where: { id: inv.id },
+        data: {
+          month: newMonth,
+          dueDate: newDueDate,
+          dueDate1: newDueDate1,
+          dueDate2: newDueDate2,
+          dueDate3: newDueDate3
+        }
+      });
+      count++;
+    }
+    res.json({ success: true, count, message: `Se arreglaron ${count} facturas pasándolas a junio.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/admin/fix-june-invoices') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
@@ -473,8 +514,17 @@ app.post('/api/invoices/generate', async (req, res) => {
     });
 
     const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    let currentMonth = now.getMonth() + 1;
+    let currentYear = now.getFullYear();
+
+    // Si facturamos después del 25, es para el mes que viene
+    if (now.getDate() >= 25) {
+      currentMonth++;
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+    }
 
     let generatedCount = 0;
 
