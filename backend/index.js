@@ -88,8 +88,30 @@ app.get('/api/admin/migrate-db', (req, res) => {
   });
 });
 
+app.get('/api/admin/set-plan-20', async (req, res) => {
+  try {
+    let plan = await prisma.plan.findFirst({ where: { megas: 20 } });
+    if (!plan) {
+      plan = await prisma.plan.findFirst({ where: { name: { contains: '20' } } });
+    }
+    if (!plan) {
+      return res.status(404).json({ error: 'No se encontró el plan de 20 megas.' });
+    }
+    
+    // Asignar el plan a todos los clientes que no tengan plan asignado
+    const updated = await prisma.client.updateMany({
+      where: { planId: null },
+      data: { planId: plan.id }
+    });
+    
+    res.json({ success: true, count: updated.count, planName: plan.name });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/admin/migrate-db') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/admin/set-plan-20') || req.path.startsWith('/admin/migrate-db') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
