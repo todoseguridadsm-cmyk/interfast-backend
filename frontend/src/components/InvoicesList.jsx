@@ -343,6 +343,9 @@ export default function InvoicesList() {
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             <FileText className="text-blue-600" size={32} />
             Facturación Mensual
+            <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full mt-1 ml-2">
+              {filteredInvoices.length} {filteredInvoices.length === 1 ? 'Factura' : 'Facturas'}
+            </span>
           </h2>
           <div className="mt-2 flex items-center gap-3">
             <p className="text-slate-500 text-sm">Buscar:</p>
