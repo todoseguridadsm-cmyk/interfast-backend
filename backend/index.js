@@ -78,37 +78,8 @@ const authenticateToken = (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/admin/fix-notified', async (req, res) => {
-  try {
-    const clients = await prisma.client.findMany({
-      where: {
-        OR: [
-          { name: { contains: 'ALLISIARDI' } },
-          { name: { contains: 'C.I.O.M.A' } }
-        ]
-      }
-    });
-
-    const clientIds = clients.map(c => c.id);
-
-    const updated = await prisma.invoice.updateMany({
-      where: {
-        clientId: { in: clientIds },
-        status: 'PENDING'
-      },
-      data: {
-        notifiedAt: new Date()
-      }
-    });
-
-    res.json({ success: true, updatedCount: updated.count, clientsFound: clients.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/admin/fix-notified') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
