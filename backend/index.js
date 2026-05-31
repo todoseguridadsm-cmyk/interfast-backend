@@ -78,16 +78,8 @@ const authenticateToken = (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
-app.get('/api/admin/migrate-db', (req, res) => {
-  const { exec } = require('child_process');
-  exec('npx prisma db push', (error, stdout, stderr) => {
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ message: 'Migration applied', stdout, stderr });
-  });
-});
-
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/admin/migrate-db') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
