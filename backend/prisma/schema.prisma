@@ -33,6 +33,7 @@ model Client {
   plan      Plan?     @relation(fields: [planId], references: [id])
   invoices  Invoice[]
   tickets   Ticket[]
+  cutoffLists CutoffList[]
   registrationDate DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -155,4 +156,14 @@ model historial_mensajes {
   remitente  String
   mensaje    String
   created_at DateTime @default(now())
+}
+
+model CutoffList {
+  id        Int      @id @default(autoincrement())
+  clientId  Int
+  client    Client   @relation(fields: [clientId], references: [id])
+  invoiceId Int
+  status    String   @default("PENDING") // PENDING (Cortado) o RESOLVED (Pagado/Eximido)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

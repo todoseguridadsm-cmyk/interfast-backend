@@ -9,6 +9,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cron = require('node-cron');
 require('dotenv').config();
 
 // AFIP Configuration
@@ -133,7 +134,76 @@ async function connectToWhatsApp() {
 
 connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
 
+// --- CRON JOBS ---
+cron.schedule('0 0 28 * *', async () => {
+  console.log('⏳ Ejecutando CRON: Generación de Lista de Cortes de Servicio (Día 28)...');
+  try {
+    // Buscar facturas pendientes del mes actual o anterior
+    const pendingInvoices = await prisma.invoice.findMany({
+      where: { status: 'PENDING' },
+      include: { client: true }
+    });
+
+    let count = 0;
+    for (const inv of pendingInvoices) {
+      // Verificar si ya está en la lista de cortes como PENDING para evitar duplicados
+      const existingCutoff = await prisma.cutoffList.findFirst({
+        where: {
+          clientId: inv.clientId,
+          invoiceId: inv.id,
+          status: 'PENDING'
+        }
+      });
+
+      if (!existingCutoff) {
+        await prisma.cutoffList.create({
+          data: {
+            clientId: inv.clientId,
+            invoiceId: inv.id,
+            status: 'PENDING'
+          }
+        });
+        count++;
+      }
+    }
+    console.log(`✅ CRON Finalizado: Se agregaron ${count} clientes a la lista de cortes.`);
+  } catch (error) {
+    console.error('❌ Error en CRON de Cortes:', error);
+  }
+});
+
 // --- ROUTES ---
+
+// 0.2 Cortes de Servicio (Cutoff List)
+app.get('/api/cutoffs', async (req, res) => {
+  try {
+    const cutoffs = await prisma.cutoffList.findMany({
+      include: {
+        client: true,
+        client: { include: { plan: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(cutoffs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener lista de cortes' });
+  }
+});
+
+app.post('/api/cutoffs/remove/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const cutoff = await prisma.cutoffList.update({
+      where: { id },
+      data: { status: 'RESOLVED' }
+    });
+    res.json({ message: 'Cliente eximido de la lista de cortes.', cutoff });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eximir cliente' });
+  }
+});
 
 // AUTH: Login Endpoint
 app.post('/api/auth/login', async (req, res) => {
@@ -1116,6 +1186,13 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       data: { status: finalStatus }
     });
 
+    if (finalStatus === 'PAID') {
+      await prisma.cutoffList.updateMany({
+        where: { invoiceId, status: 'PENDING' },
+        data: { status: 'RESOLVED' }
+      });
+    }
+
     res.json({ message: `Factura cobrada (${finalStatus})`, invoice });
   } catch (error) {
     console.error(error);
@@ -1236,6 +1313,12 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             where: { id: invoiceId },
             data: { status: 'PAID' }
           });
+          
+          await prisma.cutoffList.updateMany({
+            where: { invoiceId: invoiceId, status: 'PENDING' },
+            data: { status: 'RESOLVED' }
+          });
+          
           console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
         } else {
           console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya figuraba como PAGADA. Se omitió la duplicación.`);
