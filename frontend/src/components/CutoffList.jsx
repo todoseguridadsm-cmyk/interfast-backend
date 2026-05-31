@@ -40,6 +40,22 @@ export default function CutoffList() {
     }
   };
 
+  const handleForceScan = async () => {
+    if (!window.confirm('¿Deseas forzar el escaneo de morosos ahora mismo? Esto buscará facturas impagas y las agregará a la lista sin esperar al día 28.')) {
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await axios.post(`${backendUrl}/api/cutoffs/force`);
+      alert(res.data.message || 'Escaneo completado.');
+      fetchCutoffs();
+    } catch (error) {
+      console.error(error);
+      alert('Error al forzar el escaneo.');
+      setLoading(false);
+    }
+  };
+
   const filteredCutoffs = cutoffs.filter(c => {
     const s = searchTerm.toLowerCase();
     const name = c.client?.name?.toLowerCase() || '';
@@ -59,16 +75,24 @@ export default function CutoffList() {
             Clientes identificados con facturas impagas desde el día 28. (n8n consultará esta lista).
           </p>
         </div>
-        
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Buscar por nombre o DNI..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full md:w-64 transition-all"
-          />
+        <div className="flex flex-col md:flex-row gap-3">
+          <button 
+            onClick={handleForceScan}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            Generar Lista Ahora
+          </button>
+          
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o DNI..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full md:w-64 transition-all"
+            />
+          </div>
         </div>
       </div>
 

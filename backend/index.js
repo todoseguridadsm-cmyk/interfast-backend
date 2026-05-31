@@ -135,51 +135,54 @@ async function connectToWhatsApp() {
 connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
 
 // --- CRON JOBS ---
-cron.schedule('0 0 28 * *', async () => {
-  console.log('⏳ Ejecutando CRON: Generación de Lista de Cortes de Servicio (Día 28)...');
+async function generateCutoffList() {
+  console.log('⏳ Ejecutando: Generación de Lista de Cortes de Servicio...');
   try {
-    // Buscar facturas pendientes del mes actual o anterior
     const pendingInvoices = await prisma.invoice.findMany({
-      where: { status: 'PENDING' },
-      include: { client: true }
+      where: { status: 'PENDING' }
     });
 
     let count = 0;
     for (const inv of pendingInvoices) {
-      // Verificar si ya está en la lista de cortes como PENDING para evitar duplicados
       const existingCutoff = await prisma.cutoffList.findFirst({
-        where: {
-          clientId: inv.clientId,
-          invoiceId: inv.id,
-          status: 'PENDING'
-        }
+        where: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
       });
 
       if (!existingCutoff) {
         await prisma.cutoffList.create({
-          data: {
-            clientId: inv.clientId,
-            invoiceId: inv.id,
-            status: 'PENDING'
-          }
+          data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
         });
         count++;
       }
     }
-    console.log(`✅ CRON Finalizado: Se agregaron ${count} clientes a la lista de cortes.`);
+    console.log(`✅ Finalizado: Se agregaron ${count} clientes a la lista de cortes.`);
+    return count;
   } catch (error) {
-    console.error('❌ Error en CRON de Cortes:', error);
+    console.error('❌ Error en Generación de Cortes:', error);
+    throw error;
   }
+}
+
+cron.schedule('0 0 28 * *', () => {
+  generateCutoffList();
 });
 
 // --- ROUTES ---
+
+app.post('/api/cutoffs/force', async (req, res) => {
+  try {
+    const count = await generateCutoffList();
+    res.json({ message: `Escaneo completado. Se agregaron ${count} clientes morosos a la lista.` });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al generar la lista de cortes' });
+  }
+});
 
 // 0.2 Cortes de Servicio (Cutoff List)
 app.get('/api/cutoffs', async (req, res) => {
   try {
     const cutoffs = await prisma.cutoffList.findMany({
       include: {
-        client: true,
         client: { include: { plan: true } }
       },
       orderBy: { createdAt: 'desc' }
