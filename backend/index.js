@@ -809,7 +809,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         paymentLink = prefs.init_point;
       }
 
-      const message = `Hola ${inv.client.name}! 👋🏻\n\nTe recordamos que tienes una factura pendiente por tu servicio de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${totalAmountWithFee.toFixed(2)}*.\n\nPuedes saldar tu cuenta de forma rápida y 100% segura a través de Mercado Pago en el siguiente enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
+      const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${totalAmountWithFee.toFixed(2)}*.\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago en nuestro nuevo enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       notifiedCount++;
