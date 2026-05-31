@@ -196,11 +196,24 @@ export default function ClientsList() {
     e.target.value = '';
   };
 
+  const filteredClients = clients.filter(c => {
+    const term = searchTerm.toLowerCase();
+    const clientNum = `tk${String(c.id).padStart(3, '0')}`;
+    return c.name.toLowerCase().includes(term) || 
+           c.dni.includes(term) || 
+           clientNum.includes(term);
+  });
+
   return (
     <div className="space-y-6 relative">
       <header className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Clientes</h2>
+          <h2 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            Clientes
+            <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full mt-1 ml-2">
+              {filteredClients.length} {filteredClients.length === 1 ? 'Cliente' : 'Clientes'}
+            </span>
+          </h2>
           <p className="text-slate-500 mt-1">Gestión de abonados y números de cliente (TK000).</p>
         </div>
         <div className="flex gap-3">
@@ -262,13 +275,7 @@ export default function ClientsList() {
                 </td>
               </tr>
             ) : (
-              [...clients].sort((a, b) => a.name.localeCompare(b.name)).filter(c => {
-                const term = searchTerm.toLowerCase();
-                const clientNum = `tk${String(c.id).padStart(3, '0')}`;
-                return c.name.toLowerCase().includes(term) || 
-                       c.dni.includes(term) || 
-                       clientNum.includes(term);
-              }).map(client => (
+              [...filteredClients].sort((a, b) => a.name.localeCompare(b.name)).map(client => (
                 <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-6 py-4 text-sm font-bold text-blue-600 tracking-wider">
                     {`TK${String(client.id).padStart(3, '0')}`}
