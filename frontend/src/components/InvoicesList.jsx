@@ -318,7 +318,7 @@ export default function InvoicesList() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allSelectableIds = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
+      const allSelectableIds = filteredInvoices.filter(inv => (inv.status === 'PENDING' && !inv.notifiedAt) || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
       setSelectedInvoices(allSelectableIds);
     } else {
       setSelectedInvoices([]);
@@ -333,7 +333,7 @@ export default function InvoicesList() {
     }
   };
 
-  const selectableCount = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).length;
+  const selectableCount = filteredInvoices.filter(inv => (inv.status === 'PENDING' && !inv.notifiedAt) || (inv.status === 'PAID' && !inv.afipCae)).length;
   const isAllSelected = selectableCount > 0 && selectedInvoices.length === selectableCount;
 
   return (
@@ -443,7 +443,7 @@ export default function InvoicesList() {
               ) : (
                 filteredInvoices.map(inv => {
                   const isPaid = inv.status === 'PAID';
-                  const isSelectable = !isPaid || (isPaid && !inv.afipCae);
+                  const isSelectable = (!isPaid && !inv.notifiedAt) || (isPaid && !inv.afipCae);
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
                       <td className="px-6 py-4 text-center">
@@ -495,9 +495,16 @@ export default function InvoicesList() {
                             <CheckCircle size={14} /> PARCIAL
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                            <Clock size={14} /> PENDIENTE
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                              <Clock size={14} /> PENDIENTE
+                            </span>
+                            {inv.notifiedAt && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                                <MessageCircle size={10} /> NOTIFICADO
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
