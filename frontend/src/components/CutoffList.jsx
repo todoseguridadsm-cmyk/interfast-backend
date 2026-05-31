@@ -13,7 +13,12 @@ export default function CutoffList() {
     try {
       setLoading(true);
       const res = await axios.get(`${backendUrl}/api/cutoffs`);
-      setCutoffs(res.data);
+      if (Array.isArray(res.data)) {
+        setCutoffs(res.data);
+      } else {
+        console.warn('La respuesta del backend no es un arreglo válido. Probablemente el servidor aún no actualizó las rutas.');
+        setCutoffs([]);
+      }
     } catch (error) {
       console.error('Error fetching cutoffs:', error);
       alert('Error al cargar la lista de cortes.');
@@ -56,7 +61,7 @@ export default function CutoffList() {
     }
   };
 
-  const filteredCutoffs = cutoffs.filter(c => {
+  const filteredCutoffs = (Array.isArray(cutoffs) ? cutoffs : []).filter(c => {
     const s = searchTerm.toLowerCase();
     const name = c.client?.name?.toLowerCase() || '';
     const dni = c.client?.dni?.toLowerCase() || '';
