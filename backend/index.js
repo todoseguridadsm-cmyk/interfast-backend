@@ -163,7 +163,7 @@ async function generateCutoffList() {
   }
 }
 
-cron.schedule('0 0 28 * *', () => {
+cron.schedule('0 0 22 * *', () => {
   generateCutoffList();
 });
 
