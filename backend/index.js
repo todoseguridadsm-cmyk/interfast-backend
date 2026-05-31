@@ -78,8 +78,40 @@ const authenticateToken = (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/admin/clean-tests', async (req, res) => {
+  try {
+    const cutoffDate = new Date('2026-05-30T00:00:00.000Z');
+    const deletedMovements = await prisma.cashMovement.deleteMany({
+      where: { createdAt: { lt: cutoffDate } }
+    });
+    
+    const oldPayments = await prisma.payment.findMany({
+      where: { paymentDate: { lt: cutoffDate } }
+    });
+    
+    const invoiceIdsToReset = [...new Set(oldPayments.map(p => p.invoiceId))];
+    
+    const deletedPayments = await prisma.payment.deleteMany({
+      where: { paymentDate: { lt: cutoffDate } }
+    });
+    
+    let resetInvoicesCount = 0;
+    if (invoiceIdsToReset.length > 0) {
+      const resetInvoices = await prisma.invoice.updateMany({
+        where: { id: { in: invoiceIdsToReset } },
+        data: { status: 'PENDING' }
+      });
+      resetInvoicesCount = resetInvoices.count;
+    }
+    
+    res.json({ success: true, deletedMovements: deletedMovements.count, deletedPayments: deletedPayments.count, resetInvoices: resetInvoicesCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
+  if (req.path.startsWith('/admin/clean-tests') || req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook')) return next();
   return authenticateToken(req, res, next);
 });
 
