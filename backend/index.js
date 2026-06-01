@@ -1228,7 +1228,11 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
 
       if (today <= d1) expirationDate = d1;
       else if (today <= d2) expirationDate = d2;
-      else expirationDate = d3;
+      else if (today <= d3) expirationDate = d3;
+      else {
+        expirationDate = new Date();
+        expirationDate.setHours(23, 59, 59, 999);
+      }
     }
 
     // Si no hay Token real configurado, devolvemos un link de prueba para que WhatsApp siga funcionando
