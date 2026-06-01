@@ -1271,6 +1271,106 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
   }
 });
 
+// 5.b Mercado Pago Multi-Invoice Preferences
+app.post('/api/invoices/mercadopago/multi', async (req, res) => {
+  try {
+    const { invoiceIds } = req.body;
+    if (!invoiceIds || !Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de invoiceIds' });
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: { id: { in: invoiceIds }, status: 'PENDING' },
+      include: { client: true }
+    });
+
+    if (invoices.length === 0) return res.status(404).json({ error: 'No se encontraron facturas pendientes con esos IDs' });
+
+    // Validate they all belong to same client
+    const clientId = invoices[0].clientId;
+    const clientName = invoices[0].client.name;
+    const clientEmail = invoices[0].client.email || 'test@test.com';
+    if (!invoices.every(inv => inv.clientId === clientId)) {
+      return res.status(400).json({ error: 'Las facturas pertenecen a distintos clientes' });
+    }
+
+    const today = new Date();
+    let combinedTotal = 0;
+    let combinedExpiration = null; 
+    let hasStrictExpiration = false;
+
+    for (const invoice of invoices) {
+      let totalAmount = invoice.priceV1 || invoice.originalAmount;
+      let expirationDate = new Date(invoice.dueDate);
+      expirationDate.setHours(23, 59, 59, 999);
+
+      if (invoice.dueDate1) {
+        const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+        const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+        const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+
+        if (today <= d1) {
+          expirationDate = d1;
+          totalAmount = invoice.priceV1 || invoice.originalAmount;
+        } else if (today <= d2) {
+          expirationDate = d2;
+          totalAmount = invoice.priceV2 || invoice.originalAmount;
+        } else if (today <= d3) {
+          expirationDate = d3;
+          totalAmount = invoice.priceV3 || invoice.originalAmount;
+        } else {
+          expirationDate = null;
+          totalAmount = invoice.priceV3 || invoice.originalAmount;
+        }
+      }
+
+      combinedTotal += totalAmount;
+
+      if (expirationDate !== null) {
+        if (!hasStrictExpiration || (combinedExpiration && expirationDate < combinedExpiration)) {
+          combinedExpiration = expirationDate;
+          hasStrictExpiration = true;
+        }
+      }
+    }
+
+    if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
+      return res.json({ init_point: `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-MULTI-${invoiceIds.join('-')}` });
+    }
+
+    const preference = new Preference(clientMP);
+    
+    const prefBody = {
+      items: [
+        {
+          id: `INV-MULTI-${clientId}`,
+          title: `Abonos de Internet TK${String(clientId).padStart(3, '0')} (${invoices.length} facturas)`,
+          quantity: 1,
+          unit_price: parseFloat(combinedTotal)
+        }
+      ],
+      payer: {
+        name: clientName,
+        email: clientEmail,
+      },
+      external_reference: `MULTI-${invoiceIds.join('-')}`,
+      notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+    };
+
+    if (hasStrictExpiration && combinedExpiration) {
+      prefBody.expires = true;
+      prefBody.expiration_date_to = combinedExpiration.toISOString();
+    }
+
+    const prefs = await preference.create({ body: prefBody });
+
+    res.json({ init_point: prefs.init_point, totalAmount: combinedTotal, invoiceIds });
+  } catch (error) {
+    console.error('Error MP Multi:', error);
+    res.status(500).json({ error: 'Error al generar link multi de Mercado Pago' });
+  }
+});
+
 // 6. Mercado Pago Webhook
 app.post('/api/mercadopago/webhook', async (req, res) => {
   // Respondemos 200 rápido a MercadoPago para que no reintente
@@ -1291,46 +1391,62 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
       console.log(`⏳ Webhook MP: Leyendo status del pago en la API -> Estado: ${mpPayment.status}, Referencia: ${mpPayment.external_reference}`);
 
       if (mpPayment.status === 'approved') {
-        const invoiceId = parseInt(mpPayment.external_reference);
-        if (!invoiceId || isNaN(invoiceId)) {
-          console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${mpPayment.external_reference}).`);
-          return;
-        }
+        const ref = mpPayment.external_reference || '';
+        let invoiceIdsToProcess = [];
 
-        // 2. Verificar si en nuestra base existe y está pendiente
-        const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-
-        if (!invoice) {
-          console.error(`❌ Webhook MP: La factura ID ${invoiceId} no existe en la base de datos local.`);
-          return;
-        }
-
-        if (invoice.status !== 'PAID') {
-          // 3. Crear el recibo histórico (Clasificado estrictamente como MERCADOPAGO)
-          const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
-          await prisma.payment.create({
-            data: {
-              invoiceId: invoiceId,
-              method: 'MERCADOPAGO',
-              amountPaid: transactionAmount,
-              lateFeeApplied: 0
-            }
-          });
-
-          // 4. Marcar factura como pagada
-          await prisma.invoice.update({
-            where: { id: invoiceId },
-            data: { status: 'PAID' }
-          });
-          
-          await prisma.cutoffList.updateMany({
-            where: { invoiceId: invoiceId, status: 'PENDING' },
-            data: { status: 'RESOLVED' }
-          });
-          
-          console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
+        if (ref.startsWith('MULTI-')) {
+          invoiceIdsToProcess = ref.replace('MULTI-', '').split('-').map(id => parseInt(id)).filter(id => !isNaN(id));
         } else {
-          console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya figuraba como PAGADA. Se omitió la duplicación.`);
+          const singleId = parseInt(ref);
+          if (!isNaN(singleId)) invoiceIdsToProcess.push(singleId);
+        }
+
+        if (invoiceIdsToProcess.length === 0) {
+          console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${ref}).`);
+          return;
+        }
+
+        const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+        let remainingAmount = transactionAmount;
+
+        for (const invoiceId of invoiceIdsToProcess) {
+          // 2. Verificar si en nuestra base existe y está pendiente
+          const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+
+          if (!invoice) {
+            console.error(`❌ Webhook MP: La factura ID ${invoiceId} no existe en la base de datos local.`);
+            continue;
+          }
+
+          if (invoice.status !== 'PAID') {
+            // Distribute amount proportionally or log originalAmount
+            const amountToLog = invoiceIdsToProcess.length === 1 ? transactionAmount : invoice.originalAmount;
+
+            // 3. Crear el recibo histórico (Clasificado estrictamente como MERCADOPAGO)
+            await prisma.payment.create({
+              data: {
+                invoiceId: invoiceId,
+                method: 'MERCADOPAGO',
+                amountPaid: amountToLog,
+                lateFeeApplied: 0
+              }
+            });
+
+            // 4. Marcar factura como pagada
+            await prisma.invoice.update({
+              where: { id: invoiceId },
+              data: { status: 'PAID' }
+            });
+            
+            await prisma.cutoffList.updateMany({
+              where: { invoiceId: invoiceId, status: 'PENDING' },
+              data: { status: 'RESOLVED' }
+            });
+            
+            console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
+          } else {
+            console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya figuraba como PAGADA. Se omitió la duplicación.`);
+          }
         }
       }
     }
