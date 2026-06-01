@@ -499,7 +499,13 @@ app.put('/api/plans/:id', async (req, res) => {
 // 4. Invoices and Late Fee Engine
 app.get('/api/invoices', async (req, res) => {
   try {
+    const { clientId, status } = req.query;
+    let whereClause = {};
+    if (clientId) whereClause.clientId = parseInt(clientId);
+    if (status) whereClause.status = status;
+
     const invoices = await prisma.invoice.findMany({
+      where: whereClause,
       include: { client: true, payments: true },
       orderBy: { dueDate: 'desc' }
     });
