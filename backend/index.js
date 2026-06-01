@@ -66,10 +66,16 @@ seedAdmin();
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
+  const apiKey = req.headers['x-api-key'];
 
-  if (!token) return res.status(401).json({ error: 'Acceso Denegado. Faltan Credenciales JWT.' });
+  if (apiKey && process.env.N8N_API_KEY && apiKey === process.env.N8N_API_KEY) {
+    req.user = { role: 'N8N_BOT' };
+    return next();
+  }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  if (!token) return res.status(401).json({ error: 'Acceso Denegado. Faltan Credenciales JWT o API Key.' });
+
+  jwt.verify(token, process.env.JWT_SECRET || 'InterfastKey2026', (err, user) => {
     if (err) return res.status(403).json({ error: 'Token Inválido o Expirado.' });
     req.user = user;
     next();
