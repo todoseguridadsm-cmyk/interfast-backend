@@ -1229,10 +1229,7 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
       if (today <= d1) expirationDate = d1;
       else if (today <= d2) expirationDate = d2;
       else if (today <= d3) expirationDate = d3;
-      else {
-        expirationDate = new Date();
-        expirationDate.setHours(23, 59, 59, 999);
-      }
+      else expirationDate = null; // Sin vencimiento para clientes ultra atrasados
     }
 
     // Si no hay Token real configurado, devolvemos un link de prueba para que WhatsApp siga funcionando
@@ -1241,26 +1238,31 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
     }
 
     const preference = new Preference(clientMP);
-    const prefs = await preference.create({
-      body: {
-        items: [
-          {
-            id: `INV-${invoice.id}`,
-            title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
-            quantity: 1,
-            unit_price: parseFloat(totalAmount)
-          }
-        ],
-        payer: {
-          name: invoice.client.name,
-          email: invoice.client.email || 'test@test.com',
-        },
-        external_reference: invoice.id.toString(),
-        expires: true,
-        expiration_date_to: expirationDate.toISOString(),
-        notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
-      }
-    });
+    
+    const prefBody = {
+      items: [
+        {
+          id: `INV-${invoice.id}`,
+          title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
+          quantity: 1,
+          unit_price: parseFloat(totalAmount)
+        }
+      ],
+      payer: {
+        name: invoice.client.name,
+        email: invoice.client.email || 'test@test.com',
+      },
+      external_reference: invoice.id.toString(),
+      notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+    };
+
+    // Solo agregamos caducidad si estamos dentro de los vencimientos
+    if (expirationDate) {
+      prefBody.expires = true;
+      prefBody.expiration_date_to = expirationDate.toISOString();
+    }
+
+    const prefs = await preference.create({ body: prefBody });
 
     res.json({ init_point: prefs.init_point });
   } catch (error) {
