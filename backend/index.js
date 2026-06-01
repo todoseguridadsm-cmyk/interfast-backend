@@ -1536,6 +1536,43 @@ app.get('/api/reports/sales', async (req, res) => {
   }
 });
 
+app.get('/api/admin/fix-invoices', async (req, res) => {
+  try {
+    const invoices = await prisma.invoice.findMany({
+      where: { status: 'PENDING' },
+      include: { client: { include: { plan: true } } }
+    });
+
+    let count = 0;
+    for (const inv of invoices) {
+      if (inv.client.plan) {
+        const plan = inv.client.plan;
+        const dueDate1Date = new Date(inv.year, inv.month - 1, plan.dueDate1 || 10, 23, 59, 59, 999);
+        const dueDate2Date = new Date(inv.year, inv.month - 1, plan.dueDate2 || 15, 23, 59, 59, 999);
+        const dueDate3Date = new Date(inv.year, inv.month - 1, plan.dueDate3 || 20, 23, 59, 59, 999);
+
+        await prisma.invoice.update({
+          where: { id: inv.id },
+          data: {
+            originalAmount: plan.priceV1 || plan.totalPrice,
+            priceV1: plan.priceV1 || plan.totalPrice,
+            dueDate1: dueDate1Date,
+            dueDate: dueDate1Date,
+            priceV2: plan.priceV2 || plan.totalPrice,
+            dueDate2: dueDate2Date,
+            priceV3: plan.priceV3 || plan.totalPrice,
+            dueDate3: dueDate3Date
+          }
+        });
+        count++;
+      }
+    }
+    res.json({ message: `¡Éxito! Se actualizaron ${count} facturas pendientes con los nuevos precios de sus planes.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Servidor CRM corriendo en puerto ${PORT}`);
