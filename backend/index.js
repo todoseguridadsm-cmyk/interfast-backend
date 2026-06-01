@@ -881,16 +881,19 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${inv.id}`;
       } else {
         const preference = new Preference(clientMP);
-        const prefs = await preference.create({
-          body: {
-            items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
-            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
-            external_reference: inv.id.toString(),
-            expires: true,
-            expiration_date_to: expirationDate.toISOString(),
-            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
-          }
-        });
+        const prefBody = {
+          items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
+          payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
+          external_reference: inv.id.toString(),
+          notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+        };
+        
+        if (expirationDate && expirationDate >= today) {
+          prefBody.expires = true;
+          prefBody.expiration_date_to = expirationDate.toISOString();
+        }
+
+        const prefs = await preference.create({ body: prefBody });
         paymentLink = prefs.init_point;
       }
 
