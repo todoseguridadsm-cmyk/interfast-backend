@@ -75,7 +75,7 @@ const authenticateToken = (req, res, next) => {
 
   if (!token) return res.status(401).json({ error: 'Acceso Denegado. Faltan Credenciales JWT o API Key.' });
 
-  jwt.verify(token, process.env.JWT_SECRET || 'InterfastKey2026', (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Token Inválido o Expirado.' });
     req.user = user;
     next();
