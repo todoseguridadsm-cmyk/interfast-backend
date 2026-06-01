@@ -853,6 +853,8 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       if (!inv.client.phone) continue;
 
       const phone = inv.client.phone.replace(/\D/g, '');
+      if (phone.length < 8) continue;
+
       const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
       const today = new Date();
