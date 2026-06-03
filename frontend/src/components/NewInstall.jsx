@@ -10,7 +10,7 @@ export default function NewInstall() {
   const initialFormState = {
     dni: '', name: '', businessName: '', email: '', phone: '', address: '', fiscalAddress: '', 
     city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
-    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, 
+    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'PENDING', hasRouter: false, hasMast: false, 
     registrationDate: new Date().toISOString().split('T')[0]
   };
 
@@ -108,6 +108,7 @@ export default function NewInstall() {
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Estado de la Cuenta</label>
                   <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm bg-white font-bold">
+                    <option value="PENDING" className="text-blue-600">Pendiente de Alta</option>
                     <option value="ACTIVE" className="text-emerald-700">Activo</option>
                     <option value="SUSPENDED" className="text-orange-600">Suspendido</option>
                     <option value="BAJA" className="text-red-600">Baja (No factura)</option>

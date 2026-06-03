@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -98,6 +98,19 @@ export default function ClientsList() {
     } catch (error) {
       console.error(error);
       alert('Error al eliminar');
+    }
+  };
+
+  const handleConfirm = async (id) => {
+    if (!window.confirm('¿Confirmar el alta de este cliente y pasarlo a Activo?')) return;
+    try {
+      const client = clients.find(c => c.id === id);
+      const payload = { ...client, status: 'ACTIVE' };
+      await axios.put(`https://interfast-backend-95ww.onrender.com/api/clients/${id}`, payload);
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      alert('Error al confirmar el alta');
     }
   };
 
@@ -299,12 +312,17 @@ export default function ClientsList() {
                     ) : ( <span className="text-slate-400 text-xs">$0.00</span> )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                      {client.status}
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : client.status === 'PENDING' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                      {client.status === 'PENDING' ? 'Pendiente' : client.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 mr-2" title="Editar cliente">
+                  <td className="px-6 py-4 text-right flex justify-end gap-1">
+                    {client.status === 'PENDING' && (
+                      <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
+                        <Check size={18} />
+                      </button>
+                    )}
+                    <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
                       <Edit2 size={18} />
                     </button>
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
@@ -376,6 +394,7 @@ export default function ClientsList() {
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Estado de la Cuenta</label>
                       <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white font-bold">
+                        <option value="PENDING" className="text-blue-600">Pendiente de Alta</option>
                         <option value="ACTIVE" className="text-emerald-700">Activo</option>
                         <option value="SUSPENDED" className="text-orange-600">Suspendido</option>
                         <option value="BAJA" className="text-red-600">Baja (No factura)</option>
