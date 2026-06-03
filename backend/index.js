@@ -1652,6 +1652,121 @@ app.get('/api/admin/fix-invoices', async (req, res) => {
   }
 });
 
+// --- NEW SALES & COVERAGE SYSTEM ---
+app.get('/api/catalog', async (req, res) => {
+  try {
+    const items = await prisma.catalogItem.findMany();
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener el catálogo' });
+  }
+});
+
+app.post('/api/catalog', async (req, res) => {
+  try {
+    const { name, category, price, description, isActive } = req.body;
+    const item = await prisma.catalogItem.create({
+      data: { name, category, price: parseFloat(price), description, isActive }
+    });
+    res.json(item);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al crear ítem del catálogo' });
+  }
+});
+
+app.put('/api/catalog/:id', async (req, res) => {
+  try {
+    const { name, category, price, description, isActive } = req.body;
+    const item = await prisma.catalogItem.update({
+      where: { id: parseInt(req.params.id) },
+      data: { name, category, price: parseFloat(price), description, isActive }
+    });
+    res.json(item);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar ítem' });
+  }
+});
+
+app.delete('/api/catalog/:id', async (req, res) => {
+  try {
+    await prisma.catalogItem.delete({ where: { id: parseInt(req.params.id) } });
+    res.json({ message: 'Ítem eliminado' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar ítem' });
+  }
+});
+
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const setting = await prisma.systemSettings.findUnique({
+      where: { key: req.params.key }
+    });
+    res.json(setting || { key: req.params.key, value: '' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener setting' });
+  }
+});
+
+app.post('/api/settings', async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    const setting = await prisma.systemSettings.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value }
+    });
+    res.json(setting);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al guardar setting' });
+  }
+});
+
+app.get('/api/leads', async (req, res) => {
+  try {
+    const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(leads);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener prospectos' });
+  }
+});
+
+app.post('/api/leads', async (req, res) => {
+  try {
+    const { phone, name, address, latitude, longitude, status, notes } = req.body;
+    const lead = await prisma.lead.create({
+      data: { phone, name, address, latitude: latitude ? parseFloat(latitude) : null, longitude: longitude ? parseFloat(longitude) : null, status: status || 'NEW', notes }
+    });
+    res.json(lead);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al crear prospecto' });
+  }
+});
+
+app.get('/api/sales-info', async (req, res) => {
+  try {
+    const catalog = await prisma.catalogItem.findMany({ where: { isActive: true } });
+    const plans = await prisma.plan.findMany();
+    const mapSetting = await prisma.systemSettings.findUnique({ where: { key: 'COVERAGE_POLYGONS' } });
+    
+    let coverageMap = [];
+    if (mapSetting && mapSetting.value) {
+      try {
+        coverageMap = JSON.parse(mapSetting.value);
+      } catch (e) {
+        coverageMap = [];
+      }
+    }
+
+    res.json({
+      catalog,
+      plans,
+      coverageMap
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener sales-info' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Servidor CRM corriendo en puerto ${PORT}`);
