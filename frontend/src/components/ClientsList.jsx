@@ -4,6 +4,10 @@ import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check } from '
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
+  const userString = localStorage.getItem('user');
+  const user = userString ? JSON.parse(userString) : { role: 'STAFF' };
+  const isAdmin = user.role === 'ADMIN';
+
   const [clients, setClients] = useState([]);
   const [plans, setPlans] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -230,11 +234,13 @@ export default function ClientsList() {
           <p className="text-slate-500 mt-1">Gestión de abonados y números de cliente (TK000).</p>
         </div>
         <div className="flex gap-3">
-          <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 cursor-pointer" title="Importar Planilla Excel">
-            <Download className="rotate-180" size={18} />
-            Importar
-            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
-          </label>
+          {isAdmin && (
+            <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 cursor-pointer" title="Importar Planilla Excel">
+              <Download className="rotate-180" size={18} />
+              Importar
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
+            </label>
+          )}
           <button 
             onClick={exportToExcel}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
@@ -243,13 +249,15 @@ export default function ClientsList() {
             <Download size={18} />
             Excel
           </button>
-          <button 
-            onClick={() => { closeModal(); setIsModalOpen(true); }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
-          >
-            <Plus size={18} />
-            Nuevo Cliente
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={() => { closeModal(); setIsModalOpen(true); }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Nuevo Cliente
+            </button>
+          )}
         </div>
       </header>
 
@@ -317,20 +325,24 @@ export default function ClientsList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right flex justify-end gap-1">
-                    {client.status === 'PENDING' && (
+                    {client.status === 'PENDING' && isAdmin && (
                       <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
                         <Check size={18} />
                       </button>
                     )}
-                    <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
-                      <Edit2 size={18} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
+                        <Edit2 size={18} />
+                      </button>
+                    )}
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
                       <MessageCircle size={18} />
                     </button>
-                    <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
-                      <Trash2 size={18} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

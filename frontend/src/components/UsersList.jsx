@@ -230,7 +230,7 @@ export default function UsersList() {
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <label className="block text-sm font-bold text-slate-700 mb-2">Permisos de Acceso al Menú</label>
                   <div className="space-y-2 grid grid-cols-2 gap-x-2">
-                    {['CLIENTES', 'FACTURACION', 'PLANES', 'REPORTES', 'CAJA', 'SOPORTE', 'CORTES', 'ALTAS'].map(p => (
+                    {['CLIENTES', 'ALTAS', 'CORTES', 'BAJAS', 'SOPORTE'].map(p => (
                       <label key={p} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
                         <input type="checkbox" checked={form.permissions.includes(p)} onChange={()=>togglePermission(p)} className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer" />
                         <span className="font-bold">{p}</span>
