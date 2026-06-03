@@ -14,7 +14,8 @@ import POSCaja from './components/POSCaja';
 import WhatsAppStatus from './components/WhatsAppStatus';
 import CutoffList from './components/CutoffList';
 import NewInstall from './components/NewInstall';
-import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus } from 'lucide-react';
+import BajasList from './components/BajasList';
+import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -152,6 +153,13 @@ function AppContent() {
             </Link>
           )}
 
+          {isAllowed('BAJAS') && (
+            <Link onClick={handleLinkClick} to="/bajas" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/bajas' ? 'bg-red-600/20 text-red-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <UserMinus size={20} />
+              <span>Solicitudes de Baja</span>
+            </Link>
+          )}
+
           {isAllowed('PLANES') && (
             <Link onClick={handleLinkClick} to="/plans" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/plans' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Wifi size={20} />
@@ -217,6 +225,7 @@ function AppContent() {
             <Route path="/plans" element={isAllowed('PLANES') ? <PlansList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/invoices" element={isAllowed('FACTURACION') ? <InvoicesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cutoff" element={isAllowed('CORTES') ? <CutoffList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/bajas" element={isAllowed('BAJAS') ? <BajasList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/pos" element={isAllowed('CAJA') ? <POSCaja /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/reports" element={isAllowed('REPORTES') ? <Reports /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cash" element={isAllowed('CAJA') ? <DailyCash /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />

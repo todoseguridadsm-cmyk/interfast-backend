@@ -34,6 +34,7 @@ model Client {
   invoices  Invoice[]
   tickets   Ticket[]
   cutoffLists CutoffList[]
+  cancellationRequests CancellationRequest[]
   registrationDate DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -166,4 +167,14 @@ model CutoffList {
   status    String   @default("PENDING") // PENDING (Cortado) o RESOLVED (Pagado/Eximido)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model CancellationRequest {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  reason      String?
+  status      String   @default("PENDING") // PENDING, CONFIRMED, RESTORED
+  requestedAt DateTime @default(now())
+  resolvedAt  DateTime?
 }

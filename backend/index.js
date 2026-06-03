@@ -419,6 +419,85 @@ app.post('/api/clients/bulk', async (req, res) => {
   }
 });
 
+// --- Bajas (Cancellations) ---
+app.get('/api/bajas', async (req, res) => {
+  try {
+    const bajas = await prisma.cancellationRequest.findMany({
+      include: { client: true },
+      orderBy: { requestedAt: 'desc' }
+    });
+    res.json(bajas);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener bajas' });
+  }
+});
+
+app.post('/api/bajas', async (req, res) => {
+  try {
+    const { clientId, reason } = req.body;
+    if (!clientId) return res.status(400).json({ error: 'Falta clientId' });
+    const baja = await prisma.cancellationRequest.create({
+      data: {
+        clientId: parseInt(clientId),
+        reason
+      }
+    });
+    res.json(baja);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al registrar la solicitud de baja' });
+  }
+});
+
+app.put('/api/bajas/:id/confirm', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const baja = await prisma.cancellationRequest.update({
+      where: { id },
+      data: { status: 'CONFIRMED', resolvedAt: new Date() },
+      include: { client: true }
+    });
+    if (baja.clientId) {
+      await prisma.client.update({
+        where: { id: baja.clientId },
+        data: { status: 'BAJA' }
+      });
+    }
+    res.json(baja);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al confirmar la baja' });
+  }
+});
+
+app.put('/api/bajas/:id/restore', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const baja = await prisma.cancellationRequest.update({
+      where: { id },
+      data: { status: 'RESTORED', resolvedAt: new Date() },
+      include: { client: true }
+    });
+    if (baja.clientId) {
+      await prisma.client.update({
+        where: { id: baja.clientId },
+        data: { status: 'ACTIVE' }
+      });
+    }
+    res.json(baja);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al restablecer la baja' });
+  }
+});
+
+app.delete('/api/bajas/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await prisma.cancellationRequest.delete({ where: { id } });
+    res.json({ message: 'Solicitud de baja eliminada' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar la solicitud de baja' });
+  }
+});
+
 // 3. Plans CRUD
 app.get('/api/plans', async (req, res) => {
   try {
