@@ -11,6 +11,7 @@ export default function InvoicesList() {
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
 
   const fetchInvoices = async () => {
@@ -288,15 +289,21 @@ export default function InvoicesList() {
   };
 
   const filteredInvoices = invoices.filter(inv => {
-    const isSearching = (startDate !== '' && endDate !== '');
+    const isSearchingDate = (startDate !== '' && endDate !== '');
+    const term = searchTerm.toLowerCase();
+    const clientName = (inv.client?.name || '').toLowerCase();
 
-    // Ocultar facturas con CAE (emitidas ARCA) de la página principal, a menos que estemos buscando fechadas explícitamente
-    if (inv.afipCae && !isSearching) {
+    // Ocultar facturas con CAE (emitidas ARCA) de la página principal, a menos que estemos buscando fechadas o por nombre
+    if (inv.afipCae && !isSearchingDate && !term) {
+      return false;
+    }
+
+    if (term && !clientName.includes(term)) {
       return false;
     }
 
     // 1. Period Filter (Date Range Calendar)
-    if (isSearching) {
+    if (isSearchingDate) {
        const start = new Date(startDate);
        start.setHours(0, 0, 0, 0); // Ajustar a inicio de día en hora local
        const end = new Date(endDate);
@@ -347,8 +354,14 @@ export default function InvoicesList() {
               {filteredInvoices.length} {filteredInvoices.length === 1 ? 'Factura' : 'Facturas'}
             </span>
           </h2>
-          <div className="mt-2 flex items-center gap-3">
-            <p className="text-slate-500 text-sm">Buscar:</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-slate-500 text-sm">Filtros:</p>
+            <input 
+              type="text"
+              placeholder="🔍 Buscar cliente..."
+              value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}
+              className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none w-48 focus:ring-2 focus:ring-blue-500"
+            />
             <input 
               type="date"
               value={startDate} onChange={e=>setStartDate(e.target.value)}
@@ -441,7 +454,7 @@ export default function InvoicesList() {
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map(inv => {
+                [...filteredInvoices].sort((a, b) => (a.client?.name || '').localeCompare(b.client?.name || '')).map(inv => {
                   const isPaid = inv.status === 'PAID';
                   const isSelectable = (!isPaid && !inv.notifiedAt) || (isPaid && !inv.afipCae);
                   return (
