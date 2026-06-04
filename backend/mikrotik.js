@@ -27,8 +27,8 @@ async function connectToMikrotik(nodeName) {
     timeout: 10000 // 10 segundos de timeout
   });
 
-  await client.connect();
-  return client;
+  const api = await client.connect();
+  return { client, api };
 }
 
 /**
@@ -39,8 +39,9 @@ async function connectToMikrotik(nodeName) {
 async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comment = 'Corte Automático CRM') {
   let client = null;
   try {
-    client = await connectToMikrotik(nodeName);
-    const api = client.menu('/ip/firewall/address-list');
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+    const api = conn.api.menu('/ip/firewall/address-list');
 
     // Revisar si la IP ya está en la lista
     const existing = await api.where('address', ipAddress).where('list', listName).get();
@@ -74,8 +75,9 @@ async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comm
 async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos') {
   let client = null;
   try {
-    client = await connectToMikrotik(nodeName);
-    const api = client.menu('/ip/firewall/address-list');
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+    const api = conn.api.menu('/ip/firewall/address-list');
 
     // Buscar el registro de la IP en la lista
     const records = await api.where('address', ipAddress).where('list', listName).get();

@@ -441,8 +441,8 @@ app.put('/api/clients/:id/status', async (req, res) => {
 
 app.get('/api/mikrotik/test/:nodeName', async (req, res) => {
   try {
-    const client = await mikrotik.connectToMikrotik(req.params.nodeName);
-    client.close();
+    const conn = await mikrotik.connectToMikrotik(req.params.nodeName);
+    conn.client.close();
     res.json({ success: true, message: 'Conexión al router Mikrotik establecida con éxito.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
