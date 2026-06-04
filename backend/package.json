@@ -111,6 +111,7 @@
     "raw-body": "^3.0.2",
     "rc": "^1.2.8",
     "router": "^2.2.0",
+    "routeros-client": "^1.1.1",
     "safe-buffer": "^5.2.1",
     "safer-buffer": "^2.1.2",
     "send": "^1.2.1",

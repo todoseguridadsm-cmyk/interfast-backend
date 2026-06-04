@@ -10,6 +10,7 @@ const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
+const mikrotik = require('./mikrotik');
 require('dotenv').config();
 
 // AFIP Configuration
@@ -145,7 +146,8 @@ async function generateCutoffList() {
   console.log('⏳ Ejecutando: Generación de Lista de Cortes de Servicio...');
   try {
     const pendingInvoices = await prisma.invoice.findMany({
-      where: { status: 'PENDING' }
+      where: { status: 'PENDING' },
+      include: { client: true }
     });
 
     let count = 0;
@@ -158,6 +160,15 @@ async function generateCutoffList() {
         await prisma.cutoffList.create({
           data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
         });
+        
+        if (inv.client && inv.client.ipNumber) {
+          try {
+            await mikrotik.addIpToCutoffList(inv.client.ipNumber);
+          } catch (err) {
+            console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, err.message);
+          }
+        }
+        
         count++;
       }
     }
@@ -205,8 +216,18 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     const cutoff = await prisma.cutoffList.update({
       where: { id },
-      data: { status: 'RESOLVED' }
+      data: { status: 'RESOLVED' },
+      include: { client: true }
     });
+    
+    if (cutoff.client && cutoff.client.ipNumber) {
+      try {
+        await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber);
+      } catch (err) {
+        console.error(`Error removiendo IP ${cutoff.client.ipNumber} del Mikrotik:`, err.message);
+      }
+    }
+    
     res.json({ message: 'Cliente eximido de la lista de cortes.', cutoff });
   } catch (error) {
     console.error(error);
@@ -1302,6 +1323,18 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         where: { invoiceId, status: 'PENDING' },
         data: { status: 'RESOLVED' }
       });
+      
+      const invoiceData = await prisma.invoice.findUnique({
+        where: { id: invoiceId },
+        include: { client: true }
+      });
+      if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
+        try {
+          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber);
+        } catch (err) {
+          console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, err.message);
+        }
+      }
     }
 
     res.json({ message: `Factura cobrada (${finalStatus})`, invoice });
@@ -1550,6 +1583,18 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               where: { invoiceId: invoiceId, status: 'PENDING' },
               data: { status: 'RESOLVED' }
             });
+            
+            const invoiceData = await prisma.invoice.findUnique({
+              where: { id: invoiceId },
+              include: { client: true }
+            });
+            if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
+              try {
+                await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber);
+              } catch (err) {
+                console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, err.message);
+              }
+            }
             
             console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
           } else {
