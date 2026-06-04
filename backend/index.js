@@ -413,6 +413,30 @@ app.put('/api/clients/:id', async (req, res) => {
   }
 });
 
+app.put('/api/clients/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const client = await prisma.client.update({
+      where: { id: parseInt(req.params.id) },
+      data: { status },
+    });
+    
+    // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
+    if (client.ipNumber) {
+      if (status === 'SUSPENDED') {
+        try { await mikrotik.addIpToCutoffList(client.ipNumber); } catch (e) { console.error('Mikrotik suspend error', e.message); }
+      } else if (status === 'ACTIVE') {
+        try { await mikrotik.removeIpFromCutoffList(client.ipNumber); } catch (e) { console.error('Mikrotik restore error', e.message); }
+      }
+    }
+    
+    res.json(client);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al cambiar estado' });
+  }
+});
+
 app.post('/api/clients/bulk', async (req, res) => {
   try {
     const { clients } = req.body;

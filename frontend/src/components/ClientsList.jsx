@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -115,6 +115,20 @@ export default function ClientsList() {
     } catch (error) {
       console.error(error);
       alert('Error al confirmar el alta');
+    }
+  };
+
+  const handleToggleStatus = async (client) => {
+    if (!isAdmin) return;
+    const newStatus = client.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    if (!window.confirm(`¿Estás seguro de cambiar el estado del cliente a ${newStatus}? Esto cortará o habilitará su servicio de internet en el router automáticamente.`)) return;
+    
+    try {
+      await axios.put(`https://interfast-backend-95ww.onrender.com/api/clients/${client.id}/status`, { status: newStatus });
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      alert('Error al cambiar el estado del cliente');
     }
   };
 
@@ -328,6 +342,11 @@ export default function ClientsList() {
                     {client.status === 'PENDING' && isAdmin && (
                       <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
                         <Check size={18} />
+                      </button>
+                    )}
+                    {isAdmin && client.status !== 'BAJA' && client.status !== 'PENDING' && (
+                      <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-2 rounded-lg mr-1 ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
+                        <Power size={18} />
                       </button>
                     )}
                     {isAdmin && (
