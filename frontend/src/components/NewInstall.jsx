@@ -4,6 +4,7 @@ import { UserPlus } from 'lucide-react';
 
 export default function NewInstall() {
   const [plans, setPlans] = useState([]);
+  const [nodes, setNodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   
@@ -19,6 +20,10 @@ export default function NewInstall() {
   useEffect(() => {
     axios.get('https://interfast-backend-95ww.onrender.com/api/plans')
       .then(res => setPlans(res.data))
+      .catch(err => console.error(err));
+      
+    axios.get('https://interfast-backend-95ww.onrender.com/api/nodes')
+      .then(res => setNodes(res.data))
       .catch(err => console.error(err));
   }, []);
 
@@ -162,7 +167,12 @@ export default function NewInstall() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
                 <div className="md:col-span-4">
                   <label className="block text-xs font-medium text-slate-500 mb-1">Nodo Principal (Torre)</label>
-                  <input type="text" name="mainNode" value={formData.mainNode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" placeholder="Ej: Nodo Central 1" />
+                  <select name="mainNode" value={formData.mainNode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm bg-white">
+                    <option value="">Seleccione un nodo...</option>
+                    {nodes.map(node => (
+                      <option key={node.id} value={node.name}>{node.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="md:col-span-4">
                   <label className="block text-xs font-medium text-slate-500 mb-1">ID del Panel Sectorial</label>
