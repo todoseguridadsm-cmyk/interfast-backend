@@ -104,8 +104,48 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
   }
 }
 
+async function pingIp(ipAddress, nodeName) {
+  let client = null;
+  try {
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+    
+    // Ejecutamos 3 pings a la IP
+    const results = await client.rosApi.write('/ping', [`=address=${ipAddress}`, '=count=3']);
+    
+    // El último resultado suele tener los promedios totales
+    const lastResult = results[results.length - 1];
+    
+    // Extraemos estadísticas
+    const packetLoss = parseInt(lastResult['packet-loss'] || '100', 10);
+    const avgRtt = lastResult['avg-rtt'] || 'N/A';
+    const isOnline = packetLoss < 100;
+
+    return {
+      success: true,
+      isOnline,
+      packetLoss,
+      avgRtt,
+      raw: results
+    };
+  } catch (err) {
+    const msg = err.message || JSON.stringify(err);
+    console.error(`❌ Mikrotik Error al hacer ping a ${ipAddress}:`, msg);
+    return {
+      success: false,
+      isOnline: false,
+      error: msg
+    };
+  } finally {
+    if (client) {
+      client.close();
+    }
+  }
+}
+
 module.exports = {
   addIpToCutoffList,
   removeIpFromCutoffList,
+  pingIp,
   connectToMikrotik
 };

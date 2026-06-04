@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -19,6 +19,32 @@ export default function ClientsList() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
+  const [pingingId, setPingingId] = useState(null);
+
+  const handlePing = async (client) => {
+    if (!client.ipNumber || !client.mainNode) {
+      alert('El cliente no tiene IP o Nodo configurado.');
+      return;
+    }
+    setPingingId(client.id);
+    try {
+      const { data } = await axios.get(`https://interfast-backend-95ww.onrender.com/api/clients/${client.id}/ping`);
+      if (data.success) {
+        if (data.isOnline) {
+          alert(`✅ Conexión Exitosa con ${client.name}\nLatencia: ${data.avgRtt}\nPérdida: ${data.packetLoss}%`);
+        } else {
+          alert(`❌ Cliente Offline\nPérdida de paquetes: ${data.packetLoss}%`);
+        }
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error de conexión al intentar hacer ping.');
+    } finally {
+      setPingingId(null);
+    }
+  };
 
   const handleEdit = (client) => {
     setEditingId(client.id);
@@ -361,6 +387,11 @@ export default function ClientsList() {
                     {isAdmin && (
                       <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
                         <Edit2 size={18} />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
+                        {pingingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Activity size={18} />}
                       </button>
                     )}
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">

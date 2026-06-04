@@ -439,6 +439,28 @@ app.put('/api/clients/:id/status', async (req, res) => {
   }
 });
 
+app.get('/api/clients/:id/ping', async (req, res) => {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!client) {
+      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    }
+
+    if (!client.ipNumber || !client.mainNode) {
+      return res.status(400).json({ success: false, error: 'El cliente no tiene IP o Nodo asignado' });
+    }
+
+    const pingResult = await mikrotik.pingIp(client.ipNumber, client.mainNode);
+    res.json(pingResult);
+  } catch (error) {
+    console.error('Error in /ping endpoint:', error);
+    res.status(500).json({ success: false, error: 'Error interno al procesar el ping' });
+  }
+});
+
 app.get('/api/mikrotik/test/:nodeName', async (req, res) => {
   try {
     const conn = await mikrotik.connectToMikrotik(req.params.nodeName);
