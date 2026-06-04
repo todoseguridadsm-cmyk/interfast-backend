@@ -43,8 +43,9 @@ async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comm
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Revisar si la IP ya está en la lista
-    const existing = await api.where('address', ipAddress).where('list', listName).get();
+    // Revisar si la IP ya está en la lista (descargando toda la lista para evitar el bug de routeros v7 con !empty)
+    const list = await api.get();
+    const existing = list.filter(item => item.address === ipAddress && item.list === listName);
     
     if (existing.length === 0) {
       await api.add({
@@ -79,8 +80,9 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Buscar el registro de la IP en la lista
-    const records = await api.where('address', ipAddress).where('list', listName).get();
+    // Buscar el registro de la IP en la lista (descargando la lista completa)
+    const list = await api.get();
+    const records = list.filter(item => item.address === ipAddress && item.list === listName);
     
     if (records.length > 0) {
       // Eliminar por su .id
