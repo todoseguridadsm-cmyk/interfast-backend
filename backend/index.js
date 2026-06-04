@@ -5,11 +5,169 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
+const cron = require('node-cron');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
+const mikrotik = require('./mikrotik');
+require('dotenv').config();
+
+// AFIP Configuration
+const Afip = require('@afipsdk/afip.js');
+let afip = null;
+try {
+  // Los certificados deben estar en la carpeta /afip_certs con los nombres 'cert' y 'key'
+  afip = new Afip({
+    CUIT: 30717010554,
+    res_folder: './afip_certs/',
+    production: true // Cambiado a true para producción
+  });
+  console.log('AFIP Module Loaded para CUIT: 30717010554 (Producción)');
+} catch (e) {
+  console.error('Error inicializando AFIP:', e.message);
+}
+
+const app = express();
+const prisma = new PrismaClient();
+const PORT = process.env.PORT || 4000;
+
+// Mercado Pago Auth
+let clientMP = null;
+if (process.env.MP_ACCESS_TOKEN) {
+  clientMP = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+}
+
+// Crypto Settings
+const JWT_SECRET = process.env.JWT_SECRET || 'TKIP_SUPER_PRIVATE_KEY_2026';
+
+// Seed Admin User
+async function seedAdmin() {
+  try {
+    const defaultAdmin = await prisma.user.findUnique({ where: { username: 'tkip' } });
+    if (!defaultAdmin) {
+      const hash = await bcrypt.hash('Bran5570', 10);
+      await prisma.user.create({
+        data: {
+          username: 'tkip',
+          passwordHash: hash,
+          role: 'ADMIN',
+          permissions: JSON.stringify(['ALL'])
+        }
+      });
+      console.log('🔒 Superusuario maestro (tkip) creado y encriptado.');
+    }
+  } catch (err) {
+    console.error('Error seeding admin', err);
+  }
+}
+seedAdmin();
+
+// Authorization Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  const apiKey = req.headers['x-api-key'];
+
+  if (apiKey && process.env.N8N_API_KEY && apiKey === process.env.N8N_API_KEY) {
+    req.user = { role: 'N8N_BOT' };
+    return next();
+  }
+
+  if (!token) return res.status(401).json({ error: 'Acceso Denegado. Faltan Credenciales JWT o API Key.' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Token Inválido o Expirado.' });
+    req.user = user;
+    next();
+  });
+};
+
+app.use(cors());
+app.use(express.json());
+
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook') || req.path.startsWith('/admin/fix-invoices') || req.path.startsWith('/mikrotik/test')) return next();
+  return authenticateToken(req, res, next);
+});
+
+// WhatsApp Headless Client variables
+let waStatus = 'DISCONNECTED';
+let waQrCode = null;
+let waSocket = null;
+
+async function connectToWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`📱 Inicializando cliente de WhatsApp (Baileys v${version.join('.')})...`);
+
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: false,
+    logger: pino({ level: 'silent' }),
+    browser: Browsers.macOS('Desktop')
+  });
+
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      waStatus = 'QR_READY';
+      waQrCode = qr; // Baileys produces raw strings for QR, perfectly compatible with our react QRCodeSVG
+      console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
+    }
+
+    if (connection === 'close') {
+      const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('📱 WhatsApp Desconectado. Razón:', lastDisconnect.error?.message, '| Reconectar:', shouldReconnect);
+      waStatus = 'DISCONNECTED';
+      if (shouldReconnect) {
+        setTimeout(connectToWhatsApp, 3000);
+      } else {
+        console.log('📱 Sesión cerrada.');
+      }
+    } else if (connection === 'open') {
+      waStatus = 'CONNECTED';
+      waQrCode = null;
+      console.log('📱 WhatsApp Web Headless Client está LISTO y conectado (Baileys)!');
+    }
+  });
+
+  waSocket = sock;
+}
+
+connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
+
+// --- CRON JOBS ---
+async function generateCutoffList() {
+  console.log('⏳ Ejecutando: Generación de Lista de Cortes de Servicio...');
+  try {
+    const pendingInvoices = await prisma.invoice.findMany({
+      where: { status: 'PENDING' },
+      include: { client: true }
+    });
+
+    let count = 0;
+    for (const inv of pendingInvoices) {
+      const existingCutoff = await prisma.cutoffList.findFirst({
+        where: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
+      });
+const tls = require('tls');
+tls.DEFAULT_CIPHERS = 'DEFAULT@SECLEVEL=0'; // Fix for AFIP's small DH keys
+
+const express = require('express');
+const cors = require('cors');
+const { PrismaClient } = require('@prisma/client');
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
+const cron = require('node-cron');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
+const pino = require('pino');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const mikrotik = require('./mikrotik');
 require('dotenv').config();
 
@@ -163,6 +321,10 @@ async function generateCutoffList() {
         
         if (inv.client && inv.client.ipNumber && inv.client.mainNode) {
           try {
+            await prisma.client.update({
+              where: { id: inv.clientId },
+              data: { status: 'SUSPENDED' }
+            });
             await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
           } catch (err) {
             const msg = err.message || JSON.stringify(err);
@@ -181,7 +343,7 @@ async function generateCutoffList() {
   }
 }
 
-cron.schedule('0 0 22 * *', () => {
+cron.schedule('0 8 22 * *', () => {
   generateCutoffList();
 });
 
@@ -223,6 +385,10 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
     
     if (cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
       try {
+        await prisma.client.update({
+          where: { id: cutoff.clientId },
+          data: { status: 'ACTIVE' }
+        });
         await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
         const msg = err.message || JSON.stringify(err);
@@ -807,6 +973,54 @@ app.post('/api/invoices/generate', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al generar facturas' });
+  }
+});
+
+// Endpoint para corte masivo de morosos (ejecución manual)
+app.post('/api/invoices/mass-cutoff', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Buscar facturas PENDING del mes actual (o anteriores si se desea, pero usualmente del mes)
+    // Para asegurar que cortamos a TODOS los morosos que no han pagado, buscamos todas las facturas PENDING con dueDate vencido o simplemente PENDING.
+    const pendingInvoices = await prisma.invoice.findMany({
+      where: {
+        status: 'PENDING',
+        client: { status: 'ACTIVE' } // Solo a los que no esten suspendidos ya
+      },
+      include: { client: true }
+    });
+
+    let suspendedCount = 0;
+    const errors = [];
+
+    for (const invoice of pendingInvoices) {
+      if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
+        try {
+          // Cambiar estado en DB
+          await prisma.client.update({
+            where: { id: invoice.clientId },
+            data: { status: 'SUSPENDED' }
+          });
+          
+          // Enviar orden al Mikrotik
+          await mikrotik.addIpToCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+          suspendedCount++;
+        } catch (err) {
+          const msg = err.message || JSON.stringify(err);
+          console.error(`Error al cortar servicio a ${invoice.client.name}:`, msg);
+          errors.push({ client: invoice.client.name, error: msg });
+        }
+      }
+    }
+
+    res.json({ message: `Corte masivo finalizado. ${suspendedCount} clientes suspendidos.`, suspendedCount, errors });
+  } catch (error) {
+    console.error('Error en mass-cutoff:', error);
+    res.status(500).json({ error: 'Error interno al ejecutar el corte masivo' });
   }
 });
 
@@ -1415,6 +1629,14 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         where: { id: invoiceId },
         include: { client: true }
       });
+      
+      // Auto-habilitar en la BD
+      if (invoiceData && invoiceData.clientId) {
+        await prisma.client.update({
+          where: { id: invoiceData.clientId },
+          data: { status: 'ACTIVE' }
+        });
+      }
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
         try {
           await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
@@ -1676,6 +1898,14 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               where: { id: invoiceId },
               include: { client: true }
             });
+
+            // Auto-habilitar en la BD
+            if (invoiceData && invoiceData.clientId) {
+              await prisma.client.update({
+                where: { id: invoiceData.clientId },
+                data: { status: 'ACTIVE' }
+              });
+            }
             if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
               try {
                 await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
@@ -1913,9 +2143,13 @@ app.get('/api/sales-info', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor CRM corriendo en puerto ${PORT}`);
+// -------------------------------------------------------------
+// TAREAS PROGRAMADAS (CRON JOBS)
+// -------------------------------------------------------------
+
+const PORT = process.env.PORT || 8787;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
 module.exports = app;
