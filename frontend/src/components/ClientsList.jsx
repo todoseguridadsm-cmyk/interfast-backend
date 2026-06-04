@@ -289,7 +289,8 @@ export default function ClientsList() {
             />
           </div>
         </div>
-        <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
           <thead>
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
               <th className="px-6 py-4 font-medium">N° Cliente</th>
@@ -368,6 +369,7 @@ export default function ClientsList() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Modal Nuevo Cliente */}
