@@ -56,7 +56,8 @@ async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comm
       console.log(`ℹ️ Mikrotik: La IP ${ipAddress} ya se encontraba en la lista '${listName}'.`);
     }
   } catch (err) {
-    console.error(`❌ Mikrotik Error al agregar IP ${ipAddress}:`, err.message);
+    const msg = err.message || JSON.stringify(err);
+    console.error(`❌ Mikrotik Error al agregar IP ${ipAddress}:`, msg);
     throw err;
   } finally {
     if (client) {
@@ -89,7 +90,8 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
       console.log(`ℹ️ Mikrotik: La IP ${ipAddress} no estaba en la lista '${listName}', nada que remover.`);
     }
   } catch (err) {
-    console.error(`❌ Mikrotik Error al remover IP ${ipAddress}:`, err.message);
+    const msg = err.message || JSON.stringify(err);
+    console.error(`❌ Mikrotik Error al remover IP ${ipAddress}:`, msg);
     throw err;
   } finally {
     if (client) {

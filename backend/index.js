@@ -165,7 +165,8 @@ async function generateCutoffList() {
           try {
             await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
           } catch (err) {
-            console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, err.message);
+            const msg = err.message || JSON.stringify(err);
+            console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, msg);
           }
         }
         
@@ -224,7 +225,8 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
       try {
         await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
-        console.error(`Error removiendo IP ${cutoff.client.ipNumber} del Mikrotik:`, err.message);
+        const msg = err.message || JSON.stringify(err);
+        console.error(`Error removiendo IP ${cutoff.client.ipNumber} del Mikrotik:`, msg);
       }
     }
     
@@ -424,9 +426,9 @@ app.put('/api/clients/:id/status', async (req, res) => {
     // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
     if (client.ipNumber && client.mainNode) {
       if (status === 'SUSPENDED') {
-        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik suspend error', e.message); }
+        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
       } else if (status === 'ACTIVE') {
-        try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message); }
+        try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message || JSON.stringify(e)); }
       }
     }
     
@@ -1395,7 +1397,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         try {
           await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
         } catch (err) {
-          console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, err.message);
+          const msg = err.message || JSON.stringify(err);
+          console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
         }
       }
     }
@@ -1655,7 +1658,8 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               try {
                 await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
               } catch (err) {
-                console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, err.message);
+                const msg = err.message || JSON.stringify(err);
+                console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, msg);
               }
             }
             
