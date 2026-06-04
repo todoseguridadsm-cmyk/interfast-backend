@@ -16,7 +16,8 @@ import CutoffList from './components/CutoffList';
 import NewInstall from './components/NewInstall';
 import BajasList from './components/BajasList';
 import ServiceCatalog from './components/ServiceCatalog';
-import { LayoutDashboard, Users, CreditCard, Wifi, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag } from 'lucide-react';
+import NodesList from './components/NodesList';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -212,6 +213,10 @@ function AppContent() {
                 <MessageSquare size={20} />
                 <span>Servidor WhatsApp</span>
               </Link>
+              <Link onClick={handleLinkClick} to="/nodes" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/nodes' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Server size={20} />
+                <span>Nodos (Routers)</span>
+              </Link>
             </>
           )}
         </nav>
@@ -241,6 +246,7 @@ function AppContent() {
             <Route path="/tickets" element={isAllowed('SOPORTE') ? <TicketsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/whatsapp" element={user.role === 'ADMIN' ? <WhatsAppStatus /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/users" element={user.role === 'ADMIN' ? <UsersList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/nodes" element={user.role === 'ADMIN' ? <NodesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/login" element={<Dashboard />} />
           </Routes>
         </div>

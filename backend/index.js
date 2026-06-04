@@ -161,9 +161,9 @@ async function generateCutoffList() {
           data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
         });
         
-        if (inv.client && inv.client.ipNumber) {
+        if (inv.client && inv.client.ipNumber && inv.client.mainNode) {
           try {
-            await mikrotik.addIpToCutoffList(inv.client.ipNumber);
+            await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
           } catch (err) {
             console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, err.message);
           }
@@ -220,9 +220,9 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
       include: { client: true }
     });
     
-    if (cutoff.client && cutoff.client.ipNumber) {
+    if (cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
       try {
-        await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber);
+        await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
         console.error(`Error removiendo IP ${cutoff.client.ipNumber} del Mikrotik:`, err.message);
       }
@@ -422,11 +422,11 @@ app.put('/api/clients/:id/status', async (req, res) => {
     });
     
     // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
-    if (client.ipNumber) {
+    if (client.ipNumber && client.mainNode) {
       if (status === 'SUSPENDED') {
-        try { await mikrotik.addIpToCutoffList(client.ipNumber); } catch (e) { console.error('Mikrotik suspend error', e.message); }
+        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik suspend error', e.message); }
       } else if (status === 'ACTIVE') {
-        try { await mikrotik.removeIpFromCutoffList(client.ipNumber); } catch (e) { console.error('Mikrotik restore error', e.message); }
+        try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message); }
       }
     }
     
@@ -437,14 +437,43 @@ app.put('/api/clients/:id/status', async (req, res) => {
   }
 });
 
-app.get('/api/mikrotik/test', async (req, res) => {
+app.get('/api/mikrotik/test/:nodeName', async (req, res) => {
   try {
-    const client = await mikrotik.connectToMikrotik();
+    const client = await mikrotik.connectToMikrotik(req.params.nodeName);
     client.close();
     res.json({ success: true, message: 'Conexión al router Mikrotik establecida con éxito.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// --- NODES ROUTES ---
+app.get('/api/nodes', async (req, res) => {
+  try {
+    const nodes = await prisma.node.findMany({ orderBy: { name: 'asc' } });
+    res.json(nodes);
+  } catch (error) { res.status(500).json({ error: 'Error fetching nodes' }); }
+});
+app.post('/api/nodes', async (req, res) => {
+  try {
+    const node = await prisma.node.create({ data: req.body });
+    res.json(node);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+app.put('/api/nodes/:id', async (req, res) => {
+  try {
+    const node = await prisma.node.update({
+      where: { id: parseInt(req.params.id) },
+      data: req.body
+    });
+    res.json(node);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+app.delete('/api/nodes/:id', async (req, res) => {
+  try {
+    await prisma.node.delete({ where: { id: parseInt(req.params.id) } });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/clients/bulk', async (req, res) => {
@@ -1362,9 +1391,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         where: { id: invoiceId },
         include: { client: true }
       });
-      if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
+      if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
         try {
-          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber);
+          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
         } catch (err) {
           console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, err.message);
         }
@@ -1622,9 +1651,9 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               where: { id: invoiceId },
               include: { client: true }
             });
-            if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
+            if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
               try {
-                await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber);
+                await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
               } catch (err) {
                 console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, err.message);
               }

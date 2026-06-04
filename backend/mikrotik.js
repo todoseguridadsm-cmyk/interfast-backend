@@ -1,20 +1,29 @@
 const { RouterOSClient } = require('routeros-client');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-async function connectToMikrotik() {
-  const host = process.env.MIKROTIK_HOST || 'a7e009d5e5ce.sn.mynetname.net';
-  const port = process.env.MIKROTIK_PORT ? parseInt(process.env.MIKROTIK_PORT) : 8293;
-  const user = process.env.MIKROTIK_USER;
-  const password = process.env.MIKROTIK_PASSWORD;
+async function connectToMikrotik(nodeName) {
+  if (!nodeName) {
+    throw new Error('El nombre del nodo (mainNode) es requerido para conectarse al Mikrotik.');
+  }
 
-  if (!user || !password) {
-    throw new Error('Las credenciales de Mikrotik (MIKROTIK_USER, MIKROTIK_PASSWORD) no están configuradas en el entorno (.env).');
+  const node = await prisma.node.findUnique({
+    where: { name: nodeName }
+  });
+
+  if (!node) {
+    throw new Error(`El nodo '${nodeName}' no está registrado en el sistema. Asegúrese de agregarlo en la pestaña Nodos.`);
+  }
+
+  if (!node.isActive) {
+    throw new Error(`El nodo '${nodeName}' está desactivado.`);
   }
 
   const client = new RouterOSClient({
-    host: host,
-    port: port,
-    user: user,
-    password: password,
+    host: node.host,
+    port: node.port,
+    user: node.user,
+    password: node.password,
     timeout: 10000 // 10 segundos de timeout
   });
 
@@ -27,10 +36,10 @@ async function connectToMikrotik() {
  * @param {string} ipAddress - La IP estática del cliente
  * @param {string} listName - El nombre de la Address List (por defecto 'Morosos')
  */
-async function addIpToCutoffList(ipAddress, listName = 'Morosos', comment = 'Corte Automático CRM') {
+async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comment = 'Corte Automático CRM') {
   let client = null;
   try {
-    client = await connectToMikrotik();
+    client = await connectToMikrotik(nodeName);
     const api = client.menu('/ip/firewall/address-list');
 
     // Revisar si la IP ya está en la lista
@@ -61,10 +70,10 @@ async function addIpToCutoffList(ipAddress, listName = 'Morosos', comment = 'Cor
  * @param {string} ipAddress - La IP estática del cliente
  * @param {string} listName - El nombre de la Address List (por defecto 'Morosos')
  */
-async function removeIpFromCutoffList(ipAddress, listName = 'Morosos') {
+async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos') {
   let client = null;
   try {
-    client = await connectToMikrotik();
+    client = await connectToMikrotik(nodeName);
     const api = client.menu('/ip/firewall/address-list');
 
     // Buscar el registro de la IP en la lista
