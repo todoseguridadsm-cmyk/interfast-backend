@@ -437,6 +437,16 @@ app.put('/api/clients/:id/status', async (req, res) => {
   }
 });
 
+app.get('/api/mikrotik/test', async (req, res) => {
+  try {
+    const client = await mikrotik.connectToMikrotik();
+    client.close();
+    res.json({ success: true, message: 'Conexión al router Mikrotik establecida con éxito.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/clients/bulk', async (req, res) => {
   try {
     const { clients } = req.body;

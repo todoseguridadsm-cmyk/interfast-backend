@@ -91,5 +91,6 @@ async function removeIpFromCutoffList(ipAddress, listName = 'Morosos') {
 
 module.exports = {
   addIpToCutoffList,
-  removeIpFromCutoffList
+  removeIpFromCutoffList,
+  connectToMikrotik
 };
