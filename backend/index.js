@@ -333,7 +333,12 @@ app.post('/api/clients', async (req, res) => {
       expected++;
     }
 
-    const dataPayload = { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate };
+    let parsedRegistrationDate = null;
+    if (registrationDate) {
+      parsedRegistrationDate = new Date(registrationDate);
+    }
+
+    const dataPayload = { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -370,12 +375,19 @@ app.delete('/api/clients/:id', async (req, res) => {
 app.put('/api/clients/:id', async (req, res) => {
   try {
     const { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;
+    
+    let parsedRegistrationDate = null;
+    if (registrationDate) {
+      parsedRegistrationDate = new Date(registrationDate);
+    }
+
     const client = await prisma.client.update({
       where: { id: parseInt(req.params.id) },
-      data: { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate },
+      data: { dni, name, businessName, email, phone, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate: parsedRegistrationDate },
     });
     res.json(client);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al editar cliente' });
   }
 });
