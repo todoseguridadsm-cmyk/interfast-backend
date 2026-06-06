@@ -7,14 +7,10 @@ export default function Reports() {
   const [data, setData] = useState({ metrics: {}, payments: [] });
   const [loading, setLoading] = useState(true);
   
-  const today = new Date();
-  const [month, setMonth] = useState(today.getMonth() + 1);
-  const [year, setYear] = useState(today.getFullYear());
-
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`https://interfast-backend-95ww.onrender.com/api/reports/sales?month=${month}&year=${year}`);
+      const res = await axios.get(`https://interfast-backend-95ww.onrender.com/api/reports/sales`);
       setData(res.data);
     } catch(err) {
       console.error("Error loading metrics:", err);
@@ -24,7 +20,7 @@ export default function Reports() {
 
   useEffect(() => {
     fetchReports();
-  }, [month, year]);
+  }, []);
 
   const exportSalesExcel = () => {
     if (!data.payments || data.payments.length === 0) return alert('No hay cobros en este mes para exportar.');
@@ -88,21 +84,9 @@ export default function Reports() {
         <div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             <BarChart3 className="text-blue-600" size={32} />
-            Reportes y Ventas
+            Reportes e Histórico General
           </h2>
-          <p className="text-slate-500 mt-1 ml-11">Cierres de caja, balances mensuales y bases de datos tabulares.</p>
-        </div>
-        
-        <div className="flex gap-4">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-3">
-            <span className="text-sm font-bold text-slate-600">Período Fiscal:</span>
-            <select value={month} onChange={e=>setMonth(parseInt(e.target.value))} className="bg-white border border-slate-200 rounded px-2 py-1 text-sm font-medium outline-none">
-              {[1,2,3,4,5,6,7,8,9,10,11,12].map(num => <option key={num} value={num}>Mes {num}</option>)}
-            </select>
-            <select value={year} onChange={e=>setYear(parseInt(e.target.value))} className="bg-white border border-slate-200 rounded px-2 py-1 text-sm font-medium outline-none">
-              {[2024, 2025, 2026, 2027].map(num => <option key={num} value={num}>{num}</option>)}
-            </select>
-          </div>
+          <p className="text-slate-500 mt-1 ml-11">Historial infinito de cobros, movimientos de caja y balances.</p>
         </div>
       </header>
 
@@ -111,9 +95,9 @@ export default function Reports() {
         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl shadow-lg shadow-emerald-200 text-white hover:scale-105 transition-transform cursor-default">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-emerald-100 font-medium mb-1">Caja Fuerte Bruta (Mes)</p>
-              <h3 className="text-4xl font-black">${m.totalCollected?.toLocaleString('es-AR') || '0'}</h3>
-              <p className="text-sm text-emerald-100 mt-2 flex items-center gap-1"><TrendingUp size={14}/> {m.paymentsCount || 0} Facturas pagadas</p>
+              <p className="text-emerald-100 font-medium mb-1">Caja Bruta Histórica Total</p>
+              <h3 className="text-4xl font-black">${m.totalCollected?.toLocaleString('es-AR', {minimumFractionDigits: 2}) || '0'}</h3>
+              <p className="text-sm text-emerald-100 mt-2 flex items-center gap-1"><TrendingUp size={14}/> {m.paymentsCount || 0} Facturas pagadas (Global)</p>
             </div>
             <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><Download size={24} /></div>
           </div>
@@ -122,9 +106,9 @@ export default function Reports() {
         <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-2xl shadow-lg shadow-red-200 text-white hover:scale-105 transition-transform cursor-default">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-red-100 font-medium mb-1">Deuda en la Calle (Mes)</p>
+              <p className="text-red-100 font-medium mb-1">Deuda Total Pendiente</p>
               <h3 className="text-4xl font-black">${m.pendingAmount?.toLocaleString('es-AR') || '0'}</h3>
-              <p className="text-sm text-red-100 mt-2 flex items-center gap-1"><AlertTriangle size={14}/> {m.pendingCount || 0} Personas deudoras</p>
+              <p className="text-sm text-red-100 mt-2 flex items-center gap-1"><AlertTriangle size={14}/> {m.pendingCount || 0} Deudores actuales</p>
             </div>
             <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><AlertTriangle size={24} /></div>
           </div>
@@ -133,7 +117,7 @@ export default function Reports() {
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-lg shadow-blue-200 text-white hover:scale-105 transition-transform cursor-default">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-blue-100 font-medium mb-1">Mora Recolectada (Mes)</p>
+              <p className="text-blue-100 font-medium mb-1">Mora Histórica Recolectada</p>
               <h3 className="text-4xl font-black">${m.totalLateFees?.toLocaleString('es-AR') || '0'}</h3>
               <p className="text-sm text-blue-100 mt-2 flex items-center gap-1"><Users size={14}/> Base Activa: {m.activeClients || 0}</p>
             </div>
@@ -176,75 +160,128 @@ export default function Reports() {
 
       {/* DETAILED LIST */}
       <h3 className="text-xl font-bold text-slate-800 mt-8 mb-4 flex items-center gap-2">
-        <FileSpreadsheet className="text-blue-500" /> Detalle de Movimientos (Línea por Línea)
+        <FileSpreadsheet className="text-blue-500" /> Historial de Movimientos y Pagos (Infinito)
       </h3>
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         {loading ? (
            <div className="p-8 text-center text-slate-400">Cargando movimientos...</div>
-        ) : !data.payments || data.payments.length === 0 ? (
-           <div className="p-8 text-center text-slate-400">No hay movimientos registrados en este período.</div>
+        ) : (!data.payments?.length && !data.movements?.length) ? (
+           <div className="p-8 text-center text-slate-400">No hay movimientos registrados.</div>
         ) : (
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider">
                 <th className="p-4 font-bold">Fecha</th>
-                <th className="p-4 font-bold">Cliente</th>
+                <th className="p-4 font-bold">Tipo / Cliente</th>
                 <th className="p-4 font-bold">Método</th>
-                <th className="p-4 font-bold">Bruto</th>
-                <th className="p-4 font-bold text-red-500">Impuestos/Comisión</th>
-                <th className="p-4 font-bold text-emerald-600">Neto Ingresado</th>
+                <th className="p-4 font-bold">Ingreso (Bruto)</th>
+                <th className="p-4 font-bold text-red-500">Egreso/Comisiones</th>
+                <th className="p-4 font-bold text-emerald-600">Neto</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data.payments.map(p => {
-                const isMP = p.method === 'MERCADOPAGO';
-                const fee = p.mpFee || 0;
-                const tax = p.mpTax || 0;
-                const totalDeductions = fee + tax;
-                const netAmount = p.amountPaid - totalDeductions;
-                
+              {(() => {
+                const combined = [
+                  ...(data.payments || []).map(p => ({ ...p, isPayment: true, dateForSort: new Date(p.paymentDate) })),
+                  ...(data.movements || []).map(m => ({ ...m, isMovement: true, dateForSort: new Date(m.createdAt) }))
+                ].sort((a, b) => b.dateForSort - a.dateForSort);
+
+                let totalBruto = 0;
+                let totalEgresos = 0;
+
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 text-sm font-medium text-slate-700 whitespace-nowrap">
-                      {new Date(p.paymentDate).toLocaleDateString('es-AR')}
-                    </td>
-                    <td className="p-4 text-sm font-bold text-slate-900">
-                      {p.invoice?.client?.name || 'Cliente Borrado'}
-                      <div className="text-xs font-normal text-slate-500 font-mono">{p.invoice?.client?.dni}</div>
-                    </td>
-                    <td className="p-4 text-xs font-bold">
-                      <span className={`px-2 py-1 rounded-md uppercase tracking-wider ${isMP ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {p.method}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm font-bold text-slate-700">
-                      ${p.amountPaid.toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                    </td>
-                    <td className="p-4 text-sm font-bold text-red-500">
-                      {totalDeductions > 0 ? `-$${totalDeductions.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '-'}
-                      {totalDeductions > 0 && <div className="text-[10px] text-slate-400 font-normal">C:${fee.toFixed(2)} | I:${tax.toFixed(2)}</div>}
-                    </td>
-                    <td className="p-4 text-sm font-black text-emerald-600">
-                      ${netAmount.toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                    </td>
-                  </tr>
+                  <>
+                    {combined.map(item => {
+                      if (item.isPayment) {
+                        const p = item;
+                        const isMP = p.method === 'MERCADOPAGO';
+                        const fee = p.mpFee || 0;
+                        const tax = p.mpTax || 0;
+                        const totalDeductions = fee + tax;
+                        const netAmount = p.amountPaid - totalDeductions;
+                        
+                        totalBruto += p.amountPaid;
+                        totalEgresos += totalDeductions;
+
+                        return (
+                          <tr key={`p-${p.id}`} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4 text-sm font-medium text-slate-700 whitespace-nowrap">
+                              {item.dateForSort.toLocaleDateString('es-AR')}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-slate-900">
+                              {p.invoice?.client?.name || 'Cliente Borrado'}
+                              <div className="text-xs font-normal text-slate-500 font-mono">{p.invoice?.client?.dni}</div>
+                            </td>
+                            <td className="p-4 text-xs font-bold">
+                              <span className={`px-2 py-1 rounded-md uppercase tracking-wider ${isMP ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                {p.method}
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm font-bold text-slate-700">
+                              +${p.amountPaid.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-red-500">
+                              {totalDeductions > 0 ? `-$${totalDeductions.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '-'}
+                              {totalDeductions > 0 && <div className="text-[10px] text-slate-400 font-normal">C:${fee.toFixed(2)} | I:${tax.toFixed(2)}</div>}
+                            </td>
+                            <td className="p-4 text-sm font-black text-emerald-600">
+                              ${netAmount.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                            </td>
+                          </tr>
+                        );
+                      } else {
+                        // isMovement (Caja Diaria manual)
+                        const m = item;
+                        if (m.type === 'IN') {
+                          totalBruto += m.amount;
+                        } else {
+                          totalEgresos += m.amount;
+                        }
+
+                        return (
+                          <tr key={`m-${m.id}`} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4 text-sm font-medium text-slate-700 whitespace-nowrap">
+                              {item.dateForSort.toLocaleDateString('es-AR')}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-slate-900 flex items-center gap-2">
+                              {m.description}
+                              <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Caja Diaria</span>
+                            </td>
+                            <td className="p-4 text-xs font-bold">
+                              <span className="px-2 py-1 rounded-md uppercase tracking-wider bg-slate-100 text-slate-700">
+                                MANUAL
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm font-bold text-slate-700">
+                              {m.type === 'IN' ? `+$${m.amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '-'}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-red-500">
+                              {m.type === 'OUT' ? `-$${m.amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '-'}
+                            </td>
+                            <td className={`p-4 text-sm font-black ${m.type === 'IN' ? 'text-emerald-600' : 'text-red-500'}`}>
+                              {m.type === 'IN' ? '+' : '-'}${m.amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    })}
+
+                    <tr className="bg-slate-200 border-t-2 border-slate-300 font-black text-slate-800 uppercase tracking-wider text-sm">
+                      <td colSpan="3" className="p-4 text-right">TOTALES HISTÓRICOS:</td>
+                      <td className="p-4 text-slate-800">
+                        ${totalBruto.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                      </td>
+                      <td className="p-4 text-red-600">
+                        -${totalEgresos.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                      </td>
+                      <td className="p-4 text-emerald-700">
+                        ${(totalBruto - totalEgresos).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                      </td>
+                    </tr>
+                  </>
                 );
-              })}
+              })()}
             </tbody>
-            <tfoot>
-              <tr className="bg-slate-200 border-t-2 border-slate-300 font-black text-slate-800 uppercase tracking-wider text-sm">
-                <td colSpan="3" className="p-4 text-right">TOTALES DEL MES:</td>
-                <td className="p-4 text-slate-800">
-                  ${data.payments.reduce((acc, p) => acc + p.amountPaid, 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                </td>
-                <td className="p-4 text-red-600">
-                  -${data.payments.reduce((acc, p) => acc + (p.mpFee || 0) + (p.mpTax || 0), 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                </td>
-                <td className="p-4 text-emerald-700">
-                  ${data.payments.reduce((acc, p) => acc + p.amountPaid - (p.mpFee || 0) - (p.mpTax || 0), 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         )}
       </div>

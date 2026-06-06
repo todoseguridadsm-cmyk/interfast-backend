@@ -1939,16 +1939,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 // --- REPORTS AND ANALYTICS ---
 app.get('/api/reports/sales', async (req, res) => {
   try {
-    const { month, year } = req.query;
-    let paymentFilter = {};
-    if (month && year) {
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59);
-      paymentFilter.paymentDate = { gte: startDate, lte: endDate };
-    }
-
     const payments = await prisma.payment.findMany({
-      where: paymentFilter,
       include: {
         invoice: {
           include: { client: { include: { plan: true } } }
@@ -1957,46 +1948,37 @@ app.get('/api/reports/sales', async (req, res) => {
       orderBy: { paymentDate: 'desc' }
     });
 
+    const movements = await prisma.cashMovement.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
     const totalCollectedFromInvoices = payments.reduce((acc, p) => acc + p.amountPaid, 0);
     const totalLateFees = payments.reduce((acc, p) => acc + p.lateFeeApplied, 0);
 
-    let invoiceFilter = { status: 'PENDING' };
-    if (month && year) {
-      invoiceFilter.month = parseInt(month);
-      invoiceFilter.year = parseInt(year);
-    }
-    const pendingInvoices = await prisma.invoice.findMany({ where: invoiceFilter });
+    const manualIn = movements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
+    const manualOut = movements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
+    const totalCaja = totalCollectedFromInvoices + manualIn - manualOut;
+
+    const pendingInvoices = await prisma.invoice.findMany({ where: { status: 'PENDING' } });
     const pendingAmount = pendingInvoices.reduce((acc, i) => acc + i.originalAmount, 0);
 
     const activeClients = await prisma.client.count({ where: { status: 'ACTIVE' } });
 
-    // Sumar y restar los Movimientos de Caja manuales
-    let cashFilter = {};
-    if (month && year) {
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59);
-      cashFilter.createdAt = { gte: startDate, lte: endDate };
-    }
-    const cashMovements = await prisma.cashMovement.findMany({ where: cashFilter });
-
-    const manualIn = cashMovements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
-    const manualOut = cashMovements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
-    const absoluteTotalCaja = totalCollectedFromInvoices + manualIn - manualOut;
-
     res.json({
       metrics: {
+        totalCollected: totalCaja,
         paymentsCount: payments.length,
-        totalCollected: absoluteTotalCaja,
         totalLateFees,
         pendingAmount,
         pendingCount: pendingInvoices.length,
         activeClients
       },
-      payments
+      payments,
+      movements
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error consultando metricas de ventas' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener reportes' });
   }
 });
 
