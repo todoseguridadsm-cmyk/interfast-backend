@@ -51,17 +51,49 @@ export default function DailyCash() {
     }
   };
 
-  const baseItems = [
-    ...data.payments.map(p => ({
+  const baseItems = [];
+  
+  data.payments.forEach(p => {
+    // Ingreso principal
+    baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: 'FACTURACION',
-      title: `Abono Internet: ${p.invoice.client?.name || 'Cliente'}`,
+      source: p.method === 'MERCADOPAGO' ? 'MERCADOPAGO' : 'FACTURACION',
+      title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
       user: p.user?.username || 'Sistema'
-    })),
-    ...data.movements.map(m => ({
+    });
+    
+    // Comisiones MP
+    if (p.mpFee > 0) {
+      baseItems.push({
+        id: `F-${p.id}`,
+        type: 'OUT',
+        source: 'MERCADOPAGO_FEE',
+        title: `Cargo Mercado Pago (Fac. #${p.invoiceId})`,
+        amount: p.mpFee,
+        date: new Date(p.paymentDate),
+        user: 'Sistema'
+      });
+    }
+    
+    // Impuestos MP
+    if (p.mpTax > 0) {
+      baseItems.push({
+        id: `T-${p.id}`,
+        type: 'OUT',
+        source: 'MERCADOPAGO_TAX',
+        title: `Impuestos MP (Fac. #${p.invoiceId})`,
+        amount: p.mpTax,
+        date: new Date(p.paymentDate),
+        user: 'Sistema'
+      });
+    }
+  });
+
+  data.movements.forEach(m => {
+    baseItems.push({
       id: `M-${m.id}`,
       type: m.type,
       source: 'MANUAL',
@@ -69,8 +101,8 @@ export default function DailyCash() {
       amount: m.amount,
       date: new Date(m.createdAt),
       user: m.user?.username || 'GHOST'
-    }))
-  ];
+    });
+  });
 
   baseItems.sort((a,b) => b.date - a.date);
 
@@ -84,9 +116,14 @@ export default function DailyCash() {
   }
 
   const invoiceIn = filteredItems.filter(i => i.source === 'FACTURACION' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
+  const mpIn = filteredItems.filter(i => i.source === 'MERCADOPAGO' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
+  const mpOut = filteredItems.filter(i => (i.source === 'MERCADOPAGO_FEE' || i.source === 'MERCADOPAGO_TAX') && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+
   const manualIn = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
   const manualOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
-  const netTotal = (invoiceIn + manualIn) - manualOut;
+  
+  const netCash = (invoiceIn + manualIn) - manualOut;
+  const netMp = mpIn - mpOut;
 
   // Extract unique users
   const uniqueUsers = Array.from(new Set(baseItems.map(i => i.user)));
@@ -187,22 +224,35 @@ export default function DailyCash() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center transition-all hover:shadow-md">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Cobros Automáticos</p>
-            <h4 className="text-2xl font-black text-slate-700">+${invoiceIn.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* CAJA FÍSICA */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cobros Físicos</p>
+            <h4 className="text-xl font-black text-slate-700">+${invoiceIn.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center transition-all hover:shadow-md">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Ingresos Extra</p>
-            <h4 className="text-2xl font-black text-emerald-600">+${manualIn.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ingresos / Egresos Manuales</p>
+            <h4 className="text-lg font-black text-slate-700 whitespace-nowrap">
+               <span className="text-emerald-500">+{manualIn.toLocaleString('es-AR')}</span> / <span className="text-red-500">-{manualOut.toLocaleString('es-AR')}</span>
+            </h4>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center transition-all hover:shadow-md">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Egresos / Retiros</p>
-            <h4 className="text-2xl font-black text-red-500">-${manualOut.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-2xl shadow-lg shadow-emerald-200 text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform">
+            <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider mb-1">Caja Fuerte Efectivo</p>
+            <h4 className="text-2xl font-black">${netCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
         </div>
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 rounded-2xl shadow-lg shadow-emerald-200 text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform">
-            <p className="text-xs font-bold text-emerald-100 uppercase tracking-wider mb-1">Caja Fuerte (Física)</p>
-            <h4 className="text-3xl font-black">${netTotal.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+
+        {/* MERCADO PAGO */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ventas MP (Bruto)</p>
+            <h4 className="text-xl font-black text-blue-600">+${mpIn.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Comisiones/Impuestos</p>
+            <h4 className="text-xl font-black text-red-500">-${mpOut.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+        </div>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-4 rounded-2xl shadow-lg shadow-blue-200 text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform">
+            <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider mb-1">Total Mercado Pago Neto</p>
+            <h4 className="text-2xl font-black">${netMp.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
         </div>
       </div>
 

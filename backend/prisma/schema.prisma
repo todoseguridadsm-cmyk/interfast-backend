@@ -98,6 +98,8 @@ model Payment {
   invoice       Invoice  @relation(fields: [invoiceId], references: [id])
   method        String   // "MERCADOPAGO", "CASH", "TRANSFER"
   amountPaid    Float
+  mpFee         Float    @default(0.0)
+  mpTax         Float    @default(0.0)
   lateFeeApplied Float    @default(0.0)
   paymentDate   DateTime @default(now())
   userId        Int?

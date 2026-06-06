@@ -1549,7 +1549,7 @@ app.get('/api/cash/daily', async (req, res) => {
     const payments = await prisma.payment.findMany({
       where: {
         paymentDate: { gte: startOfDay, lte: endOfDay },
-        method: 'CASH'
+        method: { in: ['CASH', 'MERCADOPAGO'] } // AHORA TRAE AMBOS
       },
       include: {
         invoice: { include: { client: true } },
@@ -1873,12 +1873,26 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             // Distribute amount proportionally or log originalAmount
             const amountToLog = invoiceIdsToProcess.length === 1 ? transactionAmount : invoice.originalAmount;
 
+            let mpFee = 0;
+            let mpTax = 0;
+            if (mpPayment.fee_details && Array.isArray(mpPayment.fee_details)) {
+              mpPayment.fee_details.forEach(fee => {
+                if (fee.type === 'mercadopago_fee') {
+                  mpFee += parseFloat(fee.amount) || 0;
+                } else {
+                  mpTax += parseFloat(fee.amount) || 0;
+                }
+              });
+            }
+
             // 3. Crear el recibo histórico (Clasificado estrictamente como MERCADOPAGO)
             await prisma.payment.create({
               data: {
                 invoiceId: invoiceId,
                 method: 'MERCADOPAGO',
                 amountPaid: amountToLog,
+                mpFee: mpFee,
+                mpTax: mpTax,
                 lateFeeApplied: 0
               }
             });
