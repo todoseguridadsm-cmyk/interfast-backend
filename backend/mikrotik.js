@@ -143,9 +143,90 @@ async function pingIp(ipAddress, nodeName) {
   }
 }
 
+async function getMikrotikActiveClients(nodeName) {
+  let client = null;
+  const activeClients = new Map(); // Use Map to prevent duplicates by IP
+
+  try {
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+    
+    // 1. Get PPPoE
+    try {
+      const pppoe = await conn.api.menu('/ppp/active').get();
+      pppoe.forEach(c => {
+        if (c.address) {
+          activeClients.set(c.address, {
+            type: 'PPPoE',
+            ip: c.address,
+            mac: c.callerId || 'N/A',
+            uptime: c.uptime,
+            mikrotikName: c.name
+          });
+        }
+      });
+    } catch(e) {
+      if (!e.message || !e.message.includes('!empty')) {
+        console.error(`Error reading PPPoE from ${nodeName}:`, e.message);
+      }
+    }
+
+    // 2. Get DHCP Leases
+    try {
+      const dhcp = await conn.api.menu('/ip/dhcp-server/lease').get();
+      dhcp.forEach(c => {
+        if (c.address && !activeClients.has(c.address)) {
+          activeClients.set(c.address, {
+            type: 'DHCP',
+            ip: c.address,
+            mac: c.macAddress || 'N/A',
+            uptime: c.expiresAfter || 'N/A',
+            mikrotikName: c.hostName || 'N/A'
+          });
+        }
+      });
+    } catch(e) {
+      if (!e.message || !e.message.includes('!empty')) {
+        console.error(`Error reading DHCP from ${nodeName}:`, e.message);
+      }
+    }
+
+    // 3. Get ARP
+    try {
+      const arp = await conn.api.menu('/ip/arp').get();
+      arp.forEach(c => {
+        if (c.address && !activeClients.has(c.address)) {
+          activeClients.set(c.address, {
+            type: 'ARP (Estática)',
+            ip: c.address,
+            mac: c.macAddress || 'N/A',
+            uptime: 'N/A',
+            mikrotikName: 'N/A'
+          });
+        }
+      });
+    } catch(e) {
+      if (!e.message || !e.message.includes('!empty')) {
+        console.error(`Error reading ARP from ${nodeName}:`, e.message);
+      }
+    }
+
+    return Array.from(activeClients.values());
+
+  } catch (err) {
+    console.error(`❌ Error al obtener clientes activos de ${nodeName}:`, err.message || JSON.stringify(err));
+    return [];
+  } finally {
+    if (client) {
+      client.close();
+    }
+  }
+}
+
 module.exports = {
   addIpToCutoffList,
   removeIpFromCutoffList,
   pingIp,
-  connectToMikrotik
+  connectToMikrotik,
+  getMikrotikActiveClients
 };

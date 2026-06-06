@@ -2138,9 +2138,51 @@ app.get('/api/sales-info', async (req, res) => {
 // TAREAS PROGRAMADAS (CRON JOBS)
 // -------------------------------------------------------------
 
-const PORT = process.env.PORT || 8787;
+app.get('/api/mikrotik/active-clients', async (req, res) => {
+  try {
+    const nodes = await prisma.node.findMany({ where: { isActive: true } });
+    const allDbClients = await prisma.client.findMany({
+      where: { status: 'ACTIVE' },
+      include: { plan: true }
+    });
+
+    let liveClients = [];
+    
+    // Promise.all to fetch all nodes concurrently to save time
+    const nodePromises = nodes.map(async (node) => {
+      const active = await mikrotik.getMikrotikActiveClients(node.name);
+      return active.map(c => ({ ...c, nodeName: node.name }));
+    });
+
+    const results = await Promise.all(nodePromises);
+    results.forEach(nodeClients => {
+      liveClients.push(...nodeClients);
+    });
+
+    // Cross-reference with DB
+    const finalData = liveClients.map(live => {
+      // Find matching client by IP
+      const dbClient = allDbClients.find(c => c.ipNumber === live.ip);
+      return {
+        ...live,
+        matched: !!dbClient,
+        clientName: dbClient ? dbClient.name : 'Desconocido / No registrado',
+        clientDni: dbClient ? dbClient.dni : '',
+        panel: dbClient ? dbClient.panelId : 'N/A',
+        planName: dbClient && dbClient.plan ? dbClient.plan.name : 'N/A',
+      };
+    });
+
+    res.json(finalData);
+  } catch (error) {
+    console.error('Error fetching active clients:', error);
+    res.status(500).json({ error: 'Error interno obteniendo clientes activos.' });
+  }
+});
+
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app;
