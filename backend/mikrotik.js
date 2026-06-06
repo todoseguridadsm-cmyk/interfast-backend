@@ -151,65 +151,61 @@ async function getMikrotikActiveClients(nodeName) {
     const conn = await connectToMikrotik(nodeName);
     client = conn.client;
     
-    // 1. Get PPPoE
-    try {
-      const pppoe = await conn.api.menu('/ppp/active').get();
-      pppoe.forEach(c => {
-        if (c.address) {
-          activeClients.set(c.address, {
-            type: 'PPPoE',
-            ip: c.address,
-            mac: c.callerId || 'N/A',
-            uptime: c.uptime,
-            mikrotikName: c.name
-          });
+    // Helper function to safely get a menu if it's not empty
+    const safeGet = async (menuPath) => {
+      try {
+        const countRes = await client.rosApi.write(`${menuPath}/print`, ['=count-only=']);
+        if (countRes && countRes[0] && countRes[0].ret === '0') {
+          return [];
         }
-      });
-    } catch(e) {
-      if (!e.message || !e.message.includes('!empty')) {
-        console.error(`Error reading PPPoE from ${nodeName}:`, e.message);
+        return await conn.api.menu(menuPath).get();
+      } catch (e) {
+        console.error(`Error safely getting ${menuPath} from ${nodeName}:`, e.message || e);
+        return [];
       }
-    }
+    };
+
+    // 1. Get PPPoE
+    const pppoe = await safeGet('/ppp/active');
+    pppoe.forEach(c => {
+      if (c.address) {
+        activeClients.set(c.address, {
+          type: 'PPPoE',
+          ip: c.address,
+          mac: c.callerId || 'N/A',
+          uptime: c.uptime,
+          mikrotikName: c.name
+        });
+      }
+    });
 
     // 2. Get DHCP Leases
-    try {
-      const dhcp = await conn.api.menu('/ip/dhcp-server/lease').get();
-      dhcp.forEach(c => {
-        if (c.address && !activeClients.has(c.address)) {
-          activeClients.set(c.address, {
-            type: 'DHCP',
-            ip: c.address,
-            mac: c.macAddress || 'N/A',
-            uptime: c.expiresAfter || 'N/A',
-            mikrotikName: c.hostName || 'N/A'
-          });
-        }
-      });
-    } catch(e) {
-      if (!e.message || !e.message.includes('!empty')) {
-        console.error(`Error reading DHCP from ${nodeName}:`, e.message);
+    const dhcp = await safeGet('/ip/dhcp-server/lease');
+    dhcp.forEach(c => {
+      if (c.address && !activeClients.has(c.address)) {
+        activeClients.set(c.address, {
+          type: 'DHCP',
+          ip: c.address,
+          mac: c.macAddress || 'N/A',
+          uptime: c.expiresAfter || 'N/A',
+          mikrotikName: c.hostName || 'N/A'
+        });
       }
-    }
+    });
 
     // 3. Get ARP
-    try {
-      const arp = await conn.api.menu('/ip/arp').get();
-      arp.forEach(c => {
-        if (c.address && !activeClients.has(c.address)) {
-          activeClients.set(c.address, {
-            type: 'ARP (Estática)',
-            ip: c.address,
-            mac: c.macAddress || 'N/A',
-            uptime: 'N/A',
-            mikrotikName: 'N/A'
-          });
-        }
-      });
-    } catch(e) {
-      if (!e.message || !e.message.includes('!empty')) {
-        console.error(`Error reading ARP from ${nodeName}:`, e.message);
+    const arp = await safeGet('/ip/arp');
+    arp.forEach(c => {
+      if (c.address && !activeClients.has(c.address)) {
+        activeClients.set(c.address, {
+          type: 'ARP (Estática)',
+          ip: c.address,
+          mac: c.macAddress || 'N/A',
+          uptime: 'N/A',
+          mikrotikName: 'N/A'
+        });
       }
-    }
+    });
 
     return Array.from(activeClients.values());
 
