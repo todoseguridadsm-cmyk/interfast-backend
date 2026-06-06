@@ -231,6 +231,20 @@ export default function Reports() {
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="bg-slate-200 border-t-2 border-slate-300 font-black text-slate-800 uppercase tracking-wider text-sm">
+                <td colSpan="3" className="p-4 text-right">TOTALES DEL MES:</td>
+                <td className="p-4 text-slate-800">
+                  ${data.payments.reduce((acc, p) => acc + p.amountPaid, 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                </td>
+                <td className="p-4 text-red-600">
+                  -${data.payments.reduce((acc, p) => acc + (p.mpFee || 0) + (p.mpTax || 0), 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                </td>
+                <td className="p-4 text-emerald-700">
+                  ${data.payments.reduce((acc, p) => acc + p.amountPaid - (p.mpFee || 0) - (p.mpTax || 0), 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
