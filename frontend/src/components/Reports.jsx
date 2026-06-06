@@ -37,7 +37,10 @@ export default function Reports() {
       'Período Facturado': `${String(p.invoice.month).padStart(2,'0')}/${p.invoice.year}`,
       'Abono Base ($)': p.invoice.originalAmount,
       'Mora Aplicada ($)': p.lateFeeApplied,
-      'Total Pagado ($)': p.amountPaid,
+      'Total Pagado Bruto ($)': p.amountPaid,
+      'Comisión MP ($)': p.mpFee || 0,
+      'Impuestos MP ($)': p.mpTax || 0,
+      'Total Neto ($)': p.amountPaid - (p.mpFee || 0) - (p.mpTax || 0),
       'Método de Pago': p.method
     }));
 
@@ -169,6 +172,67 @@ export default function Reports() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* DETAILED LIST */}
+      <h3 className="text-xl font-bold text-slate-800 mt-8 mb-4 flex items-center gap-2">
+        <FileSpreadsheet className="text-blue-500" /> Detalle de Movimientos (Línea por Línea)
+      </h3>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+        {loading ? (
+           <div className="p-8 text-center text-slate-400">Cargando movimientos...</div>
+        ) : !data.payments || data.payments.length === 0 ? (
+           <div className="p-8 text-center text-slate-400">No hay movimientos registrados en este período.</div>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider">
+                <th className="p-4 font-bold">Fecha</th>
+                <th className="p-4 font-bold">Cliente</th>
+                <th className="p-4 font-bold">Método</th>
+                <th className="p-4 font-bold">Bruto</th>
+                <th className="p-4 font-bold text-red-500">Impuestos/Comisión</th>
+                <th className="p-4 font-bold text-emerald-600">Neto Ingresado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.payments.map(p => {
+                const isMP = p.method === 'MERCADOPAGO';
+                const fee = p.mpFee || 0;
+                const tax = p.mpTax || 0;
+                const totalDeductions = fee + tax;
+                const netAmount = p.amountPaid - totalDeductions;
+                
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 text-sm font-medium text-slate-700 whitespace-nowrap">
+                      {new Date(p.paymentDate).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="p-4 text-sm font-bold text-slate-900">
+                      {p.invoice?.client?.name || 'Cliente Borrado'}
+                      <div className="text-xs font-normal text-slate-500 font-mono">{p.invoice?.client?.dni}</div>
+                    </td>
+                    <td className="p-4 text-xs font-bold">
+                      <span className={`px-2 py-1 rounded-md uppercase tracking-wider ${isMP ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {p.method}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm font-bold text-slate-700">
+                      ${p.amountPaid.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                    </td>
+                    <td className="p-4 text-sm font-bold text-red-500">
+                      {totalDeductions > 0 ? `-$${totalDeductions.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '-'}
+                      {totalDeductions > 0 && <div className="text-[10px] text-slate-400 font-normal">C:${fee.toFixed(2)} | I:${tax.toFixed(2)}</div>}
+                    </td>
+                    <td className="p-4 text-sm font-black text-emerald-600">
+                      ${netAmount.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
