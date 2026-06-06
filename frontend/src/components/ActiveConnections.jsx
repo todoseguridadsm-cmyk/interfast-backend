@@ -97,7 +97,7 @@ export default function ActiveConnections() {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Total Conectados</p>
-              <h3 className="text-2xl font-black text-slate-800">{data.length}</h3>
+              <h3 className="text-2xl font-black text-slate-800">{filtered.length}</h3>
             </div>
           </div>
           
@@ -107,7 +107,7 @@ export default function ActiveConnections() {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Reconocidos (CRM)</p>
-              <h3 className="text-2xl font-black text-slate-800">{data.filter(d=>d.matched).length}</h3>
+              <h3 className="text-2xl font-black text-slate-800">{filtered.filter(d=>d.matched).length}</h3>
             </div>
           </div>
 
@@ -117,7 +117,7 @@ export default function ActiveConnections() {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Desconocidos</p>
-              <h3 className="text-2xl font-black text-slate-800">{data.filter(d=>!d.matched).length}</h3>
+              <h3 className="text-2xl font-black text-slate-800">{filtered.filter(d=>!d.matched).length}</h3>
             </div>
           </div>
 
