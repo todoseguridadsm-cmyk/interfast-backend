@@ -1861,17 +1861,20 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
         let remainingAmount = transactionAmount;
 
         for (const invoiceId of invoiceIdsToProcess) {
-          // 2. Verificar si en nuestra base existe y está pendiente
-          const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+          // 2. Transacción atómica: Intentar actualizar la factura SOLO si está PENDING
+          const updatedInvoice = await prisma.invoice.updateMany({
+            where: { id: invoiceId, status: 'PENDING' },
+            data: { status: 'PAID' }
+          });
 
-          if (!invoice) {
-            console.error(`❌ Webhook MP: La factura ID ${invoiceId} no existe en la base de datos local.`);
+          if (updatedInvoice.count === 0) {
+            console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya estaba PAGADA o en proceso. Se omitió la duplicación atómica.`);
             continue;
           }
 
-          if (invoice.status !== 'PAID') {
-            // Distribute amount proportionally or log originalAmount
-            const amountToLog = invoiceIdsToProcess.length === 1 ? transactionAmount : invoice.originalAmount;
+          // Si pasó la verificación atómica, procedemos a crear el pago
+          const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+          const amountToLog = invoiceIdsToProcess.length === 1 ? transactionAmount : (invoice ? invoice.originalAmount : transactionAmount);
 
             let mpFee = 0;
             let mpTax = 0;
@@ -1897,12 +1900,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               }
             });
 
-            // 4. Marcar factura como pagada
-            await prisma.invoice.update({
-              where: { id: invoiceId },
-              data: { status: 'PAID' }
-            });
-            
             await prisma.cutoffList.updateMany({
               where: { invoiceId: invoiceId, status: 'PENDING' },
               data: { status: 'RESOLVED' }
@@ -1928,11 +1925,9 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, msg);
               }
             }
+
             
             console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
-          } else {
-            console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya figuraba como PAGADA. Se omitió la duplicación.`);
-          }
         }
       }
     }
