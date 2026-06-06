@@ -47,10 +47,10 @@ export default function ActiveConnections() {
   };
 
   const filtered = data.filter(c => 
-    c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.ip.includes(searchTerm) ||
-    c.nodeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.panel.toLowerCase().includes(searchTerm.toLowerCase())
+    (c.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (c.ip || '').includes(searchTerm) ||
+    (c.nodeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.panel || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

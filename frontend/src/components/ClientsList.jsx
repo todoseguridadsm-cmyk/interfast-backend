@@ -112,6 +112,25 @@ export default function ClientsList() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (formData.dni && formData.dni.trim() !== '' && formData.dni !== '0' && formData.dni !== '11111111') {
+      const duplicateDni = clients.find(c => c.dni === formData.dni && c.id !== editingId);
+      if (duplicateDni) {
+        if (!window.confirm(`¡Atención! El DNI ${formData.dni} ya está registrado a nombre de ${duplicateDni.name}. ¿Deseas guardar de todos modos?`)) {
+          return;
+        }
+      }
+    }
+
+    if (formData.ipNumber && formData.ipNumber.trim() !== '') {
+      const duplicateIp = clients.find(c => c.ipNumber === formData.ipNumber && c.id !== editingId);
+      if (duplicateIp) {
+        if (!window.confirm(`¡Atención! La IP ${formData.ipNumber} ya está asignada a ${duplicateIp.name}. ¿Deseas guardar de todos modos?`)) {
+          return;
+        }
+      }
+    }
+
     const payload = {
       ...formData,
       planId: formData.planId ? parseInt(formData.planId) : null
@@ -264,9 +283,11 @@ export default function ClientsList() {
   const filteredClients = clients.filter(c => {
     const term = searchTerm.toLowerCase();
     const clientNum = `tk${String(c.id).padStart(3, '0')}`;
-    return c.name.toLowerCase().includes(term) || 
-           c.dni.includes(term) || 
-           clientNum.includes(term);
+    return (c.name || '').toLowerCase().includes(term) || 
+           (c.dni || '').toLowerCase().includes(term) || 
+           clientNum.includes(term) ||
+           (c.ipNumber || '').toLowerCase().includes(term) ||
+           (c.mainNode || '').toLowerCase().includes(term);
   });
 
   return (
