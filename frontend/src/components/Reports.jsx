@@ -94,10 +94,13 @@ export default function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl shadow-lg shadow-emerald-200 text-white hover:scale-105 transition-transform cursor-default">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-emerald-100 font-medium mb-1">Caja Bruta Histórica Total</p>
-              <h3 className="text-4xl font-black">${m.totalCollected?.toLocaleString('es-AR', {minimumFractionDigits: 2}) || '0'}</h3>
-              <p className="text-sm text-emerald-100 mt-2 flex items-center gap-1"><TrendingUp size={14}/> {m.paymentsCount || 0} Facturas pagadas (Global)</p>
+            <div className="w-full">
+              <p className="text-emerald-100 font-medium mb-1 flex justify-between items-center w-full pr-4">
+                <span>Caja Neta Histórica Total</span>
+                <span className="text-xs bg-emerald-700/50 px-2 py-1 rounded-full border border-emerald-400/30">Bruta: ${m.totalBruto?.toLocaleString('es-AR', {minimumFractionDigits: 0}) || '0'}</span>
+              </p>
+              <h3 className="text-4xl font-black">${(m.totalNeto || m.totalCollected)?.toLocaleString('es-AR', {minimumFractionDigits: 2}) || '0'}</h3>
+              <p className="text-sm text-emerald-100 mt-2 flex items-center gap-1"><TrendingUp size={14}/> {m.paymentsCount || 0} Pagos procesados (Global)</p>
             </div>
             <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><Download size={24} /></div>
           </div>

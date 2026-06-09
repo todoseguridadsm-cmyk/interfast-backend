@@ -1797,11 +1797,15 @@ app.get('/api/reports/sales', async (req, res) => {
     });
 
     const totalCollectedFromInvoices = payments.reduce((acc, p) => acc + p.amountPaid, 0);
+    const totalMpFees = payments.reduce((acc, p) => acc + (p.mpFee || 0) + (p.mpTax || 0), 0);
     const totalLateFees = payments.reduce((acc, p) => acc + p.lateFeeApplied, 0);
 
     const manualIn = movements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
     const manualOut = movements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
-    const totalCaja = totalCollectedFromInvoices + manualIn - manualOut;
+    
+    const totalBruto = totalCollectedFromInvoices + manualIn;
+    const totalEgresos = manualOut + totalMpFees;
+    const totalNeto = totalBruto - totalEgresos;
 
     const pendingInvoices = await prisma.invoice.findMany({ where: { status: 'PENDING' } });
     const pendingAmount = pendingInvoices.reduce((acc, i) => acc + i.originalAmount, 0);
@@ -1810,7 +1814,10 @@ app.get('/api/reports/sales', async (req, res) => {
 
     res.json({
       metrics: {
-        totalCollected: totalCaja,
+        totalCollected: totalNeto, // Retro-compatibilidad (ahora es el Neto real)
+        totalBruto,
+        totalEgresos,
+        totalNeto,
         paymentsCount: payments.length,
         totalLateFees,
         pendingAmount,
