@@ -350,9 +350,9 @@ export default function ClientsList() {
             />
           </div>
         </div>
-        <div className="overflow-x-auto w-full">
+        <div className="overflow-auto w-full max-h-[calc(100vh-240px)] custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[1000px]">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
               <th className="px-6 py-4 font-medium">N° Cliente</th>
               <th className="px-6 py-4 font-medium">Cliente</th>
