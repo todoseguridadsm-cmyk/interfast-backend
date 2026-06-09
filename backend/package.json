@@ -144,6 +144,7 @@
     "whatwg-url": "^5.0.0",
     "which": "^6.0.1",
     "wrappy": "^1.0.2",
+    "xlsx": "^0.18.5",
     "yallist": "^5.0.0"
   },
   "scripts": {

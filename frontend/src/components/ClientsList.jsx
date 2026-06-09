@@ -13,7 +13,7 @@ export default function ClientsList() {
   const [nodes, setNodes] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    dni: '', name: '', businessName: '', email: '', phone: '', address: '', fiscalAddress: '', 
+    dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', 
     city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
     cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: ''
   });
@@ -54,6 +54,8 @@ export default function ClientsList() {
       businessName: client.businessName || '',
       email: client.email || '',
       phone: client.phone || '',
+      phone2: client.phone2 || '',
+      observation: client.observation || '',
       address: client.address || '',
       fiscalAddress: client.fiscalAddress || '',
       city: client.city || '',
@@ -75,7 +77,7 @@ export default function ClientsList() {
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
+    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
     setIsModalOpen(false);
   };
 
@@ -206,6 +208,8 @@ export default function ClientsList() {
       "Fecha de Alta": c.registrationDate ? new Date(c.registrationDate).toLocaleDateString('es-AR') : '-',
       "e-mail": c.email || '-',
       "Tel. Particular": c.phone || '-',
+      "Tel. Secundario": c.phone2 || '-',
+      "Observaciones": c.observation || '-',
       "Dirección": c.address || '-',
       "Dirección Fiscal": c.fiscalAddress || '-',
       "Localidad": c.city || '-',
@@ -255,6 +259,8 @@ export default function ClientsList() {
           zipCode: row['Cód.Pos'] ? String(row['Cód.Pos']) : null,
           province: row['Provincia'] ? String(row['Provincia']) : null,
           phone: row['Tel. Particular'] ? String(row['Tel. Particular']) : null,
+          phone2: row['Tel. Secundario'] ? String(row['Tel. Secundario']) : null,
+          observation: row['Observaciones'] ? String(row['Observaciones']) : null,
           status: row['Estado'] === 'Baja' ? 'BAJA' : (row['Estado'] === 'Suspendido' ? 'SUSPENDED' : 'ACTIVE'),
           registrationDate: parsedDate,
           taxCondition: row['Condición IVA'] === 'Responsable Inscripto' ? 'RESPONSABLE_INSCRIPTO' : (row['Condición IVA'] === 'Monotributista' ? 'MONOTRIBUTISTA' : (row['Condición IVA'] === 'Exento' ? 'EXENTO' : 'CONSUMIDOR_FINAL')),
@@ -500,13 +506,17 @@ export default function ClientsList() {
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
                   <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Contacto y Ubicación</h4>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-6">
+                    <div className="md:col-span-4">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                       <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="correo@ejemplo.com" />
                     </div>
-                    <div className="md:col-span-6">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                    <div className="md:col-span-4">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono Principal</label>
                       <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="1122334455" />
+                    </div>
+                    <div className="md:col-span-4">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono Secundario</label>
+                      <input type="text" name="phone2" value={formData.phone2} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Opcional..." />
                     </div>
                     <div className="md:col-span-6">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Dirección Física</label>
@@ -531,6 +541,10 @@ export default function ClientsList() {
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Alta</label>
                       <input type="date" name="registrationDate" value={formData.registrationDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                    </div>
+                    <div className="md:col-span-12">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones (Máx. 100 caracteres)</label>
+                      <textarea name="observation" value={formData.observation} onChange={handleInputChange} maxLength="100" rows="2" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" placeholder="Notas sobre el cliente..."></textarea>
                     </div>
                   </div>
                 </div>
