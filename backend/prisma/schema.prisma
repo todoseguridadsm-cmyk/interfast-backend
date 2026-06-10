@@ -124,6 +124,7 @@ model CashMovement {
   id          Int      @id @default(autoincrement())
   type        String   // "IN" or "OUT"
   amount      Float
+  category    String   @default("GASTO_GENERAL")
   description String
   userId      Int
   user        User     @relation(fields: [userId], references: [id])

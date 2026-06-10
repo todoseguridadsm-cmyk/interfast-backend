@@ -16,6 +16,7 @@ export default function DailyCash() {
 
   const [showModal, setShowModal] = useState(false);
   const [type, setType] = useState('OUT');
+  const [category, setCategory] = useState('GASTO_GENERAL');
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
 
@@ -38,9 +39,9 @@ export default function DailyCash() {
     e.preventDefault();
     if(!amount || !desc) return alert('Por favor completa todos los campos.');
     try {
-       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, description: desc });
+       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, category: type === 'OUT' ? category : 'INGRESO', description: desc });
        setShowModal(false);
-       setAmount(''); setDesc('');
+       setAmount(''); setDesc(''); setCategory('GASTO_GENERAL');
        if(startDate === todayDateStr && endDate === todayDateStr) {
            fetchCash();
        } else {
@@ -96,6 +97,7 @@ export default function DailyCash() {
     baseItems.push({
       id: `M-${m.id}`,
       type: m.type,
+      category: m.category || 'GASTO_GENERAL',
       source: 'MANUAL',
       title: m.description,
       amount: m.amount,
@@ -122,6 +124,10 @@ export default function DailyCash() {
   const manualIn = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
   const manualOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
   
+  const matiasOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_MATIAS').reduce((acc, i) => acc + i.amount, 0);
+  const victorOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_VICTOR').reduce((acc, i) => acc + i.amount, 0);
+  const gastosOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'GASTO_GENERAL').reduce((acc, i) => acc + i.amount, 0);
+
   const netCash = (invoiceIn + manualIn) - manualOut;
   const netMp = mpIn - mpOut;
 
@@ -136,6 +142,7 @@ export default function DailyCash() {
       "Hora": item.date.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}),
       "Tipo": item.type === 'IN' ? 'INGRESO' : 'EGRESO',
       "Flujo": item.source,
+      "Categoría": item.category || '-',
       "Concepto / Origen": item.title,
       "Operador": item.user,
       "Monto ($)": Number(item.amount.toFixed(2))
@@ -236,6 +243,11 @@ export default function DailyCash() {
                <span className="text-emerald-500">+{manualIn.toLocaleString('es-AR')}</span> / <span className="text-red-500">-{manualOut.toLocaleString('es-AR')}</span>
             </h4>
         </div>
+        <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center gap-1 bg-slate-50">
+            <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between"><span>Retiros Matías:</span> <span className="text-red-500 font-black">-${matiasOut.toLocaleString('es-AR')}</span></p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between"><span>Retiros Víctor:</span> <span className="text-red-500 font-black">-${victorOut.toLocaleString('es-AR')}</span></p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between"><span>Gastos/Otros:</span> <span className="text-red-500 font-black">-${gastosOut.toLocaleString('es-AR')}</span></p>
+        </div>
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-2xl shadow-lg shadow-emerald-200 text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform">
             <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider mb-1">Caja Fuerte Efectivo</p>
             <h4 className="text-2xl font-black">${netCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
@@ -279,7 +291,9 @@ export default function DailyCash() {
                             <div>
                                 <h4 className={`font-black text-base tracking-tight ${item.type === 'IN' ? 'text-slate-800' : 'text-red-700'}`}>{item.title}</h4>
                                 <div className="text-xs text-slate-500 font-medium flex items-center gap-2 mt-1">
-                                    <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider"><MonitorCheck size={10}/> {item.source}</span>
+                                    <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider">
+                                        <MonitorCheck size={10}/> {item.source} {item.category && item.category !== 'INGRESO' && `(${item.category.replace('_', ' ')})`}
+                                    </span>
                                     <span>•</span>
                                     <span>Resp: <strong className="text-slate-700 uppercase tracking-widest">{item.user}</strong></span>
                                     <span>•</span>
@@ -326,6 +340,20 @@ export default function DailyCash() {
                   />
                 </div>
               </div>
+
+              {type === 'OUT' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Categoría del Egreso</label>
+                  <select 
+                    value={category} onChange={e => setCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all"
+                  >
+                    <option value="GASTO_GENERAL">Gasto General / Mantenimiento</option>
+                    <option value="RETIRO_MATIAS">Retiro de Socio: Matías</option>
+                    <option value="RETIRO_VICTOR">Retiro de Socio: Víctor</option>
+                  </select>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Concepto</label>

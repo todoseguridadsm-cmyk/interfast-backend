@@ -1416,12 +1416,13 @@ app.get('/api/cash/daily', async (req, res) => {
 
 app.post('/api/cash/movement', async (req, res) => {
   try {
-    const { type, amount, description } = req.body;
+    const { type, amount, category, description } = req.body;
 
     const m = await prisma.cashMovement.create({
       data: {
         type,
         amount: parseFloat(amount),
+        category: category || 'GASTO_GENERAL',
         description,
         userId: parseInt(req.user?.id) || 1
       },
