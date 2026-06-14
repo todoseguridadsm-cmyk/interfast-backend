@@ -49,10 +49,12 @@ export default async function DashboardPage() {
         
         {/* Botón principal OCR */}
         <div className="flex items-center gap-3">
-          <Button className="bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary),0.3)] hover:shadow-[0_0_30px_rgba(var(--primary),0.5)] transition-all gap-2 h-11 px-6 font-semibold">
-            <ScanText className="h-5 w-5" />
-            Escanear Ticket OCR
-          </Button>
+          <Link href="/dashboard/expenses">
+            <Button className="bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary),0.3)] hover:shadow-[0_0_30px_rgba(var(--primary),0.5)] transition-all gap-2 h-11 px-6 font-semibold">
+              <ScanText className="h-5 w-5" />
+              Escanear Ticket OCR
+            </Button>
+          </Link>
         </div>
       </div>
 
