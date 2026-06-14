@@ -132,3 +132,55 @@ Formato requerido estricto:
     return { success: false, error: error.message || 'Error desconocido al procesar el gasto.' }
   }
 }
+
+export async function approveExpense(expenseId: string) {
+  const supabase = await createClient()
+
+  // Obtener el gasto actual
+  const { data: expense, error: fetchError } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('id', expenseId)
+    .single()
+
+  if (fetchError || !expense) {
+    return { error: 'Gasto no encontrado' }
+  }
+
+  if (expense.status === 'approved') {
+    return { error: 'Este gasto ya fue aprobado anteriormente' }
+  }
+
+  // Marcar como aprobado
+  const { error: updateError } = await supabase
+    .from('expenses')
+    .update({ status: 'approved' })
+    .eq('id', expenseId)
+
+  if (updateError) {
+    console.error('Error approving expense:', updateError)
+    return { error: 'No se pudo aprobar el gasto' }
+  }
+
+  // Descontar del saldo del chofer
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('balance')
+    .eq('id', expense.driver_id || '')
+    .single()
+    
+  if (profile) {
+     const currentBalance = Number(profile.balance) || 0
+     const newBalance = currentBalance - Number(expense.amount)
+     await supabase
+       .from('profiles')
+       .update({ balance: newBalance })
+       .eq('id', expense.driver_id || '')
+  }
+
+  // Revalidar rutas para refrescar UI
+  const { revalidatePath } = await import('next/cache')
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard/trips')
+  return { success: true }
+}

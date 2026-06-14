@@ -15,6 +15,7 @@ export interface Database {
           role: 'admin' | 'chofer' | 'cliente'
           full_name: string
           phone: string | null
+          balance: number | null
           created_at: string
         }
         Insert: {
@@ -22,6 +23,7 @@ export interface Database {
           role?: 'admin' | 'chofer' | 'cliente'
           full_name: string
           phone?: string | null
+          balance?: number | null
           created_at?: string
         }
         Update: {
@@ -29,6 +31,7 @@ export interface Database {
           role?: 'admin' | 'chofer' | 'cliente'
           full_name?: string
           phone?: string | null
+          balance?: number | null
           created_at?: string
         }
       }
@@ -41,6 +44,8 @@ export interface Database {
           year: number
           capacity_kg: number | null
           status: string
+          current_km: number | null
+          next_service_km: number | null
           created_at: string
         }
         Insert: {
@@ -51,6 +56,8 @@ export interface Database {
           year: number
           capacity_kg?: number | null
           status?: string
+          current_km?: number | null
+          next_service_km?: number | null
           created_at?: string
         }
         Update: {
@@ -61,6 +68,8 @@ export interface Database {
           year?: number
           capacity_kg?: number | null
           status?: string
+          current_km?: number | null
+          next_service_km?: number | null
           created_at?: string
         }
       }
@@ -201,6 +210,32 @@ export interface Database {
           amount?: number
           status?: 'pending' | 'paid' | 'cancelled'
           due_date?: string | null
+          created_at?: string
+        }
+      }
+      maintenance_logs: {
+        Row: {
+          id: string
+          vehicle_id: string | null
+          service_type: string
+          cost: number | null
+          km_at_service: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          vehicle_id?: string | null
+          service_type: string
+          cost?: number | null
+          km_at_service?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          vehicle_id?: string | null
+          service_type?: string
+          cost?: number | null
+          km_at_service?: number | null
           created_at?: string
         }
       }
