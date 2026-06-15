@@ -1,18 +1,24 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Truck, Wrench, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
+import { Truck, Wrench, CheckCircle, Clock, AlertTriangle, AlertCircle } from 'lucide-react'
 import { OdometerForm } from './OdometerForm'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-export default async function VehicleDetailPage({ params }: { params: { id: string } }) {
-  const supabase = await createClient()
+export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+
+  // Use Service Role Key to bypass RLS for reading vehicles and logs
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // 1. Fetch vehicle
   const { data: vehicle, error } = await supabase
     .from('vehicles')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !vehicle) {
@@ -27,86 +33,131 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
     .order('created_at', { ascending: false })
 
   const currentKm = vehicle.current_km || 0
-  const nextService = vehicle.next_service_km || 0
-  const remaining = nextService > 0 ? nextService - currentKm : null
-  
-  let statusColor = 'text-emerald-500'
-  let statusBg = 'bg-emerald-500/10'
-  let statusText = 'Óptimo'
 
-  if (remaining !== null) {
-    if (remaining <= 0) {
+  // Helper para generar el componente de la alerta
+  function getAlertDisplay(kmThreshold: number | null, dateThreshold: string | null, label: string) {
+    if (!kmThreshold && !dateThreshold) {
+      return (
+        <div className="p-4 rounded-xl border bg-muted/10 border-border/50 flex flex-col gap-1">
+          <p className="text-sm font-semibold text-muted-foreground uppercase">{label}</p>
+          <p className="text-muted-foreground font-medium text-sm mt-2">Sin parámetros de control</p>
+        </div>
+      )
+    }
+
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    let isRed = false
+    let isYellow = false
+    let messages: string[] = []
+
+    // Comprobar Kilómetros
+    if (kmThreshold) {
+      const diffKm = kmThreshold - currentKm
+      if (diffKm <= 200) {
+        isRed = true
+        messages.push(`Restan ${diffKm} km (Límite: ${kmThreshold.toLocaleString()})`)
+      } else if (diffKm <= 1000) {
+        isYellow = true
+        messages.push(`Restan ${diffKm} km (Límite: ${kmThreshold.toLocaleString()})`)
+      } else {
+        messages.push(`Restan ${diffKm.toLocaleString()} km (Límite: ${kmThreshold.toLocaleString()})`)
+      }
+    }
+
+    // Comprobar Fechas
+    if (dateThreshold) {
+      const targetDate = new Date(dateThreshold + 'T00:00:00')
+      const diffTime = targetDate.getTime() - today.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24))
+      
+      if (diffDays <= 5) {
+        isRed = true
+        messages.push(`Faltan ${diffDays} días (Límite: ${targetDate.toLocaleDateString()})`)
+      } else if (diffDays <= 10) {
+        isYellow = true
+        messages.push(`Faltan ${diffDays} días (Límite: ${targetDate.toLocaleDateString()})`)
+      } else {
+        messages.push(`Límite de fecha: ${targetDate.toLocaleDateString()}`)
+      }
+    }
+
+    let statusColor = 'text-emerald-500'
+    let statusBg = 'bg-emerald-500/10'
+    let borderColor = 'border-emerald-500/20'
+    let Icon = CheckCircle
+
+    if (isRed) {
       statusColor = 'text-destructive'
       statusBg = 'bg-destructive/10'
-      statusText = 'Service Vencido'
-    } else if (remaining <= 1000) {
+      borderColor = 'border-destructive/30'
+      Icon = AlertCircle
+    } else if (isYellow) {
       statusColor = 'text-amber-500'
       statusBg = 'bg-amber-500/10'
-      statusText = 'Alerta: Service Próximo'
+      borderColor = 'border-amber-500/30'
+      Icon = AlertTriangle
     }
+
+    return (
+      <div className={`p-4 rounded-xl border ${statusBg} ${borderColor} flex flex-col gap-2 relative overflow-hidden group`}>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">{label}</p>
+          <Icon className={`h-5 w-5 ${statusColor}`} />
+        </div>
+        <div className="space-y-1 mt-1">
+          {messages.map((msg, i) => (
+            <p key={i} className={`text-sm font-bold ${statusColor}`}>{msg}</p>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-extrabold tracking-tight text-foreground/90 uppercase">{vehicle.plate}</h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border border-current/20 ${statusBg} ${statusColor}`}>
-              {statusText}
-            </span>
-          </div>
-          <p className="text-muted-foreground font-medium mt-1">{vehicle.brand} {vehicle.model} ({vehicle.year})</p>
+          <h2 className="text-3xl font-extrabold tracking-tight text-foreground/90 uppercase flex items-center gap-3">
+            {vehicle.plate}
+          </h2>
+          <p className="text-muted-foreground font-medium mt-1">{vehicle.brand} {vehicle.model} ({vehicle.year}) - Capacidad: {vehicle.capacity_kg ? `${vehicle.capacity_kg} kg` : 'N/A'}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* Odómetro y Service */}
+        {/* Odómetro Principal */}
         <Card className="col-span-1 md:col-span-2 bg-card/40 backdrop-blur-xl border-border/40 shadow-xl">
           <CardHeader className="border-b border-border/30 bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Clock className="h-5 w-5 text-primary" /> Kilometraje y Próximo Service
+              <Clock className="h-5 w-5 text-primary" /> Panel de Mantenimiento Preventivo
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 grid grid-cols-1 sm:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Kilometraje Actual</p>
-              <div className="text-4xl font-black text-foreground/90 font-mono">
-                {currentKm.toLocaleString()} <span className="text-xl text-muted-foreground font-medium">km</span>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Próximo Service (Fijado)</p>
-              <div className="text-4xl font-black text-foreground/90 font-mono">
-                {nextService > 0 ? nextService.toLocaleString() : '--'} <span className="text-xl text-muted-foreground font-medium">km</span>
+          <CardContent className="pt-6">
+            <div className="mb-8">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Kilometraje Actual de la Unidad</p>
+              <div className="text-5xl font-black text-foreground/90 font-mono flex items-baseline gap-2">
+                {currentKm.toLocaleString()} <span className="text-2xl text-muted-foreground font-medium uppercase tracking-widest">km</span>
               </div>
             </div>
 
-            {remaining !== null && (
-              <div className={`col-span-1 sm:col-span-2 p-4 rounded-xl border ${statusBg} border-current/10 ${statusColor} flex items-center gap-3`}>
-                {remaining <= 1000 ? <AlertTriangle className="h-6 w-6" /> : <CheckCircle className="h-6 w-6" />}
-                <div>
-                  <p className="font-bold">
-                    {remaining < 0 
-                      ? `Se ha pasado por ${Math.abs(remaining).toLocaleString()} km.` 
-                      : `Restan ${remaining.toLocaleString()} km para el próximo mantenimiento.`}
-                  </p>
-                  {remaining <= 1000 && <p className="text-sm opacity-90">Se notificará automáticamente al administrador.</p>}
-                </div>
-              </div>
-            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {getAlertDisplay(vehicle.next_service_km, vehicle.next_oil_change_date, 'Aceite de Motor')}
+              {getAlertDisplay(vehicle.next_oil_filter_change_km, vehicle.next_oil_filter_change_date, 'Filtro de Aceite')}
+              {getAlertDisplay(vehicle.next_air_filter_change_km, vehicle.next_air_filter_change_date, 'Filtro de Aire')}
+              {getAlertDisplay(vehicle.next_gearbox_oil_change_km, vehicle.next_gearbox_oil_change_date, 'Aceite de Caja')}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Actualizar Odómetro (Acción Chofer) */}
-        <Card className="col-span-1 bg-card/40 backdrop-blur-xl border-border/40 shadow-xl border-primary/20">
+        {/* Actualizar Odómetro Manual */}
+        <Card className="col-span-1 bg-card/40 backdrop-blur-xl border-border/40 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-lg">Reportar Llegada</CardTitle>
-            <CardDescription>Actualiza el odómetro al finalizar la ruta.</CardDescription>
+            <CardTitle className="text-lg">Ajuste Manual</CardTitle>
+            <CardDescription>Actualiza el odómetro si es necesario (Los viajes lo suman automáticamente).</CardDescription>
           </CardHeader>
           <CardContent>
             <OdometerForm vehicleId={vehicle.id} currentKm={currentKm} />
@@ -120,7 +171,7 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
         <CardHeader className="border-b border-border/40 bg-muted/20 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <Wrench className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg font-bold text-foreground/90">Historial de Mantenimiento</CardTitle>
+            <CardTitle className="text-lg font-bold text-foreground/90">Historial de Gastos Mecánicos</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-0">

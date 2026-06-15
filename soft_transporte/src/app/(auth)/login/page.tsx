@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Loader2, Truck } from 'lucide-react'
 
 const formSchema = z.object({
-  email: z.string().email('Por favor ingresa un correo válido.'),
+  email: z.string().min(1, 'Por favor ingresa tu usuario o correo.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
 })
 
@@ -47,7 +47,7 @@ export default function LoginPage() {
             <div className="absolute -bottom-2 -right-2 h-6 w-6 rounded-full bg-primary animate-pulse" />
           </div>
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground/90">SoftTransporte</h1>
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground/90">Senda CMR</h1>
             <p className="mt-2 text-sm font-medium text-muted-foreground">Sistema de Gestión Logística Integral</p>
           </div>
         </div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground/80">Correo Electrónico</FormLabel>
+                      <FormLabel className="text-foreground/80">Usuario o Correo Electrónico</FormLabel>
                       <FormControl>
                         <Input 
                           placeholder="nombre@empresa.com" 

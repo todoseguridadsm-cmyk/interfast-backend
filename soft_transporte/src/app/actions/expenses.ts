@@ -17,6 +17,8 @@ const ExpenseSchema = z.object({
 export async function processExpenseReceipt(formData: FormData) {
   try {
     const file = formData.get('receipt') as File
+    const userCategory = formData.get('category') as string || 'Otros'
+
     if (!file) throw new Error('No se subió ninguna imagen.')
     if (!file.type.startsWith('image/')) throw new Error('El archivo debe ser una imagen.')
 
@@ -73,8 +75,8 @@ export async function processExpenseReceipt(formData: FormData) {
     const prompt = `Analiza este ticket de gasto de transporte.
 Extrae la siguiente información y devuélvela estrictamente como JSON puro sin backticks ni etiquetas markdown.
 Es fundamental que la fecha esté SIEMPRE en formato YYYY-MM-DD.
-Si no puedes determinar la categoría, usa 'Otros'.
-Si la moneda no está explícita, usa 'ARS' si parece de Argentina o la moneda local correspondiente.
+El usuario ha indicado que la categoría de este gasto es "${userCategory}". Úsala si es razonable.
+Si la moneda no está explícita, usa 'ARS'.
 Monto debe ser un número.
 
 Formato requerido estricto:
@@ -83,7 +85,7 @@ Formato requerido estricto:
   "fecha": "2024-05-20",
   "proveedor": "YPF",
   "moneda": "ARS",
-  "categoria": "Combustible"
+  "categoria": "${userCategory}"
 }`
 
     const response = await ai.models.generateContent({
@@ -107,7 +109,7 @@ Formato requerido estricto:
     const validatedData = ExpenseSchema.parse(parsedData)
 
     // 4. Save to Database
-    const { error: dbError } = await supabase
+    const { error: dbError } = await adminSupabase
       .from('expenses')
       .insert({
         trip_id: activeTrip.id,
@@ -117,7 +119,8 @@ Formato requerido estricto:
         category: validatedData.categoria,
         receipt_url: receiptUrl,
         ocr_data: validatedData,
-        status: 'pending'
+        status: 'pending',
+        has_receipt: true
       })
 
     if (dbError) {
@@ -133,8 +136,76 @@ Formato requerido estricto:
   }
 }
 
+export async function processManualExpense(formData: FormData) {
+  try {
+    const amountStr = formData.get('amount') as string
+    const category = formData.get('category') as string || 'Otros'
+    const provider = formData.get('provider') as string || 'Sin Especificar'
+
+    if (!amountStr) throw new Error('El monto es obligatorio.')
+    const amount = parseFloat(amountStr)
+
+    const supabase = await createClient()
+
+    // 1. Check Auth and get active trip
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) throw new Error('Usuario no autenticado.')
+
+    // Get active trip for this driver
+    const { data: activeTrip } = await supabase
+      .from('trips')
+      .select('id')
+      .eq('driver_id', user.id)
+      .eq('status', 'in_progress')
+      .single()
+
+    if (!activeTrip) {
+      throw new Error('No tienes ningún viaje activo ("in_progress") en este momento. Inicia un viaje antes de cargar gastos.')
+    }
+
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+    const adminSupabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    // 2. Save to Database without receipt
+    const { error: dbError } = await adminSupabase
+      .from('expenses')
+      .insert({
+        trip_id: activeTrip.id,
+        driver_id: user.id,
+        description: `CARGA MANUAL: ${provider} (${category})`,
+        amount: amount,
+        category: category,
+        receipt_url: null,
+        ocr_data: { monto: amount, categoria: category, proveedor: provider, fecha: new Date().toISOString().split('T')[0], moneda: 'ARS' },
+        status: 'pending',
+        has_receipt: false
+      })
+
+    if (dbError) {
+      console.error("DB Insert Error:", dbError)
+      throw new Error('Falló el guardado en la base de datos.')
+    }
+
+    return { 
+      success: true, 
+      data: { monto: amount, categoria: category, proveedor: provider, fecha: new Date().toISOString().split('T')[0], moneda: 'ARS' } 
+    }
+
+  } catch (error: any) {
+    console.error("Manual Expense Error:", error)
+    return { success: false, error: error.message || 'Error desconocido al procesar el gasto.' }
+  }
+}
+
 export async function approveExpense(expenseId: string) {
-  const supabase = await createClient()
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // Obtener el gasto actual
   const { data: expense, error: fetchError } = await supabase
@@ -182,5 +253,58 @@ export async function approveExpense(expenseId: string) {
   const { revalidatePath } = await import('next/cache')
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/trips')
+  revalidatePath('/dashboard/expenses')
   return { success: true }
+}
+
+export async function createAdminExpense(formData: FormData) {
+  try {
+    const driverId = formData.get('driver_id') as string
+    const tripId = formData.get('trip_id') as string
+    const category = formData.get('category') as string
+    const amountStr = formData.get('amount') as string
+    const provider = formData.get('provider') as string || 'Sin Especificar'
+
+    if (!driverId || !tripId || !category || !amountStr) {
+      throw new Error('Faltan campos obligatorios.')
+    }
+
+    const amount = parseFloat(amountStr)
+
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+    const adminSupabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { error: dbError } = await adminSupabase
+      .from('expenses')
+      .insert({
+        trip_id: tripId,
+        driver_id: driverId,
+        description: `CARGA ADMIN: ${provider} (${category})`,
+        amount: amount,
+        category: category,
+        receipt_url: null,
+        ocr_data: { monto: amount, categoria: category, proveedor: provider, fecha: new Date().toISOString().split('T')[0], moneda: 'ARS' },
+        status: 'pending',
+        has_receipt: false
+      })
+
+    if (dbError) {
+      console.error("DB Insert Error:", dbError)
+      throw new Error('Falló el guardado en la base de datos.')
+    }
+
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/trips')
+    revalidatePath('/dashboard/expenses')
+
+    return { success: true }
+
+  } catch (error: any) {
+    console.error("Admin Expense Error:", error)
+    return { success: false, error: error.message || 'Error desconocido al procesar el gasto.' }
+  }
 }

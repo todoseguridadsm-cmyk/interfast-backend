@@ -1,10 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { revalidatePath } from 'next/cache'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function updateOdometer(vehicleId: string, newKm: number) {
   const supabase = await createClient()
@@ -48,11 +46,19 @@ export async function updateOdometer(vehicleId: string, newKm: number) {
       
     const driverName = (trip?.profiles as any)?.full_name || 'Ninguno (En Base)'
 
-    // TRIGGER EMAIL ALERT
+    // TRIGGER EMAIL ALERT CON NODEMAILER (GMAIL)
     try {
-      await resend.emails.send({
-        from: 'SoftTransporte Alertas <onboarding@resend.dev>', // Se usa dominio de prueba de Resend
-        to: 'admin@softtransporte.com', // Reemplazar en un entorno real
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.SMTP_EMAIL, // Tu correo Gmail (transportesoporte5@gmail.com)
+          pass: process.env.SMTP_PASSWORD, // La contraseña de aplicación de 16 caracteres
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"Senda CMR Alertas" <${process.env.SMTP_EMAIL}>`,
+        to: 'transportesoporte5@gmail.com', // El destinatario (tú mismo)
         subject: `⚠️ ALERTA CRÍTICA: Service Próximo para Camión ${vehicle.plate}`,
         html: `
           <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #09090b; color: #fafafa; padding: 40px; border-radius: 16px; border: 1px solid #27272a;">
@@ -75,13 +81,13 @@ export async function updateOdometer(vehicleId: string, newKm: number) {
             <p style="color: #a1a1aa; font-size: 15px; line-height: 1.6;"><strong>Gravedad: Alta.</strong> Se recomienda contactar al taller inmediatamente para agendar el mantenimiento preventivo y asegurar que el vehículo no sufra desperfectos operativos.</p>
             
             <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #27272a; text-align: center;">
-              <p style="color: #52525b; font-size: 12px; margin: 0;">SoftTransporte - Inteligencia Logística</p>
+              <p style="color: #52525b; font-size: 12px; margin: 0;">Senda CMR - Inteligencia Logística</p>
             </div>
           </div>
         `
       })
     } catch (e) {
-      console.error("Resend Error:", e)
+      console.error("Nodemailer Error:", e)
       // Incluso si el email falla, actualizamos el km
     }
   }

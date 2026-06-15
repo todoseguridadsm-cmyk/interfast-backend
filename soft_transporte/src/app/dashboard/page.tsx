@@ -98,65 +98,68 @@ export default async function DashboardPage() {
 
       {/* KPIs Superiores */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-card/40 backdrop-blur-xl border-border/40 shadow-lg hover:bg-card/60 transition-colors">
+        {/* Card 1: Dark with Green Accents */}
+        <Card className="bg-[#111827] border-border/20 shadow-xl hover:shadow-2xl transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Facturado (Mes)</CardTitle>
+            <CardTitle className="text-sm font-semibold text-emerald-400/80">Facturado (Mes)</CardTitle>
             <div className="p-2 bg-emerald-500/10 rounded-full">
-              <DollarSign className="h-4 w-4 text-emerald-500" />
+              <DollarSign className="h-4 w-4 text-emerald-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground/90">${facturacion.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-white">${facturacion.toLocaleString()}</div>
             <p className="text-xs font-medium text-emerald-500 mt-1 flex items-center gap-1">
-              +12% vs mes anterior
+              0 comprobantes emitidos
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/40 backdrop-blur-xl border-border/40 shadow-lg hover:bg-card/60 transition-colors">
+        {/* Card 2: Dark with Red Accents (Gastos/Rentabilidad) */}
+        <Card className="bg-[#111827] border-border/20 shadow-xl hover:shadow-2xl transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Rentabilidad Promedio</CardTitle>
-            <div className="p-2 bg-primary/10 rounded-full">
-              <PieChart className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold text-red-400/80">Rentabilidad Promedio</CardTitle>
+            <div className="p-2 bg-red-500/10 rounded-full">
+              <PieChart className="h-4 w-4 text-red-400" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground/90">${rentabilidadPromedio.toLocaleString()}</div>
-            <p className="text-xs font-medium text-muted-foreground mt-1">Beneficio neto por viaje completado</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/40 backdrop-blur-xl border-border/40 shadow-lg hover:bg-card/60 transition-colors">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Camiones en Ruta</CardTitle>
-            <div className="p-2 bg-blue-500/10 rounded-full">
-              <Truck className="h-4 w-4 text-blue-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground/90">{inProgressTripsCount}</div>
-            <p className="text-xs font-medium text-blue-500 mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Operando activamente
+            <div className="text-3xl font-bold text-white">${rentabilidadPromedio.toLocaleString()}</div>
+            <p className="text-xs font-medium text-red-500 mt-1 flex items-center gap-1">
+              Neto por viaje
             </p>
           </CardContent>
         </Card>
 
-        <Card className={`bg-card/40 backdrop-blur-xl border-border/40 shadow-lg hover:bg-card/60 transition-colors relative overflow-hidden ${alertasCount > 0 ? 'border-destructive/30' : ''}`}>
+        {/* Card 3: Solid Yellow/Amber Gradient */}
+        <Card className="bg-gradient-to-br from-[#f59e0b] to-[#d97706] border-none shadow-lg shadow-amber-500/20 text-white hover:shadow-amber-500/40 transition-all">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Alertas de Mantenimiento</CardTitle>
-            <div className={`p-2 rounded-full ${alertasCount > 0 ? 'bg-destructive/10' : 'bg-emerald-500/10'}`}>
-              <AlertTriangle className={`h-4 w-4 ${alertasCount > 0 ? 'text-destructive' : 'text-emerald-500'}`} />
+            <CardTitle className="text-sm font-bold text-amber-50">Camiones en Ruta</CardTitle>
+            <div className="p-2 bg-white/20 rounded-full backdrop-blur-md">
+              <Truck className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-foreground/90">{alertasCount}</div>
-            <p className={`text-xs font-medium mt-1 ${alertasCount > 0 ? 'text-destructive' : 'text-emerald-500'}`}>
-              {alertasCount > 0 ? 'Vehículos críticos (<1000 km)' : 'Flota en óptimas condiciones'}
+            <div className="text-3xl font-extrabold">{inProgressTripsCount}</div>
+            <p className="text-xs font-medium text-amber-100 mt-1 flex items-center gap-1">
+              Operando activamente
             </p>
           </CardContent>
-          {alertasCount > 0 && (
-            <div className="absolute top-0 right-0 w-2 h-full bg-destructive/30"></div>
-          )}
+        </Card>
+
+        {/* Card 4: Solid Purple/Blue Gradient */}
+        <Card className={`bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] border-none shadow-lg shadow-indigo-500/20 text-white hover:shadow-indigo-500/40 transition-all relative overflow-hidden`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-bold text-indigo-50">Alertas de Flota</CardTitle>
+            <div className={`p-2 rounded-full bg-white/20 backdrop-blur-md`}>
+              <AlertTriangle className={`h-4 w-4 text-white`} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold">{alertasCount}</div>
+            <p className={`text-xs font-medium mt-1 text-indigo-100`}>
+              Mantenimientos próximos
+            </p>
+          </CardContent>
         </Card>
       </div>
 

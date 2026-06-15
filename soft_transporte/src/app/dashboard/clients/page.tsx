@@ -3,6 +3,7 @@ import { ClientForm } from '@/components/clients/ClientForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Building2, Mail, Phone, Hash } from 'lucide-react'
+import { DeleteClientButton } from '@/components/clients/DeleteClientButton'
 
 export default async function ClientsPage() {
   const supabase = await createClient()
@@ -38,12 +39,13 @@ export default async function ClientsPage() {
                 <TableHead className="font-semibold text-muted-foreground">Contacto</TableHead>
                 <TableHead className="font-semibold text-muted-foreground">Email</TableHead>
                 <TableHead className="font-semibold text-muted-foreground">Teléfono</TableHead>
+                <TableHead className="font-semibold text-muted-foreground text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {clients && clients.length > 0 ? (
                 clients.map((client) => (
-                  <TableRow key={client.id} className="border-border/40 hover:bg-muted/30 transition-colors cursor-pointer group">
+                  <TableRow key={client.id} className="border-border/40 hover:bg-muted/30 transition-colors group">
                     <TableCell className="font-semibold text-foreground/90 group-hover:text-primary transition-colors">
                       {client.company_name}
                     </TableCell>
@@ -56,6 +58,12 @@ export default async function ClientsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       <div className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {client.phone || '-'}</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <ClientForm client={client} />
+                        <DeleteClientButton id={client.id} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

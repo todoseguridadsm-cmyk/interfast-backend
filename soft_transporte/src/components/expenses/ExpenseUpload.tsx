@@ -1,15 +1,30 @@
 'use client'
 
 import { useState } from 'react'
-import { processExpenseReceipt } from '@/app/actions/expenses'
+import { processExpenseReceipt, processManualExpense } from '@/app/actions/expenses'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, UploadCloud, CheckCircle, AlertCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Loader2, UploadCloud, CheckCircle, AlertCircle, ReceiptText, PenTool } from 'lucide-react'
+
+const CATEGORIES = [
+  'Combustible',
+  'Peajes',
+  'Mantenimiento',
+  'Viáticos',
+  'Otros'
+]
 
 export function ExpenseUpload() {
   const [file, setFile] = useState<File | null>(null)
+  const [category, setCategory] = useState<string>('')
+  const [isManual, setIsManual] = useState(false)
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualProvider, setManualProvider] = useState('')
+  
   const [status, setStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [result, setResult] = useState<any>(null)
@@ -22,27 +37,58 @@ export function ExpenseUpload() {
     }
   }
 
-  const handleUpload = async () => {
-    if (!file) return
+  const resetForm = () => {
+    setFile(null)
+    setManualAmount('')
+    setManualProvider('')
+    setStatus('idle')
+    setResult(null)
+    const fileInput = document.getElementById('receipt') as HTMLInputElement
+    if (fileInput) fileInput.value = ''
+  }
+
+  const handleSubmit = async () => {
+    if (!category) {
+      setStatus('error')
+      setErrorMessage('Por favor selecciona una categoría.')
+      return
+    }
 
     setStatus('uploading')
     
-    const formData = new FormData()
-    formData.append('receipt', file)
+    let res;
+    if (isManual) {
+      if (!manualAmount) {
+        setStatus('error')
+        setErrorMessage('El monto es obligatorio para cargas manuales.')
+        return
+      }
+      const formData = new FormData()
+      formData.append('amount', manualAmount)
+      formData.append('category', category)
+      formData.append('provider', manualProvider)
+      res = await processManualExpense(formData)
+    } else {
+      if (!file) {
+        setStatus('error')
+        setErrorMessage('Sube la imagen del ticket.')
+        return
+      }
+      const formData = new FormData()
+      formData.append('receipt', file)
+      formData.append('category', category)
 
-    // Simulate small UI transition to show analyzing state distinctly
-    await new Promise(r => setTimeout(r, 600))
-    setStatus('analyzing')
-
-    const res = await processExpenseReceipt(formData)
+      await new Promise(r => setTimeout(r, 600))
+      setStatus('analyzing')
+      res = await processExpenseReceipt(formData)
+    }
 
     if (res.success) {
       setStatus('success')
       setResult(res.data)
       setFile(null)
-      // Reset input manually since it's uncontrolled
-      const fileInput = document.getElementById('receipt') as HTMLInputElement
-      if (fileInput) fileInput.value = ''
+      setManualAmount('')
+      setManualProvider('')
     } else {
       setStatus('error')
       setErrorMessage(res.error || 'Ocurrió un error inesperado.')
@@ -52,27 +98,84 @@ export function ExpenseUpload() {
   return (
     <Card className="w-full max-w-md bg-card/40 backdrop-blur-xl border-border/40 shadow-2xl relative overflow-hidden transition-all hover:border-primary/30">
       <CardHeader className="border-b border-border/30 pb-4 bg-muted/10">
-        <CardTitle className="flex items-center gap-2 text-xl font-bold">
-          <UploadCloud className="h-6 w-6 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
-          Escanear Ticket OCR
-        </CardTitle>
-        <CardDescription className="text-muted-foreground/90 font-medium">
-          Sube la foto de tu comprobante. Gemini IA extraerá automáticamente monto, fecha, proveedor y categoría.
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-xl font-bold">
+            {isManual ? <PenTool className="h-6 w-6 text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" /> : <UploadCloud className="h-6 w-6 text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.8)]" />}
+            {isManual ? 'Carga Manual' : 'Escanear Ticket OCR'}
+          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <Switch 
+              checked={isManual} 
+              onCheckedChange={(checked) => {
+                setIsManual(checked)
+                resetForm()
+              }} 
+            />
+            <Label className="text-xs font-semibold cursor-pointer text-muted-foreground whitespace-nowrap">Sin Comprobante</Label>
+          </div>
+        </div>
+        <CardDescription className="text-muted-foreground/90 font-medium mt-2">
+          {isManual 
+            ? 'Carga un gasto sin ticket o comprobante físico.' 
+            : 'Sube la foto de tu comprobante. Gemini IA extraerá los datos automáticamente.'}
         </CardDescription>
       </CardHeader>
+      
       <CardContent className="space-y-6 pt-6">
         
         <div className="space-y-3">
-          <Label htmlFor="receipt" className="text-foreground/80 font-semibold">Seleccionar Imagen</Label>
-          <Input 
-            id="receipt" 
-            type="file" 
-            accept="image/*" 
-            onChange={handleFileChange}
-            className="file:text-primary file:font-bold file:bg-primary/10 file:border-0 hover:file:bg-primary/20 file:mr-4 file:px-4 file:py-2 h-14 cursor-pointer bg-background/50 border-border/50 transition-colors pt-[10px]"
-            disabled={status === 'uploading' || status === 'analyzing'}
-          />
+          <Label className="text-foreground/80 font-semibold">Categoría del Gasto <span className="text-destructive">*</span></Label>
+          <Select value={category} onValueChange={setCategory} disabled={status === 'uploading' || status === 'analyzing'}>
+            <SelectTrigger className="bg-background/50 h-12">
+              <SelectValue placeholder="Selecciona la categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map(cat => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+
+        {isManual ? (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <Label className="text-foreground/80 font-semibold">Monto Gastado <span className="text-destructive">*</span></Label>
+              <Input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={manualAmount}
+                onChange={(e) => setManualAmount(e.target.value)}
+                className="bg-background/50 h-12 text-lg font-bold"
+                disabled={status === 'uploading' || status === 'analyzing'}
+              />
+            </div>
+            <div className="space-y-3">
+              <Label className="text-foreground/80 font-semibold">Proveedor / Detalle (Opcional)</Label>
+              <Input 
+                type="text" 
+                placeholder="Ej. Peaje Autopista"
+                value={manualProvider}
+                onChange={(e) => setManualProvider(e.target.value)}
+                className="bg-background/50 h-12"
+                disabled={status === 'uploading' || status === 'analyzing'}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <Label htmlFor="receipt" className="text-foreground/80 font-semibold">Seleccionar Imagen <span className="text-destructive">*</span></Label>
+            <Input 
+              id="receipt" 
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileChange}
+              className="file:text-primary file:font-bold file:bg-primary/10 file:border-0 hover:file:bg-primary/20 file:mr-4 file:px-4 file:py-2 h-14 cursor-pointer bg-background/50 border-border/50 transition-colors pt-[10px]"
+              disabled={status === 'uploading' || status === 'analyzing'}
+            />
+          </div>
+        )}
 
         {status === 'error' && (
           <div className="flex items-start gap-3 p-4 text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-xl animate-in slide-in-from-top-2">
@@ -97,18 +200,18 @@ export function ExpenseUpload() {
         )}
 
         <Button 
-          onClick={handleUpload} 
-          disabled={!file || status === 'uploading' || status === 'analyzing'}
-          className="w-full h-12 font-bold text-base shadow-[0_0_15px_rgba(var(--primary),0.2)] transition-all hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] hover:-translate-y-0.5 relative overflow-hidden"
+          onClick={handleSubmit} 
+          disabled={status === 'uploading' || status === 'analyzing'}
+          className={`w-full h-12 font-bold text-base shadow-[0_0_15px_rgba(var(--primary),0.2)] transition-all hover:shadow-[0_0_25px_rgba(var(--primary),0.4)] hover:-translate-y-0.5 relative overflow-hidden ${isManual ? 'bg-amber-500 hover:bg-amber-600 text-amber-950' : ''}`}
         >
-          {status === 'uploading' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Subiendo al servidor...</>}
+          {status === 'uploading' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {isManual ? 'Guardando...' : 'Subiendo...'}</>}
           {status === 'analyzing' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Analizando con Gemini IA...</>}
-          {status === 'idle' && 'Extraer Datos del Ticket'}
+          {status === 'idle' && (isManual ? 'Cargar Gasto Manual' : 'Extraer Datos del Ticket')}
           {status === 'error' && 'Intentar Nuevamente'}
-          {status === 'success' && 'Escanear Otro Ticket'}
+          {status === 'success' && 'Cargar Otro Gasto'}
           
           {(status === 'uploading' || status === 'analyzing') && (
-            <div className="absolute inset-0 bg-primary/20 animate-pulse"></div>
+            <div className="absolute inset-0 bg-black/10 animate-pulse"></div>
           )}
         </Button>
       </CardContent>

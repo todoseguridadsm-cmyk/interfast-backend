@@ -7,8 +7,17 @@ import { revalidatePath } from 'next/cache'
 export async function login(data: { email: string; password: string }) {
   const supabase = await createClient()
 
+  // Si ingresan "Transporte2026", lo transformamos internamente al correo que está en la base de datos
+  // Si ingresan cualquier otro usuario sin @, le agregamos @sendacmr.com
+  let loginEmail = data.email.trim();
+  if (loginEmail.toLowerCase() === 'transporte2026') {
+    loginEmail = 'transporte2026@admin.com';
+  } else if (!loginEmail.includes('@')) {
+    loginEmail = `${loginEmail}@sendacmr.com`;
+  }
+
   const { error } = await supabase.auth.signInWithPassword({
-    email: data.email,
+    email: loginEmail,
     password: data.password,
   })
 

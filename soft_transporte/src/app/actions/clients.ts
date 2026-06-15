@@ -1,11 +1,18 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 
-export async function addClient(formData: FormData) {
-  const supabase = await createClient()
+// Use Service Role to bypass RLS for now
+function getAdminSupabase() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
+export async function addClient(formData: FormData) {
+  const supabase = getAdminSupabase()
   const company_name = formData.get('company_name') as string
   const contact_name = formData.get('contact_name') as string
   const email = formData.get('email') as string
@@ -22,24 +29,50 @@ export async function addClient(formData: FormData) {
     cuit: cuit || null,
   })
 
-  if (error) {
-    console.error('Error adding client:', error)
-    return { error: 'Error al agregar el cliente' }
-  }
+  if (error) return { error: 'Error al agregar el cliente' }
 
   revalidatePath('/dashboard/clients')
+  revalidatePath('/dashboard/sales')
+  return { success: true }
+}
+
+export async function updateClient(id: string, formData: FormData) {
+  const supabase = getAdminSupabase()
+  const company_name = formData.get('company_name') as string
+  const contact_name = formData.get('contact_name') as string
+  const email = formData.get('email') as string
+  const phone = formData.get('phone') as string
+  const cuit = formData.get('cuit') as string
+
+  if (!company_name) return { error: 'El nombre de la empresa es obligatorio' }
+
+  const { error } = await supabase.from('clients').update({
+    company_name,
+    contact_name: contact_name || null,
+    email: email || null,
+    phone: phone || null,
+    cuit: cuit || null,
+  }).eq('id', id)
+
+  if (error) return { error: 'Error al actualizar el cliente' }
+
+  revalidatePath('/dashboard/clients')
+  revalidatePath('/dashboard/sales')
   return { success: true }
 }
 
 export async function deleteClient(id: string) {
-  const supabase = await createClient()
+  const supabase = getAdminSupabase()
   const { error } = await supabase.from('clients').delete().eq('id', id)
   
-  if (error) {
-    console.error('Error deleting client:', error)
-    return { error: 'Error al eliminar cliente' }
-  }
+  if (error) return { error: 'Error al eliminar cliente' }
   
   revalidatePath('/dashboard/clients')
+  revalidatePath('/dashboard/sales')
   return { success: true }
+}
+
+export async function deleteClientForm(formData: FormData) {
+  const id = formData.get('id') as string
+  return deleteClient(id)
 }

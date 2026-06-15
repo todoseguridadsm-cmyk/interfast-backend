@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SoftTransporte CRM",
+  title: "Senda CMR",
   description: "Sistema de Gestión de Transporte Internacional",
 };
 

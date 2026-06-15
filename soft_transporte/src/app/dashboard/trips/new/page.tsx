@@ -100,30 +100,36 @@ export default async function NewTripPage() {
                 <Input name="origin" required placeholder="Ej: Mendoza, ARG" className="bg-background/50 h-11" />
               </div>
               
-              <div className="hidden md:flex justify-center pb-3">
-                <ArrowRight className="text-muted-foreground/50 h-6 w-6" />
-              </div>
-
               <div className="space-y-3">
                 <Label htmlFor="destination" className="flex items-center gap-2 font-semibold">
                   <MapPin className="h-4 w-4 text-muted-foreground" /> Destino <span className="text-destructive">*</span>
                 </Label>
                 <Input name="destination" required placeholder="Ej: Santiago, CHL" className="bg-background/50 h-11" />
               </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <Label htmlFor="estimated_km" className="flex items-center gap-2 font-semibold text-amber-500">
+                  Kilómetros (Ida y Vuelta) <span className="text-destructive">*</span>
+                </Label>
+                <Input type="number" name="estimated_km" required placeholder="Ej: 1200" className="bg-background/50 h-11" />
+                <p className="text-xs text-muted-foreground">Esta distancia se sumará automáticamente al odómetro del vehículo al finalizar el viaje para calcular los mantenimientos.</p>
+              </div>
             </div>
 
-            {/* Precio */}
-            <div className="space-y-3 border-t border-border/40 pt-6 mt-6">
-              <Label htmlFor="price" className="flex items-center gap-2 font-semibold">
-                <DollarSign className="h-4 w-4 text-emerald-500" /> Precio Pactado del Viaje
-              </Label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-muted-foreground">$</span>
+            {/* Adelantos */}
+            <div className="border-t border-border/40 pt-6 mt-6">
+              <div className="space-y-3">
+                <Label htmlFor="advance_payment" className="flex items-center gap-2 font-semibold">
+                  <DollarSign className="h-4 w-4 text-amber-500" /> Adelanto Entregado al Chofer
+                </Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-muted-foreground">$</span>
+                  </div>
+                  <Input type="number" step="0.01" name="advance_payment" placeholder="0.00" className="pl-8 bg-background/50 h-12 text-lg font-bold text-amber-500" />
                 </div>
-                <Input type="number" step="0.01" name="price" placeholder="0.00" className="pl-8 bg-background/50 h-12 text-lg font-bold text-emerald-500" />
+                <p className="text-xs text-muted-foreground">Este monto se registrará en el sistema como saldo negativo (deuda) del chofer hasta que rinda sus gastos.</p>
               </div>
-              <p className="text-xs text-muted-foreground">La rentabilidad se calculará restando los gastos aprobados de este monto.</p>
             </div>
 
             <Button type="submit" className="w-full h-12 font-bold text-base shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all mt-6">
