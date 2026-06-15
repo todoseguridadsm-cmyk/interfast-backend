@@ -1961,6 +1961,30 @@ app.post('/api/leads', async (req, res) => {
   }
 });
 
+app.put('/api/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const lead = await prisma.lead.update({
+      where: { id: parseInt(req.params.id) },
+      data: { status }
+    });
+    res.json(lead);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar prospecto' });
+  }
+});
+
+app.delete('/api/leads/:id', authenticateToken, async (req, res) => {
+  try {
+    await prisma.lead.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar prospecto' });
+  }
+});
+
 app.get('/api/sales-info', async (req, res) => {
   try {
     const catalog = await prisma.catalogItem.findMany({ where: { isActive: true } });

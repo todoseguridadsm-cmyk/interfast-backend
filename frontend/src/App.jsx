@@ -18,7 +18,8 @@ import BajasList from './components/BajasList';
 import ServiceCatalog from './components/ServiceCatalog';
 import NodesList from './components/NodesList';
 import ActiveConnections from './components/ActiveConnections';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio } from 'lucide-react';
+import AltasWebList from './components/AltasWebList';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -134,6 +135,10 @@ function AppContent() {
                 <Users size={20} />
                 <span>Clientes</span>
               </Link>
+              <Link onClick={handleLinkClick} to="/altas-web" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/altas-web' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Globe size={20} />
+                <span>Altas Web</span>
+              </Link>
               <Link onClick={handleLinkClick} to="/active-connections" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/active-connections' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Radio size={20} />
                 <span>Conexiones en Vivo</span>
@@ -241,6 +246,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={isAllowed('CLIENTES') ? <ClientsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/altas-web" element={isAllowed('CLIENTES') ? <AltasWebList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/active-connections" element={isAllowed('CLIENTES') ? <ActiveConnections /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/new-install" element={isAllowed('ALTAS') ? <NewInstall /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/plans" element={isAllowed('PLANES') ? <PlansList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
