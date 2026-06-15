@@ -137,7 +137,7 @@ function AppContent() {
               </Link>
               <Link onClick={handleLinkClick} to="/altas-web" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/altas-web' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Globe size={20} />
-                <span>Altas Web</span>
+                <span>Altas Web/Agente</span>
               </Link>
               <Link onClick={handleLinkClick} to="/active-connections" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/active-connections' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Radio size={20} />

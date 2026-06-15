@@ -61,9 +61,9 @@ export default function AltasWebList() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-            <span className="text-blue-600">Altas</span> Web
+            <span className="text-blue-600">Altas</span> Web / Agente IA
           </h1>
-          <p className="text-slate-500 mt-1">Gestiona los prospectos que llegan desde la Landing Page</p>
+          <p className="text-slate-500 mt-1">Gestiona los prospectos que llegan desde la Landing Page y N8N</p>
         </div>
         <button onClick={fetchLeads} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors">
           Actualizar
