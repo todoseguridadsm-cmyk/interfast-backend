@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer'
 import { revalidatePath } from 'next/cache'
 
 export async function updateOdometer(vehicleId: string, newKm: number) {
-  const supabase = await createClient()
+  const supabase = (await createClient()) as any
 
   // 1. Fetch current vehicle data
   const { data: vehicle, error: fetchError } = await supabase

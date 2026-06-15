@@ -26,5 +26,5 @@ export async function createClient() {
         },
       },
     }
-  )
+  ) as any
 }

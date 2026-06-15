@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function createTrip(formData: FormData) {
@@ -62,7 +63,7 @@ export async function createTrip(formData: FormData) {
 }
 
 export async function calculateProfitability(tripId: string) {
-  const supabase = await createClient()
+  const supabase = (await createClient()) as any
   
   // 1. Obtener el viaje
   const { data: trip } = await supabase.from('trips').select('price').eq('id', tripId).single()
@@ -75,7 +76,7 @@ export async function calculateProfitability(tripId: string) {
     .eq('trip_id', tripId)
     .eq('status', 'approved')
 
-  const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0
+  const totalExpenses = expenses?.reduce((sum: number, exp: any) => sum + exp.amount, 0) || 0
   const tripPrice = trip.price || 0
   const profitability = tripPrice - totalExpenses
 

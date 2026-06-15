@@ -15,7 +15,7 @@ type Alert = {
 }
 
 export default async function AlertsPage() {
-  const supabase = await createClient()
+  const supabase = (await createClient()) as any
 
   // Fetch all vehicles
   const { data: vehicles } = await supabase
@@ -42,7 +42,7 @@ export default async function AlertsPage() {
     const today = new Date()
     today.setHours(0,0,0,0)
 
-    vehicles.forEach(v => {
+    vehicles.forEach((v: any) => {
       const currentKm = v.current_km || 0
 
       // Helper to check KM
@@ -104,7 +104,7 @@ export default async function AlertsPage() {
     const today = new Date()
     today.setHours(0,0,0,0)
 
-    checks.forEach(chk => {
+    checks.forEach((chk: any) => {
       const target = new Date(chk.due_date + 'T00:00:00')
       const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 3600 * 24))
       
@@ -128,7 +128,7 @@ export default async function AlertsPage() {
     const today = new Date()
     today.setHours(0,0,0,0)
 
-    drivers.forEach(driver => {
+    drivers.forEach((driver: any) => {
       if (!driver.license_expiry) return
       const target = new Date(driver.license_expiry + 'T00:00:00')
       const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 3600 * 24))

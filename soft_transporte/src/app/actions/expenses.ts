@@ -22,7 +22,7 @@ export async function processExpenseReceipt(formData: FormData) {
     if (!file) throw new Error('No se subió ninguna imagen.')
     if (!file.type.startsWith('image/')) throw new Error('El archivo debe ser una imagen.')
 
-    const supabase = await createClient()
+    const supabase = (await createClient()) as any
 
     // 1. Check Auth and get active trip
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -145,7 +145,7 @@ export async function processManualExpense(formData: FormData) {
     if (!amountStr) throw new Error('El monto es obligatorio.')
     const amount = parseFloat(amountStr)
 
-    const supabase = await createClient()
+    const supabase = (await createClient()) as any
 
     // 1. Check Auth and get active trip
     const { data: { user }, error: authError } = await supabase.auth.getUser()
