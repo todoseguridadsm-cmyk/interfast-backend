@@ -21,7 +21,7 @@ export async function updateOdometer(vehicleId: string, newKm: number) {
   // 2. Update km
   const { error: updateError } = await supabase
     .from('vehicles')
-    .update({ current_km: newKm })
+    .update({ current_km: newKm } as any)
     .eq('id', vehicleId)
 
   if (updateError) {

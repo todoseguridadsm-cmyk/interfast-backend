@@ -122,7 +122,7 @@ export async function completeTrip(tripId: string) {
       const newKm = (vehicle.current_km || 0) + trip.estimated_km
       await supabase
         .from('vehicles')
-        .update({ current_km: newKm })
+        .update({ current_km: newKm } as any)
         .eq('id', trip.vehicle_id)
     }
   }
