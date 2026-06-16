@@ -1985,6 +1985,74 @@ app.delete('/api/leads/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Content Library Endpoints
+app.get('/api/content_library', authenticateToken, async (req, res) => {
+  try {
+    const contents = await prisma.content_library.findMany({
+      where: { estado: 'borrador' },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(contents);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener contenidos' });
+  }
+});
+
+app.put('/api/content_library/:id', authenticateToken, async (req, res) => {
+  try {
+    const { contenido_post } = req.body;
+    const content = await prisma.content_library.update({
+      where: { id: parseInt(req.params.id) },
+      data: { contenido_post }
+    });
+    res.json(content);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar contenido' });
+  }
+});
+
+app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) => {
+  try {
+    const { contenido_post } = req.body;
+    
+    // 1. Update in DB
+    const content = await prisma.content_library.update({
+      where: { id: parseInt(req.params.id) },
+      data: { estado: 'publicado', contenido_post }
+    });
+
+    // 2. Fire n8n Webhook
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (webhookUrl) {
+      try {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: content.id, contenido: content.contenido_post })
+        });
+      } catch (webhookError) {
+        console.error('Error disparando webhook a n8n:', webhookError);
+        // Continue even if webhook fails
+      }
+    }
+
+    res.json(content);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al aprobar contenido' });
+  }
+});
+
+app.delete('/api/content_library/:id', authenticateToken, async (req, res) => {
+  try {
+    await prisma.content_library.delete({
+      where: { id: parseInt(req.params.id) }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar contenido' });
+  }
+});
+
 app.get('/api/sales-info', async (req, res) => {
   try {
     const catalog = await prisma.catalogItem.findMany({ where: { isActive: true } });

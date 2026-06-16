@@ -19,7 +19,8 @@ import ServiceCatalog from './components/ServiceCatalog';
 import NodesList from './components/NodesList';
 import ActiveConnections from './components/ActiveConnections';
 import AltasWebList from './components/AltasWebList';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe } from 'lucide-react';
+import ContentApproval from './components/ContentApproval';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -139,6 +140,10 @@ function AppContent() {
                 <Globe size={20} />
                 <span>Altas Web/Agente</span>
               </Link>
+              <Link onClick={handleLinkClick} to="/content-approval" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/content-approval' ? 'bg-indigo-600/20 text-indigo-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <FileText size={20} />
+                <span>Contenidos</span>
+              </Link>
               <Link onClick={handleLinkClick} to="/active-connections" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/active-connections' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Radio size={20} />
                 <span>Conexiones en Vivo</span>
@@ -247,6 +252,7 @@ function AppContent() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/clients" element={isAllowed('CLIENTES') ? <ClientsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/altas-web" element={isAllowed('CLIENTES') ? <AltasWebList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/content-approval" element={isAllowed('CLIENTES') ? <ContentApproval /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/active-connections" element={isAllowed('CLIENTES') ? <ActiveConnections /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/new-install" element={isAllowed('ALTAS') ? <NewInstall /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/plans" element={isAllowed('PLANES') ? <PlansList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
