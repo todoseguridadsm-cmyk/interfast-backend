@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CheckCircle, Clock, Trash2, Edit3, Loader2, Send } from 'lucide-react';
+import { CheckCircle, Clock, Trash2, Edit3, Loader2, Send, Image as ImageIcon } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://interfast-backend-95ww.onrender.com/api';
 
@@ -30,11 +30,16 @@ export default function ContentApproval() {
     setContents(contents.map(c => c.id === id ? { ...c, contenido_post: newText } : c));
   };
 
+  const handleUrlFotoChange = (id, newUrl) => {
+    setContents(contents.map(c => c.id === id ? { ...c, url_foto: newUrl } : c));
+  };
+
   const handleApprove = async (content) => {
     try {
       setApprovingId(content.id);
       await axios.put(`${API_URL}/content_library/${content.id}/aprobar`, {
-        contenido_post: content.contenido_post
+        contenido_post: content.contenido_post,
+        url_foto: content.url_foto || ''
       });
       // Remove from list since it's no longer a draft
       setContents(contents.filter(c => c.id !== content.id));
@@ -117,6 +122,16 @@ export default function ContentApproval() {
                   onChange={(e) => handleContentChange(post.id, e.target.value)}
                   className="w-full h-40 p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-700 text-sm resize-none custom-scrollbar"
                   placeholder="Escribe aquí el contenido..."
+                />
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2 mt-4">
+                  <ImageIcon size={16} className="text-indigo-500" /> URL de la Foto / Flyer:
+                </label>
+                <input 
+                  type="text"
+                  value={post.url_foto || ''}
+                  onChange={(e) => handleUrlFotoChange(post.id, e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-700 text-sm"
+                  placeholder="https://ejemplo.com/mifoto.jpg"
                 />
               </div>
 

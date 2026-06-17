@@ -234,4 +234,5 @@ model content_library {
   tipo_media     String?
   estado         String   @default("borrador")
   link_landing   String?  @default("https://interfast-web.vercel.app/")
+  url_foto       String?
 }
