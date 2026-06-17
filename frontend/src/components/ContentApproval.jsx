@@ -114,6 +114,14 @@ export default function ContentApproval() {
               </div>
               
               <div className="p-4 flex-1">
+                {post.url_foto && (
+                  <div className="mb-4 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative group">
+                    <img src={post.url_foto} alt="Preview" className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <a href={post.url_foto} target="_blank" rel="noreferrer" className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full hover:bg-black/80">Ver original</a>
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
                   <Edit3 size={16} className="text-indigo-500" /> Contenido del Post:
                 </label>
