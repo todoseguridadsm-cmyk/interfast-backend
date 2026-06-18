@@ -2002,6 +2002,7 @@ app.get('/api/content_library', authenticateToken, async (req, res) => {
     });
     res.json(contents);
   } catch (error) {
+    console.error('CRITICAL ERROR in GET /api/content_library:', error);
     res.status(500).json({ error: 'Error al obtener contenidos' });
   }
 });
