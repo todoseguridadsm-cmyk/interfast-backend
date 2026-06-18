@@ -9,151 +9,143 @@ datasource db {
 }
 
 model Client {
-  id        Int       @id @default(autoincrement())
-  dni       String
-  name      String
-  businessName String?
-  email     String?
-  phone     String?
-  phone2    String?
-  observation String?
-  address   String?
-  fiscalAddress String?
-  city        String?
-  province    String?
-  zipCode     String?
-  mainNode    String?
-  panelId     String?
-  ipNumber    String?
-  cuit      String?
-  taxCondition String @default("CONSUMIDOR_FINAL")
-  status    String    @default("ACTIVE") // "ACTIVE", "SUSPENDED", "BAJA"
-  walletBalance Float @default(0.0)
-  hasRouter Boolean @default(false)
-  hasMast   Boolean @default(false)
-  planId    Int?
-  plan      Plan?     @relation(fields: [planId], references: [id])
-  invoices  Invoice[]
-  tickets   Ticket[]
-  cutoffLists CutoffList[]
+  id                   Int                   @id @default(autoincrement())
+  dni                  String
+  name                 String
+  email                String?
+  phone                String?
+  address              String?
+  city                 String?
+  province             String?
+  mainNode             String?
+  panelId              String?
+  ipNumber             String?
+  cuit                 String?
+  taxCondition         String                @default("CONSUMIDOR_FINAL")
+  status               String                @default("ACTIVE")
+  planId               Int?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  walletBalance        Float                 @default(0.0)
+  hasMast              Boolean               @default(false)
+  hasRouter            Boolean               @default(false)
+  businessName         String?
+  fiscalAddress        String?
+  registrationDate     DateTime?
+  zipCode              String?
+  observation          String?
+  phone2               String?
   cancellationRequests CancellationRequest[]
-  registrationDate DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  plan                 Plan?                 @relation(fields: [planId], references: [id])
+  cutoffLists          CutoffList[]
+  invoices             Invoice[]
+  tickets              Ticket[]
 }
 
 model Plan {
-  id        Int      @id @default(autoincrement())
-  name      String
-  megas     Int
+  id         Int      @id @default(autoincrement())
+  name       String
+  megas      Int
   basePrice  Float
   ivaAmount  Float
   totalPrice Float
-  
-  priceV1   Float    @default(0.0)
-  dueDate1  Int      @default(10)
-  
-  priceV2   Float    @default(0.0)
-  dueDate2  Int      @default(15)
-  
-  priceV3   Float    @default(0.0)
-  dueDate3  Int      @default(20)
-
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  priceV1    Float    @default(0)
+  priceV2    Float    @default(0)
+  priceV3    Float    @default(0)
+  dueDate1   Int      @default(10)
+  dueDate2   Int      @default(15)
+  dueDate3   Int      @default(20)
   clients    Client[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Invoice {
-  id            Int       @id @default(autoincrement())
-  clientId      Int
-  client        Client    @relation(fields: [clientId], references: [id])
-  month         Int
-  year          Int
+  id             Int       @id @default(autoincrement())
+  clientId       Int
+  month          Int
+  year           Int
   originalAmount Float
-  dueDate       DateTime
-
-  priceV1   Float    @default(0.0)
-  dueDate1  DateTime?
-  priceV2   Float    @default(0.0)
-  dueDate2  DateTime?
-  priceV3   Float    @default(0.0)
-  dueDate3  DateTime?
-
-  status        String    @default("PENDING") // "PENDING", "PAID"
-  notifiedAt    DateTime?
-  
-  afipCae         String?
-  afipVtoCae      String?
-  afipCbteTip     Int?
-  afipPuntoVenta  Int?
-  afipCbteNro     Int?
-
-  payments      Payment[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  dueDate        DateTime
+  status         String    @default("PENDING")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  priceV1        Float     @default(0)
+  priceV2        Float     @default(0)
+  priceV3        Float     @default(0)
+  dueDate1       DateTime?
+  dueDate2       DateTime?
+  dueDate3       DateTime?
+  afipCae        String?
+  afipCbteNro    Int?
+  afipCbteTip    Int?
+  afipPuntoVenta Int?
+  afipVtoCae     String?
+  notifiedAt     DateTime?
+  client         Client    @relation(fields: [clientId], references: [id])
+  payments       Payment[]
 }
 
 model Payment {
-  id            Int      @id @default(autoincrement())
-  invoiceId     Int
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
-  method        String   // "MERCADOPAGO", "CASH", "TRANSFER"
-  amountPaid    Float
-  mpFee         Float    @default(0.0)
-  mpTax         Float    @default(0.0)
+  id             Int      @id @default(autoincrement())
+  invoiceId      Int
+  method         String
+  amountPaid     Float
   lateFeeApplied Float    @default(0.0)
-  paymentDate   DateTime @default(now())
-  userId        Int?
-  user          User?    @relation(fields: [userId], references: [id])
+  paymentDate    DateTime @default(now())
+  userId         Int?
+  mpFee          Float    @default(0.0)
+  mpTax          Float    @default(0.0)
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  user           User?    @relation(fields: [userId], references: [id])
 }
 
 model User {
-  id             Int      @id @default(autoincrement())
-  username       String   @unique
-  passwordHash   String
-  role           String   @default("STAFF")
-  permissions    String   @default("[]")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  cashMovements  CashMovement[]
-  payments       Payment[]
+  id            Int            @id @default(autoincrement())
+  username      String         @unique
+  passwordHash  String
+  role          String         @default("STAFF")
+  permissions   String         @default("[]")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  cashMovements CashMovement[]
+  payments      Payment[]
 }
 
 model CashMovement {
   id          Int      @id @default(autoincrement())
-  type        String   // "IN" or "OUT"
+  type        String
   amount      Float
-  category    String   @default("GASTO_GENERAL")
   description String
   userId      Int
-  user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
+  category    String   @default("GASTO_GENERAL")
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model Ticket {
   id             Int             @id @default(autoincrement())
   clientId       Int
-  client         Client          @relation(fields: [clientId], references: [id])
   title          String
   description    String
   status         String          @default("OPEN")
   priority       String          @default("NORMAL")
-  scheduledAt    DateTime?
-  routerProvided Boolean         @default(false)
-  mastProvided   Boolean         @default(false)
-  history        TicketHistory[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  mastProvided   Boolean         @default(false)
+  routerProvided Boolean         @default(false)
+  scheduledAt    DateTime?
+  client         Client          @relation(fields: [clientId], references: [id])
+  history        TicketHistory[]
 }
 
 model TicketHistory {
   id        Int      @id @default(autoincrement())
   ticketId  Int
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
   action    String
   notes     String?
   createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
 }
 
 model historial_mensajes {
@@ -167,21 +159,21 @@ model historial_mensajes {
 model CutoffList {
   id        Int      @id @default(autoincrement())
   clientId  Int
-  client    Client   @relation(fields: [clientId], references: [id])
   invoiceId Int
-  status    String   @default("PENDING") // PENDING (Cortado) o RESOLVED (Pagado/Eximido)
+  status    String   @default("PENDING")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id])
 }
 
 model CancellationRequest {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   clientId    Int
-  client      Client   @relation(fields: [clientId], references: [id])
   reason      String?
-  status      String   @default("PENDING") // PENDING, CONFIRMED, RESTORED
-  requestedAt DateTime @default(now())
+  status      String    @default("PENDING")
+  requestedAt DateTime  @default(now())
   resolvedAt  DateTime?
+  client      Client    @relation(fields: [clientId], references: [id])
 }
 
 model CatalogItem {
@@ -202,16 +194,16 @@ model SystemSettings {
 }
 
 model Lead {
-  id          Int      @id @default(autoincrement())
-  phone       String
-  name        String?
-  address     String?
-  latitude    Float?
-  longitude   Float?
-  status      String   @default("NEW")
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  phone     String
+  name      String?
+  address   String?
+  latitude  Float?
+  longitude Float?
+  status    String   @default("NEW")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Node {
@@ -227,12 +219,1592 @@ model Node {
 }
 
 model content_library {
-  id             Int      @id @default(autoincrement())
-  created_at     DateTime @default(now())
+  id             BigInt    @id(map: "ContentLibrary_pkey") @default(autoincrement())
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
   titulo         String?
-  contenido_post String
+  contenido_post String?
   tipo_media     String?
-  estado         String   @default("Pendiente")
-  link_landing   String?  @default("https://interfast-web.vercel.app/")
+  estado         String?   @default("Pendiente")
+  link_landing   String?   @default("https://interfast-web.vercel.app/")
   url_media      String?
+}
+
+model agent_checkpoints {
+  runId     String   @id(map: "PK_50a27cbafa6806c9b162304b5fd") @db.VarChar(255)
+  agentId   String?  @db.VarChar(255)
+  state     String?
+  expired   Boolean  @default(false)
+  createdAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents    agents?  @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_5e31c210f896d539964bf99fe32")
+
+  @@index([agentId], map: "IDX_5e31c210f896d539964bf99fe3")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model agent_execution {
+  id                      String                  @id(map: "PK_ba438acc8532addc12d1ef17049") @db.VarChar(36)
+  threadId                String                  @db.VarChar(36)
+  status                  String                  @db.VarChar(16)
+  startedAt               DateTime?               @db.Timestamptz(3)
+  stoppedAt               DateTime?               @db.Timestamptz(3)
+  duration                Int                     @default(0)
+  userMessage             String
+  assistantResponse       String
+  model                   String?                 @db.VarChar(255)
+  promptTokens            Int?
+  completionTokens        Int?
+  totalTokens             Int?
+  cost                    Float?
+  toolCalls               Json?                   @db.Json
+  timeline                Json?                   @db.Json
+  error                   String?
+  hitlStatus              String?                 @db.VarChar(16)
+  source                  String?                 @db.VarChar(32)
+  createdAt               DateTime                @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt               DateTime                @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agent_execution_threads agent_execution_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_add2432fb6034cc18b6af299dce")
+
+  @@index([threadId, createdAt], map: "IDX_63d3c3a68b9cebf05f967f0b1c")
+}
+
+model agent_execution_threads {
+  id                    String            @id(map: "PK_22373dbf6ba6929d8ac50093309") @db.VarChar(36)
+  agentId               String            @db.VarChar(36)
+  agentName             String            @db.VarChar(255)
+  projectId             String            @db.VarChar(255)
+  sessionNumber         Int               @default(0)
+  totalPromptTokens     Int               @default(0)
+  totalCompletionTokens Int               @default(0)
+  totalCost             Float             @default(0)
+  totalDuration         Int               @default(0)
+  title                 String?           @db.VarChar(255)
+  emoji                 String?           @db.VarChar(8)
+  createdAt             DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt             DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agent_execution       agent_execution[]
+  agents                agents            @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_0468a9dc35597314e641d4722aa")
+  project               project           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_0e2f8bf92a7a9c88b89670f701c")
+
+  @@index([agentId], map: "IDX_0468a9dc35597314e641d4722a")
+  @@index([projectId], map: "IDX_0e2f8bf92a7a9c88b89670f701")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agent_history {
+  versionId                                    String   @id(map: "PK_65ffcfe7a8e112fb826311fb092") @db.VarChar(36)
+  agentId                                      String   @db.VarChar(36)
+  schema                                       Json?    @db.Json
+  tools                                        Json?    @db.Json
+  skills                                       Json?    @db.Json
+  publishedById                                String?  @db.Uuid
+  author                                       String   @db.VarChar(255)
+  createdAt                                    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  user                                         user?    @relation(fields: [publishedById], references: [id], onUpdate: NoAction, map: "FK_8771675f44c58fb40e0feb9ee35")
+  agents_agent_history_agentIdToagents         agents   @relation("agent_history_agentIdToagents", fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_87cd5a8da20304b089ea2f83fec")
+  agents_agents_activeVersionIdToagent_history agents[] @relation("agents_activeVersionIdToagent_history")
+
+  @@index([agentId], map: "IDX_87cd5a8da20304b089ea2f83fe")
+}
+
+model agents {
+  id                                                  String                        @id(map: "PK_9c653f28ae19c5884d5baf6a1d9") @db.VarChar(36)
+  name                                                String                        @db.VarChar(128)
+  description                                         String?                       @db.VarChar(512)
+  projectId                                           String                        @db.VarChar(255)
+  integrations                                        Json                          @default("[]") @db.Json
+  schema                                              Json?                         @db.Json
+  tools                                               Json                          @default("{}") @db.Json
+  skills                                              Json                          @default("{}") @db.Json
+  versionId                                           String?                       @db.VarChar(36)
+  createdAt                                           DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                           DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  activeVersionId                                     String?                       @db.VarChar(36)
+  agent_checkpoints                                   agent_checkpoints[]
+  agent_execution_threads                             agent_execution_threads[]
+  agent_history_agent_history_agentIdToagents         agent_history[]               @relation("agent_history_agentIdToagents")
+  agent_history_agents_activeVersionIdToagent_history agent_history?                @relation("agents_activeVersionIdToagent_history", fields: [activeVersionId], references: [versionId], onUpdate: NoAction, map: "FK_940597dfe9753375309ce6aeea0")
+  project                                             project                       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a30d560207c4071d98aa03c179c")
+  agents_memory_entries                               agents_memory_entries[]
+  agents_memory_entry_cursors                         agents_memory_entry_cursors[]
+  agents_memory_entry_locks                           agents_memory_entry_locks[]
+  agents_memory_entry_sources                         agents_memory_entry_sources[]
+  agents_observation_cursors                          agents_observation_cursors[]
+  agents_observation_locks                            agents_observation_locks[]
+  agents_observations                                 agents_observations[]
+
+  @@index([projectId], map: "IDX_a30d560207c4071d98aa03c179")
+  @@index([projectId], map: "IDX_agents_projectId")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_memory_entries {
+  id                          String                        @id(map: "PK_bfbc45dc88f66fae4e4b4a15fec") @db.VarChar(36)
+  agentId                     String                        @db.VarChar(36)
+  resourceId                  String                        @db.VarChar(255)
+  content                     String
+  contentHash                 String                        @db.VarChar(64)
+  status                      String                        @db.VarChar(16)
+  supersededBy                String?                       @db.VarChar(36)
+  embeddingModel              String?                       @db.VarChar(128)
+  embedding                   Json?                         @db.Json
+  metadata                    Json?                         @db.Json
+  lastSeenAt                  DateTime                      @db.Timestamptz(3)
+  createdAt                   DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_memory_entries       agents_memory_entries?        @relation("agents_memory_entriesToagents_memory_entries", fields: [supersededBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_0edf1226b77ddc525eae4938079")
+  other_agents_memory_entries agents_memory_entries[]       @relation("agents_memory_entriesToagents_memory_entries")
+  agents_resources            agents_resources              @relation(fields: [resourceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_1443a75e59adbfb796071d66393")
+  agents                      agents                        @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_28e981fb675e9b44ce02f0ec1dd")
+  agents_memory_entry_sources agents_memory_entry_sources[]
+
+  @@unique([agentId, resourceId, contentHash], map: "IDX_a03e04e94bea8439dd166d4b52")
+  @@index([supersededBy], map: "IDX_0edf1226b77ddc525eae493807")
+  @@index([resourceId], map: "IDX_1443a75e59adbfb796071d6639")
+  @@index([agentId, resourceId, status, createdAt, id], map: "IDX_aff2807b31eccbafe59d0474f0")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_memory_entry_cursors {
+  agentId                         String         @db.VarChar(36)
+  observationScopeId              String         @db.VarChar(255)
+  lastIndexedObservationId        String         @db.VarChar(36)
+  lastIndexedObservationCreatedAt DateTime       @db.Timestamptz(3)
+  createdAt                       DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                       DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_threads                  agents_threads @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_069e791e428391a5569e7a96b20")
+  agents                          agents         @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_746780fd115e5e4352457a3c617")
+
+  @@id([agentId, observationScopeId], map: "PK_b31a1d5c009a27f4cc5ef8f102a")
+  @@index([observationScopeId], map: "IDX_069e791e428391a5569e7a96b2")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_memory_entry_locks {
+  agentId          String           @db.VarChar(36)
+  resourceId       String           @db.VarChar(255)
+  holderId         String           @db.VarChar(64)
+  heldUntil        DateTime         @db.Timestamptz(3)
+  createdAt        DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt        DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents           agents           @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_0ccf6d9ea6f44fa1c264fc2f795")
+  agents_resources agents_resources @relation(fields: [resourceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_9594c0983cfee1c8ff49b05848b")
+
+  @@id([agentId, resourceId], map: "PK_a8e0f570d04a174292bea104ae6")
+  @@index([resourceId], map: "IDX_9594c0983cfee1c8ff49b05848")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_memory_entry_sources {
+  id                    String                @id(map: "PK_278f05e98e74baaaa93f52b4bab") @db.VarChar(36)
+  agentId               String                @db.VarChar(36)
+  memoryEntryId         String                @db.VarChar(36)
+  observationId         String                @db.VarChar(36)
+  threadId              String                @db.VarChar(255)
+  evidenceHash          String                @db.VarChar(64)
+  evidenceText          String
+  createdAt             DateTime              @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt             DateTime              @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_threads        agents_threads        @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_451d387a182fa8dd8002dfc3a77")
+  agents_memory_entries agents_memory_entries @relation(fields: [memoryEntryId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_4706f6223313959b7437a2b48df")
+  agents                agents                @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_c38e8a57a36b880e39a52ada2e8")
+  agents_observations   agents_observations   @relation(fields: [observationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_cb7c15d22fd068a0806aa57fc03")
+
+  @@unique([memoryEntryId, observationId, evidenceHash], map: "IDX_a353ac251315ef0af6ad3c9f0a")
+  @@index([threadId], map: "IDX_451d387a182fa8dd8002dfc3a7")
+  @@index([observationId], map: "IDX_cb7c15d22fd068a0806aa57fc0")
+  @@index([agentId, threadId], map: "IDX_f9573af4ed653f13b0ba1f7b12")
+}
+
+model agents_messages {
+  id             String         @id(map: "PK_81020dc608dfb0af1ede386d907") @db.VarChar(36)
+  threadId       String         @db.VarChar(255)
+  resourceId     String         @db.VarChar(255)
+  role           String         @db.VarChar(36)
+  type           String?        @db.VarChar(36)
+  content        Json           @db.Json
+  createdAt      DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt      DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_threads agents_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_0a8057a61afabd2999608ffd0d9")
+
+  @@index([threadId, createdAt], map: "IDX_agents_messages_threadId_createdAt")
+  @@index([threadId, createdAt], map: "IDX_fc7bf858660bfafd19181e8e35")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_observation_cursors {
+  agentId               String         @db.VarChar(36)
+  observationScopeId    String         @db.VarChar(255)
+  lastObservedMessageId String         @db.VarChar(36)
+  lastObservedAt        DateTime       @db.Timestamptz(3)
+  createdAt             DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt             DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents                agents         @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_64e92819f4b413661ed6e2c3c3d")
+  agents_threads        agents_threads @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_87aa187d27ea67eafd164905154")
+
+  @@id([agentId, observationScopeId], map: "PK_eb777ac57ab872d38f8ebd19317")
+  @@index([observationScopeId], map: "IDX_87aa187d27ea67eafd16490515")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_observation_locks {
+  agentId            String         @db.VarChar(36)
+  observationScopeId String         @db.VarChar(255)
+  taskKind           String         @db.VarChar(20)
+  holderId           String         @db.VarChar(64)
+  heldUntil          DateTime       @db.Timestamptz(3)
+  createdAt          DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt          DateTime       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents             agents         @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_093e44ae20f2518e97d83a95433")
+  agents_threads     agents_threads @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_6b55089892e447c2f82e5ec60ed")
+
+  @@id([agentId, observationScopeId, taskKind], map: "PK_7e2e315162ac3d80587e15ac2c3")
+  @@index([observationScopeId], map: "IDX_6b55089892e447c2f82e5ec60e")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model agents_observations {
+  id                                                                              String                        @id(map: "PK_9ad319654d12c2649f7caf27135") @db.VarChar(36)
+  agentId                                                                         String                        @db.VarChar(36)
+  observationScopeId                                                              String                        @db.VarChar(255)
+  marker                                                                          String                        @db.VarChar(16)
+  text                                                                            String
+  parentId                                                                        String?                       @db.VarChar(36)
+  tokenCount                                                                      Int                           @default(0)
+  status                                                                          String                        @db.VarChar(16)
+  supersededBy                                                                    String?                       @db.VarChar(36)
+  createdAt                                                                       DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                                                       DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_memory_entry_sources                                                     agents_memory_entry_sources[]
+  agents_observations_agents_observations_supersededByToagents_observations       agents_observations?          @relation("agents_observations_supersededByToagents_observations", fields: [supersededBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_127ee1078ffa952bb37b511efad")
+  other_agents_observations_agents_observations_supersededByToagents_observations agents_observations[]         @relation("agents_observations_supersededByToagents_observations")
+  agents_threads                                                                  agents_threads                @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_4cfd8a70ebb0a5b0cf047dca3cf")
+  agents_observations_agents_observations_parentIdToagents_observations           agents_observations?          @relation("agents_observations_parentIdToagents_observations", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_501e2d1701a10e24fb69ab5fc5f")
+  other_agents_observations_agents_observations_parentIdToagents_observations     agents_observations[]         @relation("agents_observations_parentIdToagents_observations")
+  agents                                                                          agents                        @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_d206432be97b7ed88d187479b1b")
+
+  @@index([agentId, observationScopeId, status], map: "IDX_07cb1e4a302629c5fa5d74d2bb")
+  @@index([supersededBy], map: "IDX_127ee1078ffa952bb37b511efa")
+  @@index([observationScopeId], map: "IDX_4cfd8a70ebb0a5b0cf047dca3c")
+  @@index([parentId], map: "IDX_501e2d1701a10e24fb69ab5fc5")
+}
+
+model agents_resources {
+  id                        String                      @id(map: "PK_fa6b20b2d31a9991529dbf8ef7d") @db.VarChar(255)
+  metadata                  String?
+  createdAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_memory_entries     agents_memory_entries[]
+  agents_memory_entry_locks agents_memory_entry_locks[]
+}
+
+model agents_threads {
+  id                          String                        @id(map: "PK_4a3feb0a13ffe315c009cce64e5") @db.VarChar(36)
+  resourceId                  String                        @db.VarChar(255)
+  title                       String?                       @db.VarChar(255)
+  metadata                    String?
+  createdAt                   DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime                      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agents_memory_entry_cursors agents_memory_entry_cursors[]
+  agents_memory_entry_sources agents_memory_entry_sources[]
+  agents_messages             agents_messages[]
+  agents_observation_cursors  agents_observation_cursors[]
+  agents_observation_locks    agents_observation_locks[]
+  agents_observations         agents_observations[]
+
+  @@index([resourceId], map: "IDX_54fa1b94f34a409beafae567a4")
+}
+
+model ai_builder_temporary_workflow {
+  workflowId          String              @id(map: "PK_85a87a1ba0f61999fe11dc56325") @db.VarChar(36)
+  threadId            String              @db.Uuid
+  createdAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads instance_ai_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_39b07732e819fb561d74c38763f")
+  workflow_entity     workflow_entity     @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_85a87a1ba0f61999fe11dc56325")
+
+  @@index([threadId], map: "IDX_39b07732e819fb561d74c38763")
+}
+
+model annotation_tag_entity {
+  id                        String                      @id(map: "PK_69dfa041592c30bbc0d4b84aa00") @db.VarChar(16)
+  name                      String                      @unique(map: "IDX_ae51b54c4bb430cf92f48b623f") @db.VarChar(24)
+  createdAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  execution_annotation_tags execution_annotation_tags[]
+}
+
+model auth_identity {
+  userId       String?  @db.Uuid
+  providerId   String   @db.VarChar(255)
+  providerType String   @db.VarChar(32)
+  createdAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  user         user?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([providerId, providerType])
+}
+
+model auth_provider_sync_history {
+  id           Int      @id @default(autoincrement())
+  providerType String   @db.VarChar(32)
+  runMode      String
+  status       String
+  startedAt    DateTime @default(now()) @db.Timestamptz(3)
+  endedAt      DateTime @default(now()) @db.Timestamptz(3)
+  scanned      Int
+  created      Int
+  updated      Int
+  disabled     Int
+  error        String?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model binary_data {
+  fileId     String   @id(map: "PK_fc3691585b39408bb0551122af6") @db.Uuid
+  sourceType String   @db.VarChar(50)
+  sourceId   String   @db.VarChar(255)
+  data       Bytes
+  mimeType   String?  @db.VarChar(255)
+  fileName   String?  @db.VarChar(255)
+  fileSize   Int
+  createdAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+
+  @@index([sourceType, sourceId], map: "IDX_56900edc3cfd16612e2ef2c6a8")
+}
+
+model chat_hub_agent_tools {
+  agentId         String          @db.Uuid
+  toolId          String          @db.Uuid
+  chat_hub_agents chat_hub_agents @relation(fields: [agentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_2b53d796b3dbae91b1a9553c048")
+  chat_hub_tools  chat_hub_tools  @relation(fields: [toolId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_43e70f04c53344f82483d0570f6")
+
+  @@id([agentId, toolId], map: "PK_cc8806fdea48297a7d497035d72")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model chat_hub_agents {
+  id                   String                 @id(map: "PK_f39a3b36bbdf0e2979ddb21cf78") @db.Uuid
+  name                 String                 @db.VarChar(256)
+  description          String?                @db.VarChar(512)
+  systemPrompt         String
+  ownerId              String                 @db.Uuid
+  credentialId         String?                @db.VarChar(36)
+  provider             String                 @db.VarChar(16)
+  model                String                 @db.VarChar(64)
+  createdAt            DateTime               @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt            DateTime               @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  icon                 Json?                  @db.Json
+  files                Json                   @default("[]") @db.Json
+  suggestedPrompts     Json                   @default("[]") @db.Json
+  chat_hub_agent_tools chat_hub_agent_tools[]
+  user                 user                   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_441ba2caba11e077ce3fbfa2cd8")
+  credentials_entity   credentials_entity?    @relation(fields: [credentialId], references: [id], onUpdate: NoAction, map: "FK_9c61ad497dcbae499c96a6a78ba")
+  chat_hub_messages    chat_hub_messages[]
+  chat_hub_sessions    chat_hub_sessions[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model chat_hub_messages {
+  id                                                                               String              @id(map: "PK_7704a5add6baed43eef835f0bfb") @db.Uuid
+  sessionId                                                                        String              @db.Uuid
+  previousMessageId                                                                String?             @db.Uuid
+  revisionOfMessageId                                                              String?             @db.Uuid
+  retryOfMessageId                                                                 String?             @db.Uuid
+  type                                                                             String              @db.VarChar(16)
+  name                                                                             String              @db.VarChar(128)
+  content                                                                          String
+  provider                                                                         String?             @db.VarChar(16)
+  model                                                                            String?             @db.VarChar(256)
+  workflowId                                                                       String?             @db.VarChar(36)
+  executionId                                                                      Int?
+  createdAt                                                                        DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                                                        DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agentId                                                                          String?             @db.Uuid
+  status                                                                           String              @default("success") @db.VarChar(16)
+  attachments                                                                      Json?               @db.Json
+  chat_hub_messages_chat_hub_messages_revisionOfMessageIdTochat_hub_messages       chat_hub_messages?  @relation("chat_hub_messages_revisionOfMessageIdTochat_hub_messages", fields: [revisionOfMessageId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_1f4998c8a7dec9e00a9ab15550e")
+  other_chat_hub_messages_chat_hub_messages_revisionOfMessageIdTochat_hub_messages chat_hub_messages[] @relation("chat_hub_messages_revisionOfMessageIdTochat_hub_messages")
+  chat_hub_messages_chat_hub_messages_retryOfMessageIdTochat_hub_messages          chat_hub_messages?  @relation("chat_hub_messages_retryOfMessageIdTochat_hub_messages", fields: [retryOfMessageId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_25c9736e7f769f3a005eef4b372")
+  other_chat_hub_messages_chat_hub_messages_retryOfMessageIdTochat_hub_messages    chat_hub_messages[] @relation("chat_hub_messages_retryOfMessageIdTochat_hub_messages")
+  execution_entity                                                                 execution_entity?   @relation(fields: [executionId], references: [id], onUpdate: NoAction, map: "FK_6afb260449dd7a9b85355d4e0c9")
+  workflow_entity                                                                  workflow_entity?    @relation(fields: [workflowId], references: [id], onUpdate: NoAction, map: "FK_acf8926098f063cdbbad8497fd1")
+  chat_hub_agents                                                                  chat_hub_agents?    @relation(fields: [agentId], references: [id], onUpdate: NoAction, map: "FK_chat_hub_messages_agentId")
+  chat_hub_sessions                                                                chat_hub_sessions   @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e22538eb50a71a17954cd7e076c")
+  chat_hub_messages_chat_hub_messages_previousMessageIdTochat_hub_messages         chat_hub_messages?  @relation("chat_hub_messages_previousMessageIdTochat_hub_messages", fields: [previousMessageId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e5d1fa722c5a8d38ac204746662")
+  other_chat_hub_messages_chat_hub_messages_previousMessageIdTochat_hub_messages   chat_hub_messages[] @relation("chat_hub_messages_previousMessageIdTochat_hub_messages")
+
+  @@index([sessionId], map: "IDX_chat_hub_messages_sessionId")
+}
+
+model chat_hub_session_tools {
+  sessionId         String            @db.Uuid
+  toolId            String            @db.Uuid
+  chat_hub_tools    chat_hub_tools    @relation(fields: [toolId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_6596a328affd8d4967ffb303eee")
+  chat_hub_sessions chat_hub_sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e649bf1295f4ed8d4299ed290f9")
+
+  @@id([sessionId, toolId], map: "PK_87aea76ff4c274c4a5ac838ebe3")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model chat_hub_sessions {
+  id                     String                   @id(map: "PK_1eafef1273c70e4464fec703412") @db.Uuid
+  title                  String                   @db.VarChar(256)
+  ownerId                String                   @db.Uuid
+  lastMessageAt          DateTime                 @db.Timestamptz(3)
+  credentialId           String?                  @db.VarChar(36)
+  provider               String?                  @db.VarChar(16)
+  model                  String?                  @db.VarChar(256)
+  workflowId             String?                  @db.VarChar(36)
+  createdAt              DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt              DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  agentId                String?                  @db.Uuid
+  agentName              String?                  @db.VarChar(128)
+  type                   String                   @default("production") @db.VarChar(16)
+  chat_hub_messages      chat_hub_messages[]
+  chat_hub_session_tools chat_hub_session_tools[]
+  credentials_entity     credentials_entity?      @relation(fields: [credentialId], references: [id], onUpdate: NoAction, map: "FK_7bc13b4c7e6afbfaf9be326c189")
+  workflow_entity        workflow_entity?         @relation(fields: [workflowId], references: [id], onUpdate: NoAction, map: "FK_9f9293d9f552496c40e0d1a8f80")
+  chat_hub_agents        chat_hub_agents?         @relation(fields: [agentId], references: [id], onUpdate: NoAction, map: "FK_chat_hub_sessions_agentId")
+  user                   user                     @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e9ecf8ede7d989fcd18790fe36a")
+
+  @@index([ownerId, lastMessageAt(sort: Desc), id], map: "IDX_chat_hub_sessions_owner_lastmsg_id")
+}
+
+model chat_hub_tools {
+  id                     String                   @id(map: "PK_696d26426c704fba79b2c195ef5") @db.Uuid
+  name                   String                   @db.VarChar(255)
+  type                   String                   @db.VarChar(255)
+  typeVersion            Float
+  ownerId                String                   @db.Uuid
+  definition             Json                     @db.Json
+  enabled                Boolean                  @default(true)
+  createdAt              DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt              DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  chat_hub_agent_tools   chat_hub_agent_tools[]
+  chat_hub_session_tools chat_hub_session_tools[]
+  user                   user                     @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_b8030b47af9213f1fd15450fb7f")
+
+  @@unique([ownerId, name], map: "IDX_4c72ebdb265d1775bf61147af0")
+}
+
+model credential_dependency {
+  id                 Int                @id(map: "PK_80212729ed0ffa0709417ab28f4") @default(autoincrement())
+  credentialId       String             @db.VarChar(36)
+  dependencyType     String             @db.VarChar(64)
+  dependencyId       String             @db.VarChar(255)
+  createdAt          DateTime           @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  credentials_entity credentials_entity @relation(fields: [credentialId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_5ec8e8c8d3539f3696cf73b43bf")
+
+  @@unique([credentialId, dependencyType, dependencyId], map: "IDX_credential_dependency_credentialId_dependencyType_dependenc")
+  @@index([credentialId], map: "IDX_5ec8e8c8d3539f3696cf73b43b")
+  @@index([dependencyType, dependencyId], map: "IDX_91ee85fa9619dd6776725e117b")
+}
+
+model credentials_entity {
+  name                          String                          @db.VarChar(128)
+  data                          String
+  type                          String                          @db.VarChar(128)
+  createdAt                     DateTime                        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                     DateTime                        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  id                            String                          @id @unique(map: "pk_credentials_entity_id") @db.VarChar(36)
+  isManaged                     Boolean                         @default(false)
+  isGlobal                      Boolean                         @default(false)
+  isResolvable                  Boolean                         @default(false)
+  resolvableAllowFallback       Boolean                         @default(false)
+  resolverId                    String?                         @db.VarChar(16)
+  chat_hub_agents               chat_hub_agents[]
+  chat_hub_sessions             chat_hub_sessions[]
+  credential_dependency         credential_dependency[]
+  dynamic_credential_resolver   dynamic_credential_resolver?    @relation(fields: [resolverId], references: [id], onUpdate: NoAction, map: "credentials_entity_resolverId_foreign")
+  dynamic_credential_entry      dynamic_credential_entry[]
+  dynamic_credential_user_entry dynamic_credential_user_entry[]
+  shared_credentials            shared_credentials[]
+
+  @@index([type], map: "idx_07fde106c0b471d8cc80a64fc8")
+}
+
+model data_table {
+  id                String              @id(map: "PK_e226d0001b9e6097cbfe70617cb") @db.VarChar(36)
+  name              String              @db.VarChar(128)
+  projectId         String              @db.VarChar(36)
+  createdAt         DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt         DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  project           project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_c2a794257dee48af7c9abf681de")
+  data_table_column data_table_column[]
+
+  @@unique([projectId, name], map: "UQ_b23096ef747281ac944d28e8b0d")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model data_table_column {
+  id          String     @id(map: "PK_673cb121ee4a8a5e27850c72c51") @db.VarChar(36)
+  name        String     @db.VarChar(128)
+  type        String     @db.VarChar(32)
+  index       Int
+  dataTableId String     @db.VarChar(36)
+  createdAt   DateTime   @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt   DateTime   @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  data_table  data_table @relation(fields: [dataTableId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_930b6e8faaf88294cef23484160")
+
+  @@unique([dataTableId, name], map: "UQ_8082ec4890f892f0bc77473a123")
+}
+
+model deployment_key {
+  id        String   @id(map: "PK_94bb7aeb5def5a0284a5fe9f9a0") @db.VarChar(36)
+  type      String   @db.VarChar(64)
+  value     String
+  algorithm String?  @db.VarChar(20)
+  status    String   @db.VarChar(20)
+  createdAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+model dynamic_credential_entry {
+  credential_id               String                      @db.VarChar(16)
+  subject_id                  String                      @db.VarChar(2048)
+  resolver_id                 String                      @db.VarChar(16)
+  data                        String
+  createdAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  credentials_entity          credentials_entity          @relation(fields: [credential_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a6d1dd080958304a47a02952aab")
+  dynamic_credential_resolver dynamic_credential_resolver @relation(fields: [resolver_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_d61a12235d268a49af6a3c09c13")
+
+  @@id([credential_id, subject_id, resolver_id], map: "PK_5135ffcabecad4727ff6b9b803d")
+  @@index([subject_id], map: "IDX_62476b94b56d9dc7ed9ed75d3d")
+  @@index([resolver_id], map: "IDX_d61a12235d268a49af6a3c09c1")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model dynamic_credential_resolver {
+  id                            String                          @id(map: "PK_b76cfb088dcdaf5275e9980bb64") @db.VarChar(16)
+  name                          String                          @db.VarChar(128)
+  type                          String                          @db.VarChar(128)
+  config                        String
+  createdAt                     DateTime                        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                     DateTime                        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  credentials_entity            credentials_entity[]
+  dynamic_credential_entry      dynamic_credential_entry[]
+  dynamic_credential_user_entry dynamic_credential_user_entry[]
+
+  @@index([type], map: "IDX_9c9ee9df586e60bb723234e499")
+}
+
+model dynamic_credential_user_entry {
+  credentialId                String                      @db.VarChar(16)
+  userId                      String                      @db.Uuid
+  resolverId                  String                      @db.VarChar(16)
+  data                        String
+  createdAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  dynamic_credential_resolver dynamic_credential_resolver @relation(fields: [resolverId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_6edec973a6450990977bb854c38")
+  credentials_entity          credentials_entity          @relation(fields: [credentialId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_945ba70b342a066d1306b12ccd2")
+  user                        user                        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a36dc616fabc3f736bb82410a22")
+
+  @@id([credentialId, userId, resolverId], map: "PK_74f548e633abc66dc27c8f0ca77")
+  @@index([resolverId], map: "IDX_6edec973a6450990977bb854c3")
+  @@index([userId], map: "IDX_a36dc616fabc3f736bb82410a2")
+}
+
+model evaluation_collection {
+  id                 String            @id(map: "PK_e720b6efc1e45b878ebb0b2ca30") @db.VarChar(36)
+  name               String            @db.VarChar(128)
+  description        String?
+  workflowId         String            @db.VarChar(36)
+  evaluationConfigId String            @db.VarChar(36)
+  createdById        String?           @db.Uuid
+  insightsCache      Json?             @db.Json
+  createdAt          DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt          DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  workflow_entity    workflow_entity   @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a48ce930c3bc7604894b8f0eaad")
+  evaluation_config  evaluation_config @relation(fields: [evaluationConfigId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_d634a0c93fd7de68a87eab951b2")
+  user               user?             @relation(fields: [createdById], references: [id], onUpdate: NoAction, map: "FK_f4561f38b5a22a4f090d5cd3eae")
+  test_run           test_run[]
+
+  @@index([workflowId], map: "IDX_a48ce930c3bc7604894b8f0eaa")
+  @@index([evaluationConfigId], map: "IDX_d634a0c93fd7de68a87eab951b")
+}
+
+model evaluation_config {
+  id                    String                  @id(map: "PK_59c14dccf8989df94070c2dcfda") @db.VarChar(36)
+  workflowId            String                  @db.VarChar(36)
+  name                  String                  @db.VarChar(128)
+  status                String                  @default("valid") @db.VarChar(16)
+  invalidReason         String?                 @db.VarChar(64)
+  datasetSource         String                  @db.VarChar(32)
+  datasetRef            Json                    @db.Json
+  startNodeName         String                  @db.VarChar(255)
+  endNodeName           String                  @db.VarChar(255)
+  metrics               Json                    @db.Json
+  createdAt             DateTime                @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt             DateTime                @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  evaluation_collection evaluation_collection[]
+  workflow_entity       workflow_entity         @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_fd7542bb123074760285dc1bbf3")
+  test_run              test_run[]
+
+  @@unique([workflowId, name], map: "UQ_3c3c99a712e971835c52292e44c")
+  @@index([workflowId], map: "IDX_fd7542bb123074760285dc1bbf")
+}
+
+model event_destinations {
+  id          String   @id @db.Uuid
+  destination Json
+  createdAt   DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt   DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+model execution_annotation_tags {
+  annotationId          Int
+  tagId                 String                @db.VarChar(24)
+  annotation_tag_entity annotation_tag_entity @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a3697779b366e131b2bbdae2976")
+  execution_annotations execution_annotations @relation(fields: [annotationId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_c1519757391996eb06064f0e7c8")
+
+  @@id([annotationId, tagId], map: "PK_979ec03d31294cca484be65d11f")
+  @@index([tagId], map: "IDX_a3697779b366e131b2bbdae297")
+  @@index([annotationId], map: "IDX_c1519757391996eb06064f0e7c")
+}
+
+model execution_annotations {
+  id                        Int                         @id(map: "PK_7afcf93ffa20c4252869a7c6a23") @default(autoincrement())
+  executionId               Int                         @unique(map: "IDX_97f863fa83c4786f1956508496")
+  vote                      String?                     @db.VarChar(6)
+  note                      String?
+  createdAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  execution_annotation_tags execution_annotation_tags[]
+  execution_entity          execution_entity            @relation(fields: [executionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_97f863fa83c4786f19565084960")
+}
+
+model execution_data {
+  executionId       Int              @id
+  workflowData      Json             @db.Json
+  data              String
+  workflowVersionId String?          @db.VarChar(36)
+  execution_entity  execution_entity @relation(fields: [executionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "execution_data_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model execution_entity {
+  id                    Int                    @id(map: "pk_e3e63bbf986767844bbe1166d4e") @default(autoincrement())
+  finished              Boolean
+  mode                  String                 @db.VarChar
+  retryOf               String?                @db.VarChar
+  retrySuccessId        String?                @db.VarChar
+  startedAt             DateTime?              @db.Timestamptz(3)
+  stoppedAt             DateTime?              @db.Timestamptz(3)
+  waitTill              DateTime?              @db.Timestamptz(3)
+  status                String                 @db.VarChar
+  workflowId            String                 @db.VarChar(36)
+  deletedAt             DateTime?              @db.Timestamptz(3)
+  createdAt             DateTime               @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  storedAt              String                 @default("db") @db.VarChar(2)
+  tracingContext        Json?                  @db.Json
+  deduplicationKey      String?                @db.VarChar(255)
+  chat_hub_messages     chat_hub_messages[]
+  execution_annotations execution_annotations?
+  execution_data        execution_data?
+  workflow_entity       workflow_entity        @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_execution_entity_workflow_id")
+  execution_metadata    execution_metadata[]
+  test_case_execution   test_case_execution[]
+
+  @@index([deletedAt], map: "IDX_execution_entity_deletedAt")
+}
+
+model execution_metadata {
+  id               Int              @id(map: "PK_17a0b6284f8d626aae88e1c16e4") @default(autoincrement())
+  executionId      Int
+  key              String           @db.VarChar(255)
+  value            String
+  execution_entity execution_entity @relation(fields: [executionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_31d0b4c93fb85ced26f6005cda3")
+
+  @@unique([executionId, key], map: "IDX_cec8eea3bf49551482ccb4933e")
+}
+
+model folder {
+  id              String            @id(map: "PK_6278a41a706740c94c02e288df8") @db.VarChar(36)
+  name            String            @db.VarChar(128)
+  parentFolderId  String?           @db.VarChar(36)
+  projectId       String            @db.VarChar(36)
+  createdAt       DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt       DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  folder          folder?           @relation("folderTofolder", fields: [parentFolderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_804ea52f6729e3940498bd54d78")
+  other_folder    folder[]          @relation("folderTofolder")
+  project         project           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a8260b0b36939c6247f385b8221")
+  folder_tag      folder_tag[]
+  workflow_entity workflow_entity[]
+
+  @@unique([projectId, id], map: "IDX_14f68deffaf858465715995508")
+}
+
+model folder_tag {
+  folderId   String     @db.VarChar(36)
+  tagId      String     @db.VarChar(36)
+  folder     folder     @relation(fields: [folderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_94a60854e06f2897b2e0d39edba")
+  tag_entity tag_entity @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_dc88164176283de80af47621746")
+
+  @@id([folderId, tagId], map: "PK_27e4e00852f6b06a925a4d83a3e")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model insights_by_period {
+  id                Int               @id(map: "PK_b606942249b90cc39b0265f0575") @default(autoincrement())
+  metaId            Int
+  type              Int
+  value             BigInt
+  periodUnit        Int
+  periodStart       DateTime?         @default(now()) @db.Timestamptz(0)
+  insights_metadata insights_metadata @relation(fields: [metaId], references: [metaId], onDelete: Cascade, onUpdate: NoAction, map: "FK_6414cfed98daabbfdd61a1cfbc0")
+
+  @@unique([periodStart, type, periodUnit, metaId], map: "IDX_60b6a84299eeb3f671dfec7693")
+}
+
+model insights_metadata {
+  metaId             Int                  @id(map: "PK_f448a94c35218b6208ce20cf5a1") @default(autoincrement())
+  workflowId         String?              @unique(map: "IDX_1d8ab99d5861c9388d2dc1cf73") @db.VarChar(36)
+  projectId          String?              @db.VarChar(36)
+  workflowName       String               @db.VarChar(128)
+  projectName        String               @db.VarChar(255)
+  insights_by_period insights_by_period[]
+  workflow_entity    workflow_entity?     @relation(fields: [workflowId], references: [id], onUpdate: NoAction, map: "FK_1d8ab99d5861c9388d2dc1cf733")
+  project            project?             @relation(fields: [projectId], references: [id], onUpdate: NoAction, map: "FK_2375a1eda085adb16b24615b69c")
+  insights_raw       insights_raw[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model insights_raw {
+  id                Int               @id(map: "PK_ec15125755151e3a7e00e00014f") @default(autoincrement())
+  metaId            Int
+  type              Int
+  value             BigInt
+  timestamp         DateTime          @default(now()) @db.Timestamptz(0)
+  insights_metadata insights_metadata @relation(fields: [metaId], references: [metaId], onDelete: Cascade, onUpdate: NoAction, map: "FK_6e2e33741adef2a7c5d66befa4e")
+
+  @@index([timestamp, id], map: "IDX_insights_raw_timestamp_id")
+}
+
+model installed_nodes {
+  name               String             @id(map: "PK_8ebd28194e4f792f96b5933423fc439df97d9689") @db.VarChar(200)
+  type               String             @db.VarChar(200)
+  latestVersion      Int                @default(1)
+  package            String             @db.VarChar(241)
+  installed_packages installed_packages @relation(fields: [package], references: [packageName], onDelete: Cascade, map: "FK_73f857fc5dce682cef8a99c11dbddbc969618951")
+}
+
+model installed_packages {
+  packageName      String            @id(map: "PK_08cc9197c39b028c1e9beca225940576fd1a5804") @db.VarChar(214)
+  installedVersion String            @db.VarChar(50)
+  authorName       String?           @db.VarChar(70)
+  authorEmail      String?           @db.VarChar(70)
+  createdAt        DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  installed_nodes  installed_nodes[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_checkpoints {
+  key                               String                              @id(map: "PK_5315a45f0846d1f9d128c18a2ed") @db.VarChar(255)
+  runId                             String?                             @db.VarChar(255)
+  threadId                          String                              @db.Uuid
+  resourceId                        String?                             @db.VarChar(255)
+  state                             Json?                               @db.Json
+  createdAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  expiredAt                         DateTime?                           @db.Timestamptz(3)
+  instance_ai_threads               instance_ai_threads                 @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_2b23f3f24a70bebb990203b011e")
+  instance_ai_pending_confirmations instance_ai_pending_confirmations[]
+
+  @@index([threadId], map: "IDX_2b23f3f24a70bebb990203b011")
+  @@index([runId], map: "IDX_768189b506cc26c4fe878b87cb")
+  @@index([resourceId], map: "IDX_be9d0eca0b19fb93d4eb74b327")
+}
+
+model instance_ai_iteration_logs {
+  id                  String              @id(map: "PK_21c2b214b44bc6c34a6d3551c90") @db.VarChar(36)
+  threadId            String              @db.Uuid
+  taskKey             String              @db.VarChar
+  entry               String
+  createdAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads instance_ai_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_8bfcc6c51fd3d69b1eae8aebd49")
+
+  @@index([threadId, taskKey, createdAt], map: "IDX_02751202c9a2ad75f2d8e14f5e")
+}
+
+model instance_ai_messages {
+  id                  String              @id(map: "PK_156c6f287225e9befe0181bb02b") @db.VarChar(36)
+  threadId            String              @db.Uuid
+  content             String
+  role                String              @db.VarChar(16)
+  type                String?             @db.VarChar(32)
+  resourceId          String?             @db.VarChar(255)
+  createdAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads instance_ai_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_1eeb64cb9d66a927988de759e6e")
+
+  @@index([threadId], map: "IDX_1eeb64cb9d66a927988de759e6")
+  @@index([resourceId], map: "IDX_76e212c6867fbaa06bf0decd6f")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_observation_cursors {
+  observationScopeId    String              @id(map: "PK_5b6319b2e9a37c1064a72428f9a") @db.Uuid
+  lastObservedMessageId String              @db.VarChar(36)
+  lastObservedAt        DateTime            @db.Timestamptz(3)
+  createdAt             DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt             DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads   instance_ai_threads @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_5b6319b2e9a37c1064a72428f9a")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_observation_locks {
+  observationScopeId  String              @db.Uuid
+  taskKind            String              @db.VarChar(20)
+  holderId            String              @db.VarChar(64)
+  heldUntil           DateTime            @db.Timestamptz(3)
+  createdAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads instance_ai_threads @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_103e2e5f454860b28ea05a82c74")
+
+  @@id([observationScopeId, taskKind], map: "PK_fc491dd378b9448655c3c683f85")
+}
+
+model instance_ai_observational_memory {
+  id                            String               @id(map: "PK_7192dd00cddba039bf1d3e6a098") @db.VarChar(36)
+  lookupKey                     String               @db.VarChar(255)
+  scope                         String               @db.VarChar(16)
+  threadId                      String?              @db.Uuid
+  resourceId                    String               @db.VarChar(255)
+  activeObservations            String               @default("")
+  originType                    String               @db.VarChar(32)
+  config                        String
+  generationCount               Int                  @default(0)
+  lastObservedAt                DateTime?            @db.Timestamptz(3)
+  pendingMessageTokens          Int                  @default(0)
+  totalTokensObserved           Int                  @default(0)
+  observationTokenCount         Int                  @default(0)
+  isObserving                   Boolean              @default(false)
+  isReflecting                  Boolean              @default(false)
+  observedMessageIds            Json?                @db.Json
+  observedTimezone              String?              @db.VarChar
+  bufferedObservations          String?
+  bufferedObservationTokens     Int?
+  bufferedMessageIds            Json?                @db.Json
+  bufferedReflection            String?
+  bufferedReflectionTokens      Int?
+  bufferedReflectionInputTokens Int?
+  reflectedObservationLineCount Int?
+  bufferedObservationChunks     Json?                @db.Json
+  isBufferingObservation        Boolean              @default(false)
+  isBufferingReflection         Boolean              @default(false)
+  lastBufferedAtTokens          Int                  @default(0)
+  lastBufferedAtTime            DateTime?            @db.Timestamptz(3)
+  metadata                      Json?                @db.Json
+  createdAt                     DateTime             @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                     DateTime             @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_threads           instance_ai_threads? @relation(fields: [threadId], references: [id], onUpdate: NoAction, map: "FK_34018c303885cd37093458e6409")
+
+  @@unique([scope, threadId, resourceId], map: "IDX_a680ac96aae02dc887bbaac512")
+  @@index([lookupKey], map: "IDX_92f13cb6bc694227e069447f7b")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_observations {
+  id                                                                                             String                     @id(map: "PK_4d9b514cdf0f0b577650caf2ac2") @db.VarChar(36)
+  observationScopeId                                                                             String                     @db.Uuid
+  marker                                                                                         String                     @db.VarChar(16)
+  text                                                                                           String
+  parentId                                                                                       String?                    @db.VarChar(36)
+  tokenCount                                                                                     Int                        @default(0)
+  status                                                                                         String                     @db.VarChar(16)
+  supersededBy                                                                                   String?                    @db.VarChar(36)
+  createdAt                                                                                      DateTime                   @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                                                                      DateTime                   @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_observations_instance_ai_observations_supersededByToinstance_ai_observations       instance_ai_observations?  @relation("instance_ai_observations_supersededByToinstance_ai_observations", fields: [supersededBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a80e0ee839a2f10ba4b86e19998")
+  other_instance_ai_observations_instance_ai_observations_supersededByToinstance_ai_observations instance_ai_observations[] @relation("instance_ai_observations_supersededByToinstance_ai_observations")
+  instance_ai_threads                                                                            instance_ai_threads        @relation(fields: [observationScopeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_d54fc84a6c8ac91b5e0db0378a4")
+  instance_ai_observations_instance_ai_observations_parentIdToinstance_ai_observations           instance_ai_observations?  @relation("instance_ai_observations_parentIdToinstance_ai_observations", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_daef2195a4a846eb70eed15e039")
+  other_instance_ai_observations_instance_ai_observations_parentIdToinstance_ai_observations     instance_ai_observations[] @relation("instance_ai_observations_parentIdToinstance_ai_observations")
+
+  @@index([observationScopeId, status, createdAt, id], map: "IDX_0d5db648188d338df7fb2a8064")
+  @@index([supersededBy], map: "IDX_a80e0ee839a2f10ba4b86e1999")
+  @@index([parentId], map: "IDX_daef2195a4a846eb70eed15e03")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_pending_confirmations {
+  requestId               String                   @id(map: "PK_25c38179c8d45095b168adfff80") @db.VarChar(36)
+  threadId                String                   @db.Uuid
+  userId                  String                   @db.Uuid
+  kind                    String                   @db.VarChar(16)
+  runId                   String                   @db.VarChar(36)
+  toolCallId              String?                  @db.VarChar(64)
+  messageGroupId          String?                  @db.VarChar(36)
+  checkpointKey           String?                  @db.VarChar(255)
+  checkpointTaskId        String?                  @db.VarChar(36)
+  expiresAt               DateTime?                @db.Timestamptz(3)
+  createdAt               DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt               DateTime                 @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  instance_ai_checkpoints instance_ai_checkpoints? @relation(fields: [checkpointKey], references: [key], onDelete: Cascade, onUpdate: NoAction, map: "FK_0babdf6e3b897a86fe4678355eb")
+  instance_ai_threads     instance_ai_threads      @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_ba67ee8dc311830a2eea89b6e96")
+  user                    user                     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_df5fd25c8bbfd2b042602600d8e")
+
+  @@index([checkpointKey], map: "IDX_0babdf6e3b897a86fe4678355e")
+  @@index([threadId], map: "IDX_ba67ee8dc311830a2eea89b6e9")
+  @@index([expiresAt], map: "IDX_d7a4aba7440449865e2b924377")
+  @@index([userId], map: "IDX_df5fd25c8bbfd2b042602600d8")
+}
+
+model instance_ai_resources {
+  id            String   @id(map: "PK_45b5b0b6f715dae4292b86603d8") @db.VarChar(255)
+  workingMemory String?
+  metadata      Json?    @db.Json
+  createdAt     DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt     DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model instance_ai_run_snapshots {
+  threadId            String              @db.Uuid
+  runId               String              @db.VarChar(36)
+  messageGroupId      String?             @db.VarChar(36)
+  runIds              Json?               @db.Json
+  tree                String
+  createdAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  langsmithRunId      String?             @db.VarChar(36)
+  langsmithTraceId    String?             @db.VarChar(36)
+  traceId             String?             @db.VarChar(64)
+  spanId              String?             @db.VarChar(64)
+  instance_ai_threads instance_ai_threads @relation(fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_2f63fa21d09d7918f347ddbdf70")
+
+  @@id([threadId, runId], map: "PK_0a5fc9690a84950ebf1416fb146")
+  @@index([threadId, createdAt], map: "IDX_d3a2bc880e7a8626802e5474ad")
+  @@index([threadId, messageGroupId], map: "IDX_d926c16c2ad9728cb9a81790c0")
+}
+
+model instance_ai_threads {
+  id                                String                              @id(map: "PK_35575100e45cdedeb89ae0643e9") @db.Uuid
+  resourceId                        String                              @db.VarChar(255)
+  title                             String                              @default("")
+  metadata                          Json?                               @db.Json
+  createdAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  ai_builder_temporary_workflow     ai_builder_temporary_workflow[]
+  instance_ai_checkpoints           instance_ai_checkpoints[]
+  instance_ai_iteration_logs        instance_ai_iteration_logs[]
+  instance_ai_messages              instance_ai_messages[]
+  instance_ai_observation_cursors   instance_ai_observation_cursors?
+  instance_ai_observation_locks     instance_ai_observation_locks[]
+  instance_ai_observational_memory  instance_ai_observational_memory[]
+  instance_ai_observations          instance_ai_observations[]
+  instance_ai_pending_confirmations instance_ai_pending_confirmations[]
+  instance_ai_run_snapshots         instance_ai_run_snapshots[]
+
+  @@index([resourceId], map: "IDX_f36dea4d38fe92e0e8f44d5a56")
+}
+
+model instance_ai_workflow_snapshots {
+  runId        String   @db.VarChar(36)
+  workflowName String   @db.VarChar(255)
+  resourceId   String?  @db.VarChar(255)
+  status       String?  @db.VarChar
+  snapshot     String
+  createdAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt    DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+
+  @@id([runId, workflowName], map: "PK_93f2696eb321dfe1d7defe7073f")
+  @@index([workflowName, status], map: "IDX_a371ee6b8e0ebb5635f8baa46d")
+}
+
+model instance_version_history {
+  id        Int      @id(map: "PK_874f58cb616935bf49d9dbd67e9") @default(autoincrement())
+  major     Int
+  minor     Int
+  patch     Int
+  createdAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+model invalid_auth_token {
+  token     String   @id(map: "PK_5779069b7235b256d91f7af1a15") @db.VarChar(512)
+  expiresAt DateTime @db.Timestamptz(3)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model mcp_registry_server {
+  slug              String   @id(map: "PK_12fd89a1fb8489513b0a91f5d31") @db.VarChar(255)
+  status            String   @db.VarChar(50)
+  version           String   @db.VarChar(50)
+  registryUpdatedAt DateTime
+  data              Json     @default("{}") @db.Json
+  createdAt         DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt         DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+model migrations {
+  id        Int    @id(map: "PK_8c82d7f526340ab734260ea46be") @default(autoincrement())
+  timestamp BigInt
+  name      String @db.VarChar
+}
+
+model oauth_access_tokens {
+  token         String        @id(map: "PK_dcd71f96a5d5f4bf79e67d322bf") @db.VarChar
+  clientId      String        @db.VarChar
+  userId        String        @db.Uuid
+  user          user          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_7234a36d8e49a1fa85095328845")
+  oauth_clients oauth_clients @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_78b26968132b7e5e45b75876481")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_authorization_codes {
+  code                String        @id(map: "PK_fb91ab932cfbd694061501cc20f") @db.VarChar(255)
+  clientId            String        @db.VarChar
+  userId              String        @db.Uuid
+  redirectUri         String        @db.VarChar
+  codeChallenge       String        @db.VarChar
+  codeChallengeMethod String        @db.VarChar(255)
+  expiresAt           BigInt
+  state               String?       @db.VarChar
+  used                Boolean       @default(false)
+  createdAt           DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt           DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  oauth_clients       oauth_clients @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_64d965bd072ea24fb6da55468cd")
+  user                user          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_aa8d3560484944c19bdf79ffa16")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_clients {
+  id                        String                      @id(map: "PK_c4759172d3431bae6f04e678e0d") @db.VarChar
+  name                      String                      @db.VarChar(255)
+  redirectUris              Json                        @db.Json
+  grantTypes                Json                        @db.Json
+  clientSecret              String?                     @db.VarChar(255)
+  clientSecretExpiresAt     BigInt?
+  tokenEndpointAuthMethod   String                      @default("none") @db.VarChar(255)
+  createdAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                 DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  oauth_access_tokens       oauth_access_tokens[]
+  oauth_authorization_codes oauth_authorization_codes[]
+  oauth_refresh_tokens      oauth_refresh_tokens[]
+  oauth_user_consents       oauth_user_consents[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_refresh_tokens {
+  token         String        @id(map: "PK_74abaed0b30711b6532598b0392") @db.VarChar(255)
+  clientId      String        @db.VarChar
+  userId        String        @db.Uuid
+  expiresAt     BigInt
+  createdAt     DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt     DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  user          user          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a699f3ed9fd0c1b19bc2608ac53")
+  oauth_clients oauth_clients @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_b388696ce4d8be7ffbe8d3e4b69")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_user_consents {
+  id            Int           @id(map: "PK_85b9ada746802c8993103470f05") @default(autoincrement())
+  userId        String        @db.Uuid
+  clientId      String        @db.VarChar
+  grantedAt     BigInt
+  user          user          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_21e6c3c2d78a097478fae6aaefa")
+  oauth_clients oauth_clients @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a651acea2f6c97f8c4514935486")
+
+  @@unique([userId, clientId], map: "UQ_083721d99ce8db4033e2958ebb4")
+}
+
+model processed_data {
+  workflowId      String          @db.VarChar(36)
+  context         String          @db.VarChar(255)
+  createdAt       DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt       DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  value           String
+  workflow_entity workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_06a69a7032c97a763c2c7599464")
+
+  @@id([workflowId, context], map: "PK_ca04b9d8dc72de268fe07a65773")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model project {
+  id                              String                            @id(map: "PK_4d68b1358bb5b766d3e78f32f57") @db.VarChar(36)
+  name                            String                            @db.VarChar(255)
+  type                            String                            @db.VarChar(36)
+  createdAt                       DateTime                          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                       DateTime                          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  icon                            Json?                             @db.Json
+  description                     String?                           @db.VarChar(512)
+  creatorId                       String?                           @db.Uuid
+  agent_execution_threads         agent_execution_threads[]
+  agents                          agents[]
+  data_table                      data_table[]
+  folder                          folder[]
+  insights_metadata               insights_metadata[]
+  user                            user?                             @relation(fields: [creatorId], references: [id], onUpdate: NoAction, map: "projects_creatorId_foreign")
+  project_relation                project_relation[]
+  project_secrets_provider_access project_secrets_provider_access[]
+  role_mapping_rule_project       role_mapping_rule_project[]
+  shared_credentials              shared_credentials[]
+  shared_workflow                 shared_workflow[]
+  variables                       variables[]
+}
+
+model project_relation {
+  projectId                        String   @db.VarChar(36)
+  userId                           String   @db.Uuid
+  role                             String   @db.VarChar
+  createdAt                        DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                        DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  user                             user     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_5f0643f6717905a05164090dde7")
+  project                          project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_61448d56d61802b5dfde5cdb002")
+  role_project_relation_roleTorole role     @relation("project_relation_roleTorole", fields: [role], references: [slug], onDelete: NoAction, onUpdate: NoAction, map: "FK_c6b99592dc96b0d836d7a21db91")
+
+  @@id([projectId, userId], map: "PK_1caaa312a5d7184a003be0f0cb6")
+  @@index([userId], map: "IDX_5f0643f6717905a05164090dde")
+  @@index([projectId], map: "IDX_61448d56d61802b5dfde5cdb00")
+  @@index([role])
+  @@index([projectId, role], map: "project_relation_role_project_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model project_secrets_provider_access {
+  secretsProviderConnectionId Int
+  projectId                   String                      @db.VarChar(36)
+  createdAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  role                        String                      @default("secretsProviderConnection:user") @db.VarChar(128)
+  secrets_provider_connection secrets_provider_connection @relation(fields: [secretsProviderConnectionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_18e5c27d2524b1638b292904e48")
+  project                     project                     @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_bd264b81209355b543878deedb1")
+
+  @@id([secretsProviderConnectionId, projectId], map: "PK_0402b7fcec5415246656f102f83")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role {
+  slug                                           String              @id(map: "PK_35c9b140caaf6da09cfabb0d675") @db.VarChar(128)
+  displayName                                    String?             @unique(map: "IDX_UniqueRoleDisplayName")
+  description                                    String?
+  roleType                                       String?
+  systemRole                                     Boolean             @default(false)
+  createdAt                                      DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                      DateTime            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  project_relation_project_relation_roleTorole   project_relation[]  @relation("project_relation_roleTorole")
+  role_mapping_rule_role_mapping_rule_roleTorole role_mapping_rule[] @relation("role_mapping_rule_roleTorole")
+  role_scope                                     role_scope[]
+  user                                           user[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_mapping_rule {
+  id                                String                      @id(map: "PK_d772c8ec1a89b52d31c882bc560") @db.VarChar(16)
+  expression                        String
+  role                              String                      @db.VarChar(128)
+  type                              String                      @db.VarChar(64)
+  order                             Int
+  createdAt                         DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                         DateTime                    @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  role_role_mapping_rule_roleTorole role                        @relation("role_mapping_rule_roleTorole", fields: [role], references: [slug], onDelete: Cascade, map: "FK_bb66e404c35996b0d6946177501")
+  role_mapping_rule_project         role_mapping_rule_project[]
+
+  @@unique([type, order], map: "UQ_b33ac896ad3099fc8de36fdc1c4")
+  @@index([role], map: "IDX_bb66e404c35996b0d694617750")
+}
+
+model role_mapping_rule_project {
+  roleMappingRuleId String            @db.VarChar(16)
+  projectId         String            @db.VarChar(36)
+  project           project           @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_35a78869286c65d9330d02b88f5")
+  role_mapping_rule role_mapping_rule @relation(fields: [roleMappingRuleId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_dd7ce4dfa09e95b36a626bd9de3")
+
+  @@id([roleMappingRuleId, projectId], map: "PK_198c5b5aea509d139274efcaf9a")
+  @@index([projectId], map: "IDX_35a78869286c65d9330d02b88f")
+}
+
+model role_scope {
+  roleSlug  String @db.VarChar(128)
+  scopeSlug String @db.VarChar(128)
+  role      role   @relation(fields: [roleSlug], references: [slug], onDelete: Cascade, map: "FK_role")
+  scope     scope  @relation(fields: [scopeSlug], references: [slug], onDelete: Cascade, map: "FK_scope")
+
+  @@id([roleSlug, scopeSlug], map: "PK_role_scope")
+  @@index([scopeSlug], map: "IDX_role_scope_scopeSlug")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model scope {
+  slug        String       @id(map: "PK_bfc45df0481abd7f355d6187da1") @db.VarChar(128)
+  displayName String?
+  description String?
+  role_scope  role_scope[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model secrets_provider_connection {
+  id                              Int                               @id(map: "PK_4350ae85e76f9ba7df1370acb5d") @default(autoincrement())
+  providerKey                     String                            @unique(map: "IDX_secrets_provider_connection_providerKey") @db.VarChar(128)
+  type                            String                            @db.VarChar(36)
+  encryptedSettings               String
+  isEnabled                       Boolean                           @default(false)
+  createdAt                       DateTime                          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                       DateTime                          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  project_secrets_provider_access project_secrets_provider_access[]
+}
+
+model settings {
+  key           String  @id(map: "PK_dc0fe14e6d9943f268e7b119f69ab8bd") @db.VarChar(255)
+  value         String
+  loadOnStartup Boolean @default(false)
+}
+
+model shared_credentials {
+  credentialsId      String             @db.VarChar(36)
+  projectId          String             @db.VarChar(36)
+  role               String
+  createdAt          DateTime           @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt          DateTime           @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  credentials_entity credentials_entity @relation(fields: [credentialsId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_416f66fc846c7c442970c094ccf")
+  project            project            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_812c2852270da1247756e77f5a4")
+
+  @@id([credentialsId, projectId], map: "PK_8ef3a59796a228913f251779cff")
+}
+
+model shared_workflow {
+  workflowId      String          @db.VarChar(36)
+  projectId       String          @db.VarChar(36)
+  role            String
+  createdAt       DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt       DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  project         project         @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a45ea5f27bcfdc21af9b4188560")
+  workflow_entity workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_daa206a04983d47d0a9c34649ce")
+
+  @@id([workflowId, projectId], map: "PK_5ba87620386b847201c9531c58f")
+}
+
+model tag_entity {
+  name           String           @unique(map: "idx_812eb05f7451ca757fb98444ce") @db.VarChar(24)
+  createdAt      DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt      DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  id             String           @id @unique(map: "pk_tag_entity_id") @db.VarChar(36)
+  folder_tag     folder_tag[]
+  workflows_tags workflows_tags[]
+}
+
+model test_case_execution {
+  id               String            @id(map: "PK_90c121f77a78a6580e94b794bce") @db.VarChar(36)
+  testRunId        String            @db.VarChar(36)
+  executionId      Int?
+  status           String            @db.VarChar
+  runAt            DateTime?         @db.Timestamptz(3)
+  completedAt      DateTime?         @db.Timestamptz(3)
+  errorCode        String?           @db.VarChar
+  errorDetails     Json?             @db.Json
+  metrics          Json?             @db.Json
+  createdAt        DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  inputs           Json?             @db.Json
+  outputs          Json?             @db.Json
+  runIndex         Int?
+  test_run         test_run          @relation(fields: [testRunId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_8e4b4774db42f1e6dda3452b2af")
+  execution_entity execution_entity? @relation(fields: [executionId], references: [id], onUpdate: NoAction, map: "FK_e48965fac35d0f5b9e7f51d8c44")
+
+  @@index([testRunId], map: "IDX_8e4b4774db42f1e6dda3452b2a")
+}
+
+model test_run {
+  id                       String                 @id(map: "PK_011c050f566e9db509a0fadb9b9") @db.VarChar(36)
+  workflowId               String                 @db.VarChar(36)
+  status                   String                 @db.VarChar
+  errorCode                String?                @db.VarChar
+  errorDetails             Json?                  @db.Json
+  runAt                    DateTime?              @db.Timestamptz(3)
+  completedAt              DateTime?              @db.Timestamptz(3)
+  metrics                  Json?                  @db.Json
+  createdAt                DateTime               @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                DateTime               @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  runningInstanceId        String?                @db.VarChar(255)
+  cancelRequested          Boolean                @default(false)
+  workflowVersionId        String?                @db.VarChar(36)
+  evaluationConfigId       String?                @db.VarChar(36)
+  evaluationConfigSnapshot Json?
+  collectionId             String?                @db.VarChar(36)
+  test_case_execution      test_case_execution[]
+  workflow_entity          workflow_entity        @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_d6870d3b6e4c185d33926f423c8")
+  evaluation_collection    evaluation_collection? @relation(fields: [collectionId], references: [id], onUpdate: NoAction, map: "FK_test_run_collection_id")
+  evaluation_config        evaluation_config?     @relation(fields: [evaluationConfigId], references: [id], onUpdate: NoAction, map: "FK_test_run_evaluation_config_id")
+
+  @@index([workflowId], map: "IDX_d6870d3b6e4c185d33926f423c")
+  @@index([collectionId], map: "IDX_test_run_collectionId")
+  @@index([evaluationConfigId], map: "IDX_test_run_evaluationConfigId")
+}
+
+model token_exchange_jti {
+  jti       String   @id(map: "PK_d8e8a6f737d530fdd2dd716e89c") @db.VarChar(255)
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @db.Timestamptz(3)
+}
+
+model trusted_key {
+  sourceId           String             @db.VarChar(36)
+  kid                String             @db.VarChar(255)
+  data               String
+  createdAt          DateTime           @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  trusted_key_source trusted_key_source @relation(fields: [sourceId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_8c2938d746943dd8f608d23c891")
+
+  @@id([sourceId, kid], map: "PK_dc7d93798f3dbb6959f974c97e1")
+}
+
+model trusted_key_source {
+  id              String        @id(map: "PK_99e8908ce2c2cdccce487db7fc6") @db.VarChar(36)
+  type            String        @db.VarChar(32)
+  config          String
+  status          String        @default("pending") @db.VarChar(32)
+  lastError       String?
+  lastRefreshedAt DateTime?     @db.Timestamptz(3)
+  createdAt       DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt       DateTime      @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  trusted_key     trusted_key[]
+}
+
+model user {
+  id                                String                              @id(map: "PK_ea8f538c94b6e352418254ed6474a81f") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                             String?                             @unique(map: "UQ_e12875dfb3b1d92d7d7c5377e2") @db.VarChar(255)
+  firstName                         String?                             @db.VarChar(32)
+  lastName                          String?                             @db.VarChar(32)
+  password                          String?                             @db.VarChar(255)
+  personalizationAnswers            Json?                               @db.Json
+  createdAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                         DateTime                            @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  settings                          Json?                               @db.Json
+  disabled                          Boolean                             @default(false)
+  mfaEnabled                        Boolean                             @default(false)
+  mfaSecret                         String?
+  mfaRecoveryCodes                  String?
+  lastActiveAt                      DateTime?                           @db.Date
+  roleSlug                          String                              @default("global:member") @db.VarChar(128)
+  agent_history                     agent_history[]
+  auth_identity                     auth_identity[]
+  chat_hub_agents                   chat_hub_agents[]
+  chat_hub_sessions                 chat_hub_sessions[]
+  chat_hub_tools                    chat_hub_tools[]
+  dynamic_credential_user_entry     dynamic_credential_user_entry[]
+  evaluation_collection             evaluation_collection[]
+  instance_ai_pending_confirmations instance_ai_pending_confirmations[]
+  oauth_access_tokens               oauth_access_tokens[]
+  oauth_authorization_codes         oauth_authorization_codes[]
+  oauth_refresh_tokens              oauth_refresh_tokens[]
+  oauth_user_consents               oauth_user_consents[]
+  project                           project[]
+  project_relation                  project_relation[]
+  role                              role                                @relation(fields: [roleSlug], references: [slug], onDelete: NoAction, onUpdate: NoAction, map: "FK_eaea92ee7bfb9c1b6cd01505d56")
+  user_api_keys                     user_api_keys[]
+  user_favorites                    user_favorites[]
+  workflow_builder_session          workflow_builder_session[]
+  workflow_publish_history          workflow_publish_history[]
+
+  @@index([roleSlug], map: "user_role_idx")
+}
+
+model user_api_keys {
+  id        String   @id(map: "PK_978fa5caa3468f463dac9d92e69") @db.VarChar(36)
+  userId    String   @db.Uuid
+  label     String   @db.VarChar(100)
+  apiKey    String   @unique(map: "IDX_1ef35bac35d20bdae979d917a3") @db.VarChar
+  createdAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  scopes    Json?    @db.Json
+  audience  String   @default("public-api") @db.VarChar
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e131705cbbc8fb589889b02d457")
+
+  @@unique([userId, label], map: "IDX_63d7bbae72c767cf162d459fcc")
+}
+
+model user_favorites {
+  id           Int    @id(map: "PK_6c472a19a7423cfbbf6b7c75939") @default(autoincrement())
+  userId       String @db.Uuid
+  resourceId   String @db.VarChar(255)
+  resourceType String @db.VarChar(64)
+  user         user   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_1dd5c393ad0517be3c31a7af836")
+
+  @@unique([userId, resourceId, resourceType], map: "UQ_cf6ae658ead9ffc124723413c65")
+  @@index([resourceType, resourceId], map: "IDX_1d11050a381548c42c32cc25c4")
+  @@index([userId], map: "IDX_1dd5c393ad0517be3c31a7af83")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model variables {
+  key       String   @db.VarChar(50)
+  type      String   @default("string") @db.VarChar(50)
+  value     String?
+  id        String   @id @db.VarChar(36)
+  projectId String?  @db.VarChar(36)
+  project   project? @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_42f6c766f9f9d2edcc15bdd6e9b")
+}
+
+model webhook_entity {
+  webhookPath     String          @db.VarChar
+  method          String          @db.VarChar
+  node            String          @db.VarChar
+  webhookId       String?         @db.VarChar
+  pathLength      Int?
+  workflowId      String          @db.VarChar(36)
+  workflow_entity workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_webhook_entity_workflow_id")
+
+  @@id([webhookPath, method], map: "PK_b21ace2e13596ccd87dc9bf4ea6")
+  @@index([webhookId, method, pathLength], map: "idx_16f4436789e804e3e1c9eeb240")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model workflow_builder_session {
+  id                          String          @id(map: "PK_e69ef0d385986e273423b0e8695") @db.Uuid
+  workflowId                  String          @db.VarChar(36)
+  userId                      String          @db.Uuid
+  messages                    Json            @default("[]") @db.Json
+  previousSummary             String?
+  createdAt                   DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                   DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  activeVersionCardId         String?         @db.VarChar(255)
+  resumeAfterRestoreMessageId String?         @db.VarChar(255)
+  user                        user            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_00290cdeee4d4d7db84709be936")
+  workflow_entity             workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_7983c618db48f47bf5a4cc1e1e4")
+
+  @@unique([workflowId, userId], map: "UQ_ec2aa73632932d485a1d5192ce1")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model workflow_dependency {
+  id                 Int             @id(map: "PK_52325e34cd7a2f0f67b0f3cad65") @default(autoincrement())
+  workflowId         String          @db.VarChar(36)
+  workflowVersionId  Int
+  dependencyType     String          @db.VarChar(32)
+  dependencyKey      String          @db.VarChar(255)
+  dependencyInfo     Json?           @db.Json
+  indexVersionId     Int             @default(1) @db.SmallInt
+  createdAt          DateTime        @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  publishedVersionId String?         @db.VarChar(36)
+  workflow_entity    workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_a4ff2d9b9628ea988fa9e7d0bf8")
+
+  @@index([workflowId], map: "IDX_a4ff2d9b9628ea988fa9e7d0bf")
+  @@index([dependencyKey], map: "IDX_e48a201071ab85d9d09119d640")
+  @@index([dependencyType], map: "IDX_e7fe1cfda990c14a445937d0b9")
+  @@index([publishedVersionId], map: "IDX_workflow_dependency_publishedVersionId")
+}
+
+model workflow_entity {
+  name                                                               String                         @db.VarChar(128)
+  active                                                             Boolean
+  nodes                                                              Json                           @db.Json
+  connections                                                        Json                           @db.Json
+  createdAt                                                          DateTime                       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                                          DateTime                       @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  settings                                                           Json?                          @db.Json
+  staticData                                                         Json?                          @db.Json
+  pinData                                                            Json?                          @db.Json
+  versionId                                                          String                         @db.Char(36)
+  triggerCount                                                       Int                            @default(0)
+  id                                                                 String                         @id @unique(map: "pk_workflow_entity_id") @db.VarChar(36)
+  meta                                                               Json?                          @db.Json
+  parentFolderId                                                     String?                        @db.VarChar(36)
+  isArchived                                                         Boolean                        @default(false)
+  versionCounter                                                     Int                            @default(1)
+  description                                                        String?
+  activeVersionId                                                    String?                        @db.VarChar(36)
+  nodeGroups                                                         Json                           @default("[]") @db.Json
+  ai_builder_temporary_workflow                                      ai_builder_temporary_workflow?
+  chat_hub_messages                                                  chat_hub_messages[]
+  chat_hub_sessions                                                  chat_hub_sessions[]
+  evaluation_collection                                              evaluation_collection[]
+  evaluation_config                                                  evaluation_config[]
+  execution_entity                                                   execution_entity[]
+  insights_metadata                                                  insights_metadata?
+  processed_data                                                     processed_data[]
+  shared_workflow                                                    shared_workflow[]
+  test_run                                                           test_run[]
+  webhook_entity                                                     webhook_entity[]
+  workflow_builder_session                                           workflow_builder_session[]
+  workflow_dependency                                                workflow_dependency[]
+  workflow_history_workflow_entity_activeVersionIdToworkflow_history workflow_history?              @relation("workflow_entity_activeVersionIdToworkflow_history", fields: [activeVersionId], references: [versionId], onDelete: Restrict, onUpdate: NoAction, map: "FK_08d6c67b7f722b0039d9d5ed620")
+  folder                                                             folder?                        @relation(fields: [parentFolderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_workflow_parent_folder")
+  workflow_history_workflow_history_workflowIdToworkflow_entity      workflow_history[]             @relation("workflow_history_workflowIdToworkflow_entity")
+  workflow_publish_history                                           workflow_publish_history[]
+  workflow_published_version                                         workflow_published_version?
+  workflows_tags                                                     workflows_tags[]
+
+  @@index([name], map: "IDX_workflow_entity_name")
+}
+
+model workflow_history {
+  versionId                                                         String                       @id(map: "PK_b6572dd6173e4cd06fe79937b58") @db.VarChar(36)
+  workflowId                                                        String                       @db.VarChar(36)
+  authors                                                           String                       @db.VarChar(255)
+  createdAt                                                         DateTime                     @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt                                                         DateTime                     @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  nodes                                                             Json                         @db.Json
+  connections                                                       Json                         @db.Json
+  name                                                              String?                      @db.VarChar(128)
+  autosaved                                                         Boolean                      @default(false)
+  description                                                       String?
+  nodeGroups                                                        Json                         @default("[]") @db.Json
+  workflow_entity_workflow_entity_activeVersionIdToworkflow_history workflow_entity[]            @relation("workflow_entity_activeVersionIdToworkflow_history")
+  workflow_entity_workflow_history_workflowIdToworkflow_entity      workflow_entity              @relation("workflow_history_workflowIdToworkflow_entity", fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_1e31657f5fe46816c34be7c1b4b")
+  workflow_publish_history                                          workflow_publish_history[]
+  workflow_published_version                                        workflow_published_version[]
+
+  @@index([workflowId], map: "IDX_1e31657f5fe46816c34be7c1b4")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model workflow_publish_history {
+  id               Int               @id(map: "PK_c788f7caf88e91e365c97d6d04a") @default(autoincrement())
+  workflowId       String            @db.VarChar(36)
+  versionId        String?           @db.VarChar(36)
+  event            String            @db.VarChar(36)
+  userId           String?           @db.Uuid
+  createdAt        DateTime          @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  user             user?             @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "FK_6eab5bd9eedabe9c54bd879fc40")
+  workflow_history workflow_history? @relation(fields: [versionId], references: [versionId], onUpdate: NoAction, map: "FK_b4cfbc7556d07f36ca177f5e473")
+  workflow_entity  workflow_entity   @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_c01316f8c2d7101ec4fa9809267")
+
+  @@index([workflowId, versionId], map: "IDX_070b5de842ece9ccdda0d9738b")
+}
+
+model workflow_published_version {
+  workflowId         String           @id(map: "PK_5c76fb7ee939fe2530374d3f75a") @db.VarChar(36)
+  publishedVersionId String           @db.VarChar(36)
+  createdAt          DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  updatedAt          DateTime         @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+  workflow_entity    workflow_entity  @relation(fields: [workflowId], references: [id], onUpdate: NoAction, map: "FK_5c76fb7ee939fe2530374d3f75a")
+  workflow_history   workflow_history @relation(fields: [publishedVersionId], references: [versionId], onUpdate: NoAction, map: "FK_df3428a541b802d6a63ac56e330")
+}
+
+model workflow_statistics {
+  count        BigInt?   @default(0)
+  latestEvent  DateTime? @db.Timestamptz(3)
+  name         String    @db.VarChar(128)
+  workflowId   String    @db.VarChar(36)
+  rootCount    BigInt?   @default(0)
+  id           Int       @id @default(autoincrement())
+  workflowName String?   @db.VarChar(128)
+
+  @@unique([workflowId, name], map: "IDX_workflow_statistics_workflow_name")
+}
+
+model workflows_tags {
+  workflowId      String          @db.VarChar(36)
+  tagId           String          @db.VarChar(36)
+  tag_entity      tag_entity      @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_workflows_tags_tag_id")
+  workflow_entity workflow_entity @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_workflows_tags_workflow_id")
+
+  @@id([workflowId, tagId], map: "pk_workflows_tags")
+  @@index([workflowId], map: "idx_workflows_tags_workflow_id")
 }

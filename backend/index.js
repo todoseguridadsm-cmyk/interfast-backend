@@ -13,6 +13,14 @@ const jwt = require('jsonwebtoken');
 const mikrotik = require('./mikrotik');
 require('dotenv').config();
 
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabaseStorage = null;
+if (supabaseUrl && supabaseKey) {
+  supabaseStorage = createClient(supabaseUrl, supabaseKey);
+}
+
 // AFIP Configuration
 const Afip = require('@afipsdk/afip.js');
 let afip = null;
@@ -2085,6 +2093,54 @@ app.get('/api/sales-info', async (req, res) => {
 // -------------------------------------------------------------
 // TAREAS PROGRAMADAS (CRON JOBS)
 // -------------------------------------------------------------
+
+cron.schedule('* * * * *', async () => {
+  if (!supabaseStorage) return;
+  try {
+    const pendingContents = await prisma.content_library.findMany({
+      where: { estado: 'Pendiente' }
+    });
+    
+    for (const content of pendingContents) {
+      if (content.url_media && !content.url_media.includes('supabase.co')) {
+        console.log(`[Cron] Descargando media externa para content_library ID ${content.id}...`);
+        try {
+          const response = await fetch(content.url_media);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const buffer = await response.arrayBuffer();
+          
+          const fileExtension = content.tipo_media === 'video' ? 'mp4' : 'jpg';
+          const fileName = `media_${content.id}_${Date.now()}.${fileExtension}`;
+          
+          const { data, error } = await supabaseStorage
+            .storage
+            .from('content_media')
+            .upload(fileName, buffer, {
+              contentType: response.headers.get('content-type') || (content.tipo_media === 'video' ? 'video/mp4' : 'image/jpeg')
+            });
+            
+          if (error) {
+            console.error(`[Cron] Error subiendo archivo a Supabase:`, error);
+            continue;
+          }
+          
+          const publicUrl = supabaseStorage.storage.from('content_media').getPublicUrl(fileName).data.publicUrl;
+          
+          await prisma.content_library.update({
+            where: { id: content.id },
+            data: { url_media: publicUrl }
+          });
+          
+          console.log(`[Cron] Archivo resguardado exitosamente para content_library ID ${content.id}: ${publicUrl}`);
+        } catch (downloadError) {
+          console.error(`[Cron] Error procesando archivo para content_library ID ${content.id}:`, downloadError);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Cron] Error general en el resguardo de medios:', error);
+  }
+});
 
 app.get('/api/mikrotik/active-clients', async (req, res) => {
   try {

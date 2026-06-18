@@ -117,9 +117,9 @@ export default function ContentApproval() {
                 {post.url_media && (
                   <div className="mb-4 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative group">
                     {post.tipo_media === 'video' ? (
-                      <video src={post.url_media} controls className="w-full h-48 object-cover" />
+                      <video src={post.url_media} controls className="w-full max-w-[280px] aspect-[9/16] object-contain mx-auto bg-black rounded-lg" />
                     ) : (
-                      <img src={post.url_media} alt="Preview" className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                      <img src={post.url_media} alt="Preview" className="w-full max-w-[280px] aspect-[9/16] object-contain mx-auto bg-black rounded-lg transition-transform duration-300 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
                     )}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                       <a href={post.url_media} target="_blank" rel="noreferrer" className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full pointer-events-auto hover:bg-black/80">Ver original</a>
