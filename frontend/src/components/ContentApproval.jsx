@@ -30,8 +30,8 @@ export default function ContentApproval() {
     setContents(contents.map(c => c.id === id ? { ...c, contenido_post: newText } : c));
   };
 
-  const handleUrlFotoChange = (id, newUrl) => {
-    setContents(contents.map(c => c.id === id ? { ...c, url_foto: newUrl } : c));
+  const handleUrlMediaChange = (id, newUrl) => {
+    setContents(contents.map(c => c.id === id ? { ...c, url_media: newUrl } : c));
   };
 
   const handleApprove = async (content) => {
@@ -39,7 +39,7 @@ export default function ContentApproval() {
       setApprovingId(content.id);
       await axios.put(`${API_URL}/content_library/${content.id}/aprobar`, {
         contenido_post: content.contenido_post,
-        url_foto: content.url_foto || ''
+        url_media: content.url_media || ''
       });
       // Remove from list since it's no longer a draft
       setContents(contents.filter(c => c.id !== content.id));
@@ -114,11 +114,15 @@ export default function ContentApproval() {
               </div>
               
               <div className="p-4 flex-1">
-                {post.url_foto && (
+                {post.url_media && (
                   <div className="mb-4 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center relative group">
-                    <img src={post.url_foto} alt="Preview" className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <a href={post.url_foto} target="_blank" rel="noreferrer" className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full hover:bg-black/80">Ver original</a>
+                    {post.tipo_media === 'video' ? (
+                      <video src={post.url_media} controls className="w-full h-48 object-cover" />
+                    ) : (
+                      <img src={post.url_media} alt="Preview" className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <a href={post.url_media} target="_blank" rel="noreferrer" className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full pointer-events-auto hover:bg-black/80">Ver original</a>
                     </div>
                   </div>
                 )}
@@ -132,12 +136,12 @@ export default function ContentApproval() {
                   placeholder="Escribe aquí el contenido..."
                 />
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2 mt-4">
-                  <ImageIcon size={16} className="text-indigo-500" /> URL de la Foto / Flyer:
+                  <ImageIcon size={16} className="text-indigo-500" /> URL de la Media (Foto o Video):
                 </label>
                 <input 
                   type="text"
-                  value={post.url_foto || ''}
-                  onChange={(e) => handleUrlFotoChange(post.id, e.target.value)}
+                  value={post.url_media || ''}
+                  onChange={(e) => handleUrlMediaChange(post.id, e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-slate-700 text-sm"
                   placeholder="https://ejemplo.com/mifoto.jpg"
                 />

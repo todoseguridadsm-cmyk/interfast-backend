@@ -1989,7 +1989,7 @@ app.delete('/api/leads/:id', authenticateToken, async (req, res) => {
 app.get('/api/content_library', authenticateToken, async (req, res) => {
   try {
     const contents = await prisma.content_library.findMany({
-      where: { estado: 'borrador' },
+      where: { estado: 'Pendiente' },
       orderBy: { created_at: 'desc' }
     });
     res.json(contents);
@@ -2000,10 +2000,10 @@ app.get('/api/content_library', authenticateToken, async (req, res) => {
 
 app.put('/api/content_library/:id', authenticateToken, async (req, res) => {
   try {
-    const { contenido_post, url_foto } = req.body;
+    const { contenido_post, url_media } = req.body;
     const content = await prisma.content_library.update({
       where: { id: parseInt(req.params.id) },
-      data: { contenido_post, url_foto }
+      data: { contenido_post, url_media }
     });
     res.json(content);
   } catch (error) {
@@ -2013,12 +2013,12 @@ app.put('/api/content_library/:id', authenticateToken, async (req, res) => {
 
 app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) => {
   try {
-    const { contenido_post, url_foto } = req.body;
+    const { contenido_post, url_media } = req.body;
     
     // 1. Update in DB
     const content = await prisma.content_library.update({
       where: { id: parseInt(req.params.id) },
-      data: { estado: 'publicado', contenido_post, url_foto }
+      data: { estado: 'Aprobado', contenido_post, url_media }
     });
 
     // 2. Fire n8n Webhook
@@ -2028,7 +2028,11 @@ app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) 
         await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: content.id, contenido: content.contenido_post, url_foto: content.url_foto })
+          body: JSON.stringify({ 
+            url_foto: content.url_media, 
+            contenido: content.contenido_post, 
+            tipo_media: content.tipo_media || 'imagen'
+          })
         });
       } catch (webhookError) {
         console.error('Error disparando webhook a n8n:', webhookError);

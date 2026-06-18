@@ -232,7 +232,7 @@ model content_library {
   titulo         String?
   contenido_post String
   tipo_media     String?
-  estado         String   @default("borrador")
+  estado         String   @default("Pendiente")
   link_landing   String?  @default("https://interfast-web.vercel.app/")
-  url_foto       String?
+  url_media      String?
 }
