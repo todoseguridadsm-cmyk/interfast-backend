@@ -1,6 +1,11 @@
 const tls = require('tls');
 tls.DEFAULT_CIPHERS = 'DEFAULT@SECLEVEL=0'; // Fix for AFIP's small DH keys
 
+// Fix for Prisma BigInt serialization
+BigInt.prototype.toJSON = function () {
+  return Number(this);
+};
+
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
@@ -2011,7 +2016,7 @@ app.put('/api/content_library/:id', authenticateToken, async (req, res) => {
   try {
     const { contenido_post, url_media } = req.body;
     const content = await prisma.content_library.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: BigInt(req.params.id) },
       data: { contenido_post, url_media }
     });
     res.json(content);
@@ -2026,7 +2031,7 @@ app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) 
     
     // 1. Update in DB
     const content = await prisma.content_library.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: BigInt(req.params.id) },
       data: { estado: 'Aprobado', contenido_post, url_media }
     });
 
@@ -2058,7 +2063,7 @@ app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) 
 app.delete('/api/content_library/:id', authenticateToken, async (req, res) => {
   try {
     await prisma.content_library.delete({
-      where: { id: parseInt(req.params.id) }
+      where: { id: BigInt(req.params.id) }
     });
     res.json({ success: true });
   } catch (error) {
