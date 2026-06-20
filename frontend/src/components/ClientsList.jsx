@@ -15,7 +15,8 @@ export default function ClientsList() {
   const [formData, setFormData] = useState({
     dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', 
     city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
-    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: ''
+    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '',
+    clientType: 'FISICA', cuitRepresentante: '', claveAfip: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -70,14 +71,17 @@ export default function ClientsList() {
       status: client.status || 'ACTIVE',
       hasRouter: client.hasRouter || false,
       hasMast: client.hasMast || false,
-      registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : ''
+      registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : '',
+      clientType: client.clientType || 'FISICA',
+      cuitRepresentante: client.cuitRepresentante || '',
+      claveAfip: client.claveAfip || ''
     });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
+    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '', clientType: 'FISICA', cuitRepresentante: '', claveAfip: '' });
     setIsModalOpen(false);
   };
 
@@ -457,8 +461,22 @@ export default function ClientsList() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 
                 {/* Personal Data */}
+                <div className="md:col-span-12 border-b border-slate-100 pb-3 mb-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Tipo de Contribuyente</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="clientType" value="FISICA" checked={formData.clientType === 'FISICA'} onChange={handleInputChange} className="text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium">Persona Física</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="clientType" value="JURIDICA" checked={formData.clientType === 'JURIDICA'} onChange={handleInputChange} className="text-blue-600 focus:ring-blue-500" />
+                      <span className="text-sm font-medium">Persona Jurídica (Empresa/Sociedad)</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="md:col-span-8">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">{formData.clientType === 'JURIDICA' ? 'Nombre Fantasía / Responsable' : 'Nombre Completo'}</label>
                   <input required type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Juan Pérez" />
                 </div>
                 <div className="md:col-span-4">
@@ -466,10 +484,10 @@ export default function ClientsList() {
                   <input required type="text" name="dni" value={formData.dni} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="12345678" />
                 </div>
                 
-                {formData.taxCondition === 'RESPONSABLE_INSCRIPTO' && (
+                {(formData.taxCondition === 'RESPONSABLE_INSCRIPTO' || formData.clientType === 'JURIDICA') && (
                   <div className="md:col-span-12">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Razón Social</label>
-                    <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Empresa S.A." />
+                    <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Empresa S.A." required={formData.clientType === 'JURIDICA'} />
                   </div>
                 )}
 
@@ -479,7 +497,7 @@ export default function ClientsList() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">C.U.I.T / C.U.I.L</label>
-                      <input type="text" name="cuit" value={formData.cuit} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Opcional..." />
+                      <input type="text" name="cuit" value={formData.cuit} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej: 20123456789" required={formData.clientType === 'JURIDICA'} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Condición Frente al IVA</label>
@@ -501,6 +519,21 @@ export default function ClientsList() {
                     </div>
                   </div>
                 </div>
+
+                {formData.clientType === 'JURIDICA' && (
+                  <div className="md:col-span-12 pt-1 mt-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">CUIT Representante</label>
+                        <input type="text" name="cuitRepresentante" value={formData.cuitRepresentante} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="CUIT del Rep. Legal" required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Clave AFIP</label>
+                        <input type="text" name="claveAfip" value={formData.claveAfip} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Clave AFIP" required />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Contact and Address */}
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
