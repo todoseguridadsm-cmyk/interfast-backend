@@ -35,9 +35,6 @@ model Client {
   zipCode              String?
   observation          String?
   phone2               String?
-  clientType           String                @default("FISICA")
-  cuitRepresentante    String?
-  claveAfip            String?
   cancellationRequests CancellationRequest[]
   plan                 Plan?                 @relation(fields: [planId], references: [id])
   cutoffLists          CutoffList[]

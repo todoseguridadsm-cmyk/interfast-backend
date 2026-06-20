@@ -8,7 +8,6 @@ import PlansList from './components/PlansList';
 import Login from './components/Login';
 import UsersList from './components/UsersList';
 import Reports from './components/Reports';
-import AfipDashboard from './components/AfipDashboard';
 import DailyCash from './components/DailyCash';
 import TicketsList from './components/TicketsList';
 import POSCaja from './components/POSCaja';
@@ -21,7 +20,7 @@ import NodesList from './components/NodesList';
 import ActiveConnections from './components/ActiveConnections';
 import AltasWebList from './components/AltasWebList';
 import ContentApproval from './components/ContentApproval';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, Calculator } from 'lucide-react';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -195,16 +194,10 @@ function AppContent() {
           )}
 
           {isAllowed('REPORTES') && (
-            <>
-              <Link onClick={handleLinkClick} to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <BarChart3 size={20} />
-                <span>Reportes y Ventas</span>
-              </Link>
-              <Link onClick={handleLinkClick} to="/afip-dashboard" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/afip-dashboard' ? 'bg-emerald-600/20 text-emerald-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Calculator size={20} />
-                <span>Dashboard AFIP / Contable</span>
-              </Link>
-            </>
+            <Link onClick={handleLinkClick} to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <BarChart3 size={20} />
+              <span>Reportes y Ventas</span>
+            </Link>
           )}
 
           {isAllowed('CAJA') && (
@@ -269,7 +262,6 @@ function AppContent() {
             <Route path="/bajas" element={isAllowed('BAJAS') ? <BajasList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/pos" element={isAllowed('CAJA') ? <POSCaja /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/reports" element={isAllowed('REPORTES') ? <Reports /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
-            <Route path="/afip-dashboard" element={isAllowed('REPORTES') ? <AfipDashboard /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cash" element={isAllowed('CAJA') ? <DailyCash /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/tickets" element={isAllowed('SOPORTE') ? <TicketsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/whatsapp" element={user.role === 'ADMIN' ? <WhatsAppStatus /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
