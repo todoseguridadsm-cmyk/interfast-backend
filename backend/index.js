@@ -198,9 +198,10 @@ async function generateCutoffList() {
   }
 }
 
-cron.schedule('0 8 22 * *', () => {
-  generateCutoffList();
-});
+// Temporalmente pausado a pedido del usuario (migración del sistema - Junio 2026)
+// cron.schedule('0 8 22 * *', () => {
+//   generateCutoffList();
+// });
 
 // --- ROUTES ---
 
