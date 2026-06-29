@@ -1192,6 +1192,98 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
   }
 });
 
+app.post('/api/invoices/mass-warning', async (req, res) => {
+  if (waStatus !== 'CONNECTED') {
+    return res.status(400).json({ error: 'El Robot de WhatsApp no está conectado (Escanea el QR).' });
+  }
+
+  try {
+    const { invoiceIds } = req.body;
+
+    let whereClause = { status: 'PENDING' };
+    if (invoiceIds && Array.isArray(invoiceIds) && invoiceIds.length > 0) {
+      whereClause.id = { in: invoiceIds };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: whereClause,
+      include: { client: true }
+    });
+
+    let notifiedCount = 0;
+    for (const inv of invoices) {
+      if (!inv.client.phone) continue;
+
+      const phone = inv.client.phone.replace(/\D/g, '');
+      if (phone.length < 8) continue;
+
+      const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
+
+      const today = new Date();
+      let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
+      let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
+      expirationDate.setHours(23, 59, 59, 999);
+
+      if (inv.dueDate1) {
+        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+
+        if (today > d2 && inv.priceV3) {
+          totalAmountWithFee = inv.priceV3;
+          expirationDate = d3;
+        } else if (today > d1 && inv.priceV2) {
+          totalAmountWithFee = inv.priceV2;
+          expirationDate = d2;
+        } else {
+          expirationDate = d1;
+        }
+      }
+
+      let paymentLink = '';
+      if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
+        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${inv.id}`;
+      } else {
+        const preference = new Preference(clientMP);
+        const prefBody = {
+          items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(totalAmountWithFee) }],
+          payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
+          external_reference: inv.id.toString(),
+          notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+        };
+        
+        if (expirationDate && expirationDate >= today) {
+          prefBody.expires = true;
+          prefBody.expiration_date_to = expirationDate.toISOString();
+        }
+
+        const prefs = await preference.create({ body: prefBody });
+        paymentLink = prefs.init_point;
+      }
+
+      const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet (Período: ${inv.month}/${inv.year}) por un saldo de *$${totalAmountWithFee.toFixed(2)}*.\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\nPodés abonar de forma segura en nuestro enlace oficial:\n${paymentLink}\n\n¡Muchas gracias!`;
+
+      if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
+      
+      await prisma.invoice.update({
+        where: { id: inv.id },
+        data: { notifiedAt: new Date() } // using same notifiedAt field or we could add a new one, but this is fine.
+      });
+      
+      notifiedCount++;
+
+      // Delay 6 seconds between warning messages to prevent WA Ban, user requested safe delay
+      await new Promise(r => setTimeout(r, 6000));
+    }
+
+    res.json({ message: `¡Avisos de corte enviados! ${notifiedCount} deudores advertidos automáticamente por el Robot.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al enviar avisos de corte' });
+  }
+});
+
+
 // --- USERS ADMIN ROUTES ---
 app.get('/api/users', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador' });
