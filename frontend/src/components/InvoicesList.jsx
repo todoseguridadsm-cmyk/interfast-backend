@@ -411,9 +411,9 @@ export default function InvoicesList() {
 
   return (
     <div className="space-y-6 relative">
-      <header className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+      <header className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-4 bg-white p-4 2xl:p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="w-full 2xl:w-auto">
+          <h2 className="text-2xl 2xl:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             <FileText className="text-blue-600" size={32} />
             Facturación Mensual
             <span className="text-sm font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full mt-1 ml-2">
@@ -460,45 +460,45 @@ export default function InvoicesList() {
             </select>
           </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-2 items-center w-full 2xl:w-auto mt-2 2xl:mt-0">
           {selectedInvoices.length > 0 && (
             <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
               <button 
                 onClick={handleMassAfip} disabled={loading}
-                className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2 text-sm"
+                className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
               >
-                <Landmark size={18} />
+                <Landmark size={16} />
                 Lote AFIP ({selectedInvoices.length})
               </button>
               <button 
                 onClick={() => startMassiveNotify(true)} disabled={loading}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2 text-sm"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
               >
-                <MessageCircle size={18} />
+                <MessageCircle size={16} />
                 WhatsApp ({selectedInvoices.length})
               </button>
             </div>
           )}
           <button 
             onClick={handleExportExcel} disabled={loading}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-emerald-400"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-emerald-400"
           >
-            <Download size={18} />
-            Exportar Excel
+            <Download size={16} />
+            Exportar
           </button>
           <button 
             onClick={() => startMassiveNotify(false)} disabled={loading}
-            className="bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
           >
-            <MessageCircle size={18} />
+            <MessageCircle size={16} />
             {loading ? 'Trabajando...' : 'Notificar Todos'}
           </button>
           <button 
             onClick={handleGenerate} disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium shadow-sm shadow-indigo-200 transition-colors flex items-center gap-2 disabled:bg-indigo-400 ml-4"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-indigo-200 transition-colors flex items-center gap-2 disabled:bg-indigo-400"
           >
-            <Play size={18} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Procesando...' : 'Generar Facturación'}
+            <Play size={16} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Procesando...' : 'Generar'}
           </button>
         </div>
       </header>
@@ -509,7 +509,7 @@ export default function InvoicesList() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
-                <th className="px-6 py-4 font-semibold text-center w-12">
+                <th className="px-3 py-3 font-semibold text-center w-12">
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
@@ -517,14 +517,14 @@ export default function InvoicesList() {
                     className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-4 font-semibold">Cliente</th>
-                <th className="px-6 py-4 font-semibold text-center">Período</th>
-                <th className="px-6 py-4 font-semibold text-center">Vencimiento</th>
-                <th className="px-6 py-4 font-semibold text-right">Original</th>
-                <th className="px-6 py-4 font-semibold text-right text-orange-500">Mora</th>
-                <th className="px-6 py-4 font-semibold text-right text-blue-600">Total a Pagar</th>
-                <th className="px-6 py-4 font-semibold text-center">Estado</th>
-                <th className="px-6 py-4 font-semibold text-center">Acciones</th>
+                <th className="px-3 py-3 font-semibold">Cliente</th>
+                <th className="px-3 py-3 font-semibold text-center">Período</th>
+                <th className="px-3 py-3 font-semibold text-center">Vencimiento</th>
+                <th className="px-3 py-3 font-semibold text-right">Original</th>
+                <th className="px-3 py-3 font-semibold text-right text-orange-500">Mora</th>
+                <th className="px-3 py-3 font-semibold text-right text-blue-600">Total a Pagar</th>
+                <th className="px-3 py-3 font-semibold text-center">Estado</th>
+                <th className="px-3 py-3 font-semibold text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -541,7 +541,7 @@ export default function InvoicesList() {
                   const isSelectable = (!isPaid && !inv.notifiedAt) || (isPaid && !inv.afipCae);
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         {isSelectable && (
                           <input 
                             type="checkbox" 
@@ -551,22 +551,22 @@ export default function InvoicesList() {
                           />
                         )}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3">
                         <div className="font-semibold text-slate-900">{inv.client?.name || 'Cliente borrado'}</div>
                         <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">
                           TK{String(inv.clientId).padStart(3, '0')}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center font-medium text-slate-600">
+                      <td className="px-3 py-3 text-center font-medium text-slate-600">
                         {String(inv.month).padStart(2, '0')}/{inv.year}
                       </td>
-                      <td className="px-6 py-4 text-center text-slate-600">
+                      <td className="px-3 py-3 text-center text-slate-600">
                         {new Date(inv.dueDate).toLocaleDateString('es-AR')}
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-600">
+                      <td className="px-3 py-3 text-right text-slate-600">
                         ${inv.originalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-3 py-3 text-right">
                         {inv.calculatedLateFee > 0 ? (
                           <span className="text-orange-500 font-bold inline-flex items-center gap-1">
                             <AlertCircle size={14} /> +${inv.calculatedLateFee.toLocaleString(undefined, {minimumFractionDigits: 2})}
@@ -575,12 +575,12 @@ export default function InvoicesList() {
                           <span className="text-slate-300">---</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-3 py-3 text-right">
                         <span className={`font-bold ${isPaid ? 'text-slate-500 line-through' : 'text-slate-900 text-base'}`}>
                           ${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         {isPaid ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
                             <CheckCircle size={14} /> PAGADO
@@ -602,7 +602,7 @@ export default function InvoicesList() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
                           <div className="flex items-center justify-center gap-2">
                             <button 
@@ -622,10 +622,10 @@ export default function InvoicesList() {
                             {inv.status === 'PENDING' && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
-                                className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200" 
+                                className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
                                 title="Aviso de Corte WhatsApp"
                               >
-                                <AlertCircle size={16} />
+                                <AlertCircle size={16} /> Corte
                               </button>
                             )}
                             {inv.status === 'PENDING' && (
