@@ -9,6 +9,7 @@ export default function InvoicesList() {
   const [loading, setLoading] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
   const [paymentFilter, setPaymentFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -156,6 +157,16 @@ export default function InvoicesList() {
     }
     const phone = inv.client.phone.replace(/\D/g, '');
     const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${inv.totalAmount.toFixed(2)}*.\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago. (Solicitame el enlace oficial si deseas abonar por allí).\n\n¡Gracias por tu pago!`);
+    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+  };
+
+  const warningWhatsApp = (inv) => {
+    if (!inv.client.phone) {
+      alert('Este cliente no tiene teléfono registrado.');
+      return;
+    }
+    const phone = inv.client.phone.replace(/\D/g, '');
+    const message = encodeURIComponent(`Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet (Período: ${inv.month}/${inv.year}) por un saldo de *$${inv.totalAmount.toFixed(2)}*.\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\n¡Muchas gracias!`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
@@ -320,6 +331,9 @@ export default function InvoicesList() {
     if (paymentFilter === 'CASH') return inv.payments && inv.payments.some(p => p.method === 'CASH');
     if (paymentFilter === 'MERCADOPAGO') return inv.payments && inv.payments.some(p => p.method === 'MERCADOPAGO');
     
+    // 3. Status Filter
+    if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
+
     return true;
   });
 
@@ -382,6 +396,15 @@ export default function InvoicesList() {
               <option value="ALL">Todas las Facturas</option>
               <option value="CASH">💰 Solo Efectivo</option>
               <option value="MERCADOPAGO">💳 Solo Web</option>
+            </select>
+            <select 
+              value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}
+              className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 outline-none p-1"
+            >
+              <option value="ALL">Todos los Estados</option>
+              <option value="PAID">✅ Pagados</option>
+              <option value="PENDING">⏳ Pendientes</option>
+              <option value="PARTIAL">⚠️ Parciales</option>
             </select>
           </div>
         </div>
@@ -537,6 +560,15 @@ export default function InvoicesList() {
                             >
                               <MessageCircle size={16} />
                             </button>
+                            {inv.status === 'PENDING' && (
+                              <button 
+                                onClick={() => warningWhatsApp(inv)} 
+                                className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200" 
+                                title="Aviso de Corte WhatsApp"
+                              >
+                                <AlertCircle size={16} />
+                              </button>
+                            )}
                             {inv.status === 'PENDING' && (
                               <button 
                                 onClick={() => handleDeleteInvoice(inv.id)} 
