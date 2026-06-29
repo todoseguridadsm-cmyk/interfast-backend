@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export default function InvoicesList() {
   const [invoices, setInvoices] = useState([]);
@@ -299,6 +300,57 @@ export default function InvoicesList() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (filteredInvoices.length === 0) {
+      alert("No hay facturas para exportar con los filtros actuales.");
+      return;
+    }
+
+    const data = filteredInvoices.map(inv => {
+      let estado = 'PENDIENTE';
+      if (inv.status === 'PAID') estado = 'PAGADO';
+      if (inv.status === 'PARTIAL') estado = 'PARCIAL';
+
+      return {
+        'Cliente': inv.client?.name || 'Cliente borrado',
+        'ID Cliente': `TK${String(inv.clientId).padStart(3, '0')}`,
+        'DNI/CUIT': inv.client?.dni || '',
+        'Teléfono': inv.client?.phone || '',
+        'Período': `${String(inv.month).padStart(2, '0')}/${inv.year}`,
+        'Vencimiento': new Date(inv.dueDate).toLocaleDateString('es-AR'),
+        'Original ($)': inv.originalAmount,
+        'Mora ($)': inv.calculatedLateFee || 0,
+        'Total a Pagar ($)': inv.totalAmount,
+        'Estado': estado,
+        'Monto Abonado ($)': inv.payments && inv.payments.length > 0 
+          ? inv.payments.reduce((acc, p) => acc + p.amountPaid, 0) 
+          : (inv.status === 'PAID' ? inv.totalAmount : 0)
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
+    
+    // Auto-size columns slightly
+    const colWidths = [
+      { wch: 30 }, // Cliente
+      { wch: 15 }, // ID
+      { wch: 15 }, // DNI
+      { wch: 15 }, // Tel
+      { wch: 10 }, // Período
+      { wch: 15 }, // Vencimiento
+      { wch: 12 }, // Original
+      { wch: 10 }, // Mora
+      { wch: 15 }, // Total
+      { wch: 15 }, // Estado
+      { wch: 18 }  // Abonado
+    ];
+    worksheet['!cols'] = colWidths;
+
+    XLSX.writeFile(workbook, `Facturacion_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const filteredInvoices = invoices.filter(inv => {
     const isSearchingDate = (startDate !== '' && endDate !== '');
     const term = searchTerm.toLowerCase();
@@ -427,6 +479,13 @@ export default function InvoicesList() {
               </button>
             </div>
           )}
+          <button 
+            onClick={handleExportExcel} disabled={loading}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-emerald-400"
+          >
+            <Download size={18} />
+            Exportar Excel
+          </button>
           <button 
             onClick={() => startMassiveNotify(false)} disabled={loading}
             className="bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
