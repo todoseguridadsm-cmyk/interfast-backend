@@ -151,6 +151,35 @@ export default function InvoicesList() {
     setLoading(false);
   };
 
+  const startMassiveWarning = async (isSelective = false) => {
+    const idsToSend = isSelective ? selectedInvoices : [];
+    const count = isSelective ? idsToSend.length : invoices.filter(i => i.status === 'PENDING').length;
+    
+    if (count === 0) {
+      alert('No hay facturas pendientes seleccionadas para advertir.');
+      return;
+    }
+
+    const msg = isSelective 
+      ? `⚠️ ¿Confirmar AVISO DE CORTE a los ${count} clientes seleccionados mediante el Robot? (Se enviará con demoras de 6 segundos entre cada uno)`
+      : `⚠️ ¿Confirmar AVISO DE CORTE masivo a TODOS los deudores conectados? (Esto tomará tiempo para no ser bloqueado por WhatsApp)`;
+
+    if(!window.confirm(msg)) return;
+    
+    setLoading(true);
+    try {
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-warning', {
+        invoiceIds: idsToSend
+      });
+      alert(res.data.message);
+      setSelectedInvoices([]);
+    } catch(err) {
+      console.error(err);
+      alert('Error en el robot: ' + (err.response?.data?.error || err.message));
+    }
+    setLoading(false);
+  };
+
   const manualWhatsApp = (inv) => {
     if (!inv.client.phone) {
       alert('Este cliente no tiene teléfono registrado.');
@@ -477,6 +506,13 @@ export default function InvoicesList() {
                 <MessageCircle size={16} />
                 WhatsApp ({selectedInvoices.length})
               </button>
+              <button 
+                onClick={() => startMassiveWarning(true)} disabled={loading}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
+              >
+                <AlertCircle size={16} />
+                Corte ({selectedInvoices.length})
+              </button>
             </div>
           )}
           <button 
@@ -492,6 +528,13 @@ export default function InvoicesList() {
           >
             <MessageCircle size={16} />
             {loading ? 'Trabajando...' : 'Notificar Todos'}
+          </button>
+          <button 
+            onClick={() => startMassiveWarning(false)} disabled={loading}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-orange-400"
+          >
+            <AlertCircle size={16} />
+            {loading ? 'Trabajando...' : 'Avisar Cortes'}
           </button>
           <button 
             onClick={handleGenerate} disabled={loading}
