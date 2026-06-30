@@ -163,33 +163,50 @@ async function generateCutoffList(autoCutoff = false) {
       include: { client: true }
     });
 
-    let count = 0;
-    for (const inv of pendingInvoices) {
-      const existingCutoff = await prisma.cutoffList.findFirst({
-        where: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
-      });
+    const existingCutoffs = await prisma.cutoffList.findMany({
+      where: { status: 'PENDING' }
+    });
+    const existingSet = new Set(existingCutoffs.map(c => `${c.clientId}-${c.invoiceId}`));
 
-      if (!existingCutoff) {
-        await prisma.cutoffList.create({
-          data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
-        });
-        
-        if (autoCutoff && inv.client && inv.client.ipNumber && inv.client.mainNode) {
-          try {
-            await prisma.client.update({
-              where: { id: inv.clientId },
-              data: { status: 'SUSPENDED' }
-            });
-            await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
-          } catch (err) {
-            const msg = err.message || JSON.stringify(err);
-            console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, msg);
+    let count = 0;
+    const toCreate = [];
+
+    for (const inv of pendingInvoices) {
+      if (!existingSet.has(`${inv.clientId}-${inv.id}`)) {
+        if (autoCutoff) {
+          // Si es automático, procesamos y comunicamos con Mikrotik uno por uno
+          await prisma.cutoffList.create({
+            data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
+          });
+          if (inv.client && inv.client.ipNumber && inv.client.mainNode) {
+            try {
+              await prisma.client.update({
+                where: { id: inv.clientId },
+                data: { status: 'SUSPENDED' }
+              });
+              await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
+            } catch (err) {
+              const msg = err.message || JSON.stringify(err);
+              console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, msg);
+            }
           }
+        } else {
+          // Si es manual, solo preparamos los datos para una inserción masiva (bulk insert)
+          toCreate.push({ clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' });
         }
         
         count++;
       }
     }
+    
+    // Inserción masiva ultra-rápida para evitar que el servidor haga timeout en Vercel
+    if (!autoCutoff && toCreate.length > 0) {
+      await prisma.cutoffList.createMany({
+        data: toCreate,
+        skipDuplicates: true
+      });
+    }
+
     console.log(`✅ Finalizado: Se agregaron ${count} clientes a la lista de cortes.`);
     return count;
   } catch (error) {
