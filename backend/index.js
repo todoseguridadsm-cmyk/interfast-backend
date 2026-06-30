@@ -155,8 +155,8 @@ async function connectToWhatsApp() {
 connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
 
 // --- CRON JOBS ---
-async function generateCutoffList() {
-  console.log('⏳ Ejecutando: Generación de Lista de Cortes de Servicio...');
+async function generateCutoffList(autoCutoff = false) {
+  console.log(`⏳ Ejecutando: Generación de Lista de Cortes de Servicio (AutoCutoff: ${autoCutoff})...`);
   try {
     const pendingInvoices = await prisma.invoice.findMany({
       where: { status: 'PENDING' },
@@ -174,7 +174,7 @@ async function generateCutoffList() {
           data: { clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' }
         });
         
-        if (inv.client && inv.client.ipNumber && inv.client.mainNode) {
+        if (autoCutoff && inv.client && inv.client.ipNumber && inv.client.mainNode) {
           try {
             await prisma.client.update({
               where: { id: inv.clientId },
@@ -198,19 +198,54 @@ async function generateCutoffList() {
   }
 }
 
-// Temporalmente pausado a pedido del usuario (migración del sistema - Junio 2026)
-// cron.schedule('0 8 22 * *', () => {
-//   generateCutoffList();
-// });
+// Proceso de corte automático programado para el día 22
+cron.schedule('0 8 22 * *', () => {
+  generateCutoffList(true);
+});
 
 // --- ROUTES ---
 
 app.post('/api/cutoffs/force', async (req, res) => {
   try {
-    const count = await generateCutoffList();
+    const count = await generateCutoffList(false); // Solo genera la lista
     res.json({ message: `Escaneo completado. Se agregaron ${count} clientes morosos a la lista.` });
   } catch (error) {
     res.status(500).json({ error: 'Error al generar la lista de cortes' });
+  }
+});
+
+app.post('/api/cutoffs/execute', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No se enviaron IDs válidos' });
+    }
+
+    let successCount = 0;
+    for (const cutoffId of ids) {
+      const cutoff = await prisma.cutoffList.findUnique({
+        where: { id: cutoffId },
+        include: { client: true }
+      });
+      
+      if (cutoff && cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
+        try {
+          await prisma.client.update({
+            where: { id: cutoff.clientId },
+            data: { status: 'SUSPENDED' }
+          });
+          await mikrotik.addIpToCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
+          successCount++;
+        } catch (err) {
+          console.error(`Error ejecutando corte para IP ${cutoff.client.ipNumber}:`, err);
+        }
+      }
+    }
+
+    res.json({ message: `Se ejecutaron ${successCount} cortes de servicio correctamente.` });
+  } catch (error) {
+    console.error('Error en /api/cutoffs/execute:', error);
+    res.status(500).json({ error: 'Error al ejecutar los cortes' });
   }
 });
 

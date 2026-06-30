@@ -8,6 +8,8 @@ export default function CutoffList() {
   const [cutoffs, setCutoffs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCutoffs, setSelectedCutoffs] = useState([]);
+  const [executing, setExecuting] = useState(false);
 
   const fetchCutoffs = async () => {
     try {
@@ -46,18 +48,37 @@ export default function CutoffList() {
   };
 
   const handleForceScan = async () => {
-    if (!window.confirm('¿Deseas forzar el escaneo de morosos ahora mismo? Esto buscará facturas impagas y las agregará a la lista sin esperar al día 28.')) {
+    if (!window.confirm('¿Deseas generar la lista de morosos ahora mismo? Esto buscará facturas impagas y las agregará a la lista sin cortar el servicio aún.')) {
       return;
     }
     try {
       setLoading(true);
       const res = await axios.post(`${backendUrl}/api/cutoffs/force`);
-      alert(res.data.message || 'Escaneo completado.');
+      alert(res.data.message || 'Lista generada.');
       fetchCutoffs();
     } catch (error) {
       console.error(error);
-      alert('Error al forzar el escaneo.');
+      alert('Error al generar la lista.');
       setLoading(false);
+    }
+  };
+
+  const handleExecuteCutoffs = async () => {
+    if (selectedCutoffs.length === 0) return;
+    if (!window.confirm(`¿Estás seguro de que deseas ejecutar el corte de servicio en el Mikrotik para los ${selectedCutoffs.length} clientes seleccionados?`)) {
+      return;
+    }
+    try {
+      setExecuting(true);
+      const res = await axios.post(`${backendUrl}/api/cutoffs/execute`, { ids: selectedCutoffs });
+      alert(res.data.message || 'Cortes ejecutados.');
+      setSelectedCutoffs([]);
+      fetchCutoffs();
+    } catch (error) {
+      console.error(error);
+      alert('Error al ejecutar los cortes.');
+    } finally {
+      setExecuting(false);
     }
   };
 
@@ -82,8 +103,19 @@ export default function CutoffList() {
         </div>
         <div className="flex flex-col md:flex-row gap-3">
           <button 
+            onClick={handleExecuteCutoffs}
+            disabled={selectedCutoffs.length === 0 || executing}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              selectedCutoffs.length > 0 && !executing
+                ? 'bg-red-600 hover:bg-red-700 text-white shadow-md'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {executing ? 'Ejecutando...' : `Ejecutar Corte (${selectedCutoffs.length})`}
+          </button>
+          <button 
             onClick={handleForceScan}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           >
             Generar Lista Ahora
           </button>
@@ -105,6 +137,27 @@ export default function CutoffList() {
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-100">
             <tr>
+              <th className="px-6 py-4 w-12 text-center">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-slate-300 text-red-500 focus:ring-red-500"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const selectableIds = filteredCutoffs
+                        .filter(c => c.status === 'PENDING' && c.client?.status !== 'SUSPENDED')
+                        .map(c => c.id);
+                      setSelectedCutoffs(selectableIds);
+                    } else {
+                      setSelectedCutoffs([]);
+                    }
+                  }}
+                  checked={
+                    filteredCutoffs.length > 0 && 
+                    selectedCutoffs.length === filteredCutoffs.filter(c => c.status === 'PENDING' && c.client?.status !== 'SUSPENDED').length &&
+                    selectedCutoffs.length > 0
+                  }
+                />
+              </th>
               <th className="px-6 py-4">Cliente</th>
               <th className="px-6 py-4">DNI</th>
               <th className="px-6 py-4">Factura ID</th>
@@ -119,8 +172,28 @@ export default function CutoffList() {
             ) : filteredCutoffs.length === 0 ? (
               <tr><td colSpan="6" className="text-center py-8 text-slate-400">No hay clientes en la lista de cortes.</td></tr>
             ) : (
-              filteredCutoffs.map(cutoff => (
-                <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' ? 'bg-red-50/30' : 'bg-green-50/30'}`}>
+              filteredCutoffs.map(cutoff => {
+                const isSuspended = cutoff.client?.status === 'SUSPENDED';
+                const isSelectable = cutoff.status === 'PENDING' && !isSuspended;
+                
+                return (
+                <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' && !isSuspended ? 'bg-orange-50/30' : (isSuspended ? 'bg-red-50/30' : 'bg-green-50/30')}`}>
+                  <td className="px-6 py-4 text-center">
+                    {isSelectable && (
+                      <input 
+                        type="checkbox"
+                        className="rounded border-slate-300 text-red-500 focus:ring-red-500"
+                        checked={selectedCutoffs.includes(cutoff.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCutoffs([...selectedCutoffs, cutoff.id]);
+                          } else {
+                            setSelectedCutoffs(selectedCutoffs.filter(id => id !== cutoff.id));
+                          }
+                        }}
+                      />
+                    )}
+                  </td>
                   <td className="px-6 py-4 font-medium text-slate-700">
                     {cutoff.client?.name || 'Desconocido'}
                   </td>
@@ -132,9 +205,15 @@ export default function CutoffList() {
                   </td>
                   <td className="px-6 py-4">
                     {cutoff.status === 'PENDING' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                        <AlertCircle size={14} /> Cortado / Pendiente
-                      </span>
+                      isSuspended ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          <AlertCircle size={14} /> Servicio Cortado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                          <Scissors size={14} /> Pendiente de Corte
+                        </span>
+                      )
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         <CheckCircle2 size={14} /> Resuelto
@@ -155,7 +234,8 @@ export default function CutoffList() {
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
