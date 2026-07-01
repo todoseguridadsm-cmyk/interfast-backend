@@ -202,8 +202,7 @@ async function generateCutoffList(autoCutoff = false) {
     // Inserción masiva ultra-rápida para evitar que el servidor haga timeout en Vercel
     if (!autoCutoff && toCreate.length > 0) {
       await prisma.cutoffList.createMany({
-        data: toCreate,
-        skipDuplicates: true
+        data: toCreate
       });
     }
 
