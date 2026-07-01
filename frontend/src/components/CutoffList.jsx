@@ -260,7 +260,7 @@ export default function CutoffList() {
                         onClick={() => handleExempt(cutoff.id)}
                         className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md transition-colors"
                       >
-                        Eximir Manualmente
+                        Eximir
                       </button>
                     )}
                   </td>
