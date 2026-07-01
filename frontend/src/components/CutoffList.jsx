@@ -58,7 +58,8 @@ export default function CutoffList() {
       fetchCutoffs();
     } catch (error) {
       console.error(error);
-      alert('Error al generar la lista.');
+      const errorMsg = error.response?.data?.error || error.response?.data?.details || error.message || 'Desconocido';
+      alert('Error al generar la lista: ' + errorMsg);
       setLoading(false);
     }
   };

@@ -226,7 +226,7 @@ app.post('/api/cutoffs/force', async (req, res) => {
     const count = await generateCutoffList(false); // Solo genera la lista
     res.json({ message: `Escaneo completado. Se agregaron ${count} clientes morosos a la lista.` });
   } catch (error) {
-    res.status(500).json({ error: 'Error al generar la lista de cortes' });
+    res.status(500).json({ error: 'Error al generar la lista de cortes', details: error.message || error.toString() });
   }
 });
 
