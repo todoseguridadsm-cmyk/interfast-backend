@@ -83,6 +83,25 @@ export default function CutoffList() {
     }
   };
 
+  const handleRestoreCutoffs = async () => {
+    if (selectedCutoffs.length === 0) return;
+    if (!window.confirm(`¿Estás seguro de que deseas RESTAURAR el servicio y marcar las facturas como PAGADAS para los ${selectedCutoffs.length} clientes seleccionados?`)) {
+      return;
+    }
+    try {
+      setExecuting(true);
+      const res = await axios.post(`${backendUrl}/api/cutoffs/restore`, { ids: selectedCutoffs });
+      alert(res.data.message || 'Servicios restaurados.');
+      setSelectedCutoffs([]);
+      fetchCutoffs();
+    } catch (error) {
+      console.error(error);
+      alert('Error al restaurar los servicios.');
+    } finally {
+      setExecuting(false);
+    }
+  };
+
   const filteredCutoffs = (Array.isArray(cutoffs) ? cutoffs : []).filter(c => {
     const s = searchTerm.toLowerCase();
     const name = c.client?.name?.toLowerCase() || '';
@@ -115,6 +134,17 @@ export default function CutoffList() {
             {executing ? 'Ejecutando...' : `Ejecutar Corte (${selectedCutoffs.length})`}
           </button>
           <button 
+            onClick={handleRestoreCutoffs}
+            disabled={selectedCutoffs.length === 0 || executing}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              selectedCutoffs.length > 0 && !executing
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {executing ? '...' : `Restaurar Servicio (${selectedCutoffs.length})`}
+          </button>
+          <button 
             onClick={handleForceScan}
             className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           >
@@ -145,7 +175,7 @@ export default function CutoffList() {
                   onChange={(e) => {
                     if (e.target.checked) {
                       const selectableIds = filteredCutoffs
-                        .filter(c => c.status === 'PENDING' && c.client?.status !== 'SUSPENDED')
+                        .filter(c => c.status === 'PENDING')
                         .map(c => c.id);
                       setSelectedCutoffs(selectableIds);
                     } else {
@@ -154,7 +184,7 @@ export default function CutoffList() {
                   }}
                   checked={
                     filteredCutoffs.length > 0 && 
-                    selectedCutoffs.length === filteredCutoffs.filter(c => c.status === 'PENDING' && c.client?.status !== 'SUSPENDED').length &&
+                    selectedCutoffs.length === filteredCutoffs.filter(c => c.status === 'PENDING').length &&
                     selectedCutoffs.length > 0
                   }
                 />
@@ -175,7 +205,7 @@ export default function CutoffList() {
             ) : (
               filteredCutoffs.map(cutoff => {
                 const isSuspended = cutoff.client?.status === 'SUSPENDED';
-                const isSelectable = cutoff.status === 'PENDING' && !isSuspended;
+                const isSelectable = cutoff.status === 'PENDING';
                 
                 return (
                 <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' && !isSuspended ? 'bg-orange-50/30' : (isSuspended ? 'bg-red-50/30' : 'bg-green-50/30')}`}>
