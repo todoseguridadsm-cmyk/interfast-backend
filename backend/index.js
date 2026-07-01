@@ -1406,6 +1406,49 @@ app.put('/api/users/:id/password', async (req, res) => {
   }
 });
 
+app.post('/api/cutoffs/restore', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No se enviaron IDs válidos' });
+    }
+
+    let successCount = 0;
+    for (const cutoffId of ids) {
+      const cutoff = await prisma.cutoffList.findUnique({
+        where: { id: cutoffId },
+        include: { client: true }
+      });
+      
+      if (cutoff && cutoff.client) {
+        try {
+          await prisma.client.update({
+            where: { id: cutoff.clientId },
+            data: { status: 'ACTIVE' }
+          });
+          await prisma.invoice.updateMany({
+            where: { clientId: cutoff.clientId, status: 'PENDING' },
+            data: { status: 'PAID' }
+          });
+          await prisma.cutoffList.update({
+            where: { id: cutoff.id },
+            data: { status: 'RESOLVED' }
+          });
+          if (cutoff.client.ipNumber && cutoff.client.mainNode) {
+            await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
+          }
+          successCount++;
+        } catch (err) {
+          console.error(`Error restaurando servicio para IP ${cutoff.client.ipNumber}:`, err);
+        }
+      }
+    }
+    res.json({ message: `Servicio restaurado y facturas marcadas como pagadas para ${successCount} clientes.` });
+  } catch (error) {
+    res.status(500).json({ error: 'Error restaurando los servicios' });
+  }
+});
+
 app.delete('/api/users/:id', async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador' });
   try {
