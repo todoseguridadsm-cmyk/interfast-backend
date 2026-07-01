@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Scissors, Search, CheckCircle2, AlertCircle } from 'lucide-react';
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://interfast-backend-95ww.onrender.com';
 
 export default function CutoffList() {
   const [cutoffs, setCutoffs] = useState([]);
