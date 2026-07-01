@@ -164,8 +164,8 @@ export default function CutoffList() {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+      <div className="overflow-x-auto pb-4">
+        <table className="w-full text-left text-sm">
           <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-100">
             <tr>
               <th className="px-6 py-4 w-12 text-center">
