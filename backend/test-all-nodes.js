@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
+require('./mikrotik');
 const { RouterOSClient } = require('routeros-client');
 
 const prisma = new PrismaClient();

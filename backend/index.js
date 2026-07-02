@@ -1645,9 +1645,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       data: {
         invoiceId,
         method: method || 'CASH',
-        amountPaid: parseFloat(amountPaid),
+        amountPaid: parseFloat(amountPaid) || 0,
         lateFeeApplied: parseFloat(lateFeeApplied) || 0,
-        userId: req.user.id
+        userId: parseInt(req.user?.id) || 1
       }
     });
 
@@ -1657,7 +1657,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
     // Comparar contra la meta enviada por el front (o originalAmount si falta)
     const requiredTarget = totalRequired ? parseFloat(totalRequired) : 9999999;
-    const finalStatus = totalGathered >= requiredTarget ? 'PAID' : 'PARTIAL';
+    const finalStatus = (totalGathered + 0.01) >= requiredTarget ? 'PAID' : 'PARTIAL';
 
     const invoice = await prisma.invoice.update({
       where: { id: invoiceId },
@@ -1683,12 +1683,11 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         });
       }
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
-        try {
-          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
-        } catch (err) {
-          const msg = err.message || JSON.stringify(err);
-          console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
-        }
+        mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode)
+          .catch(err => {
+            const msg = err.message || JSON.stringify(err);
+            console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
+          });
       }
     }
 

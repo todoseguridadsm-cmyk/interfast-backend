@@ -1,4 +1,23 @@
 const { RouterOSClient } = require('routeros-client');
+
+// Parche para evitar el error 'RosException: Tried to process unknown reply: !empty'
+// en RouterOS v7 cuando una lista o consulta en la API devuelve 0 elementos o está vacía.
+try {
+  const { Channel } = require('node-routeros/dist/Channel');
+  if (Channel && Channel.prototype && !Channel.prototype._patchedEmpty) {
+    const origProcessPacket = Channel.prototype.processPacket;
+    Channel.prototype.processPacket = function(packet) {
+      if (packet && packet[0] === '!empty') {
+        return; // Ignoramos la etiqueta !empty; el siguiente paquete !done resolverá la consulta con []
+      }
+      return origProcessPacket.apply(this, arguments);
+    };
+    Channel.prototype._patchedEmpty = true;
+  }
+} catch (e) {
+  console.error('No se pudo aplicar el parche a node-routeros para !empty:', e.message);
+}
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -7,8 +26,8 @@ async function connectToMikrotik(nodeName) {
     throw new Error('El nombre del nodo (mainNode) es requerido para conectarse al Mikrotik.');
   }
 
-  const node = await prisma.node.findUnique({
-    where: { name: nodeName }
+  const node = await prisma.node.findFirst({
+    where: { name: { equals: nodeName, mode: 'insensitive' } }
   });
 
   if (!node) {
@@ -43,9 +62,8 @@ async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comm
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Revisar si la IP ya está en la lista (descargando toda la lista para evitar el bug de routeros v7 con !empty)
-    const list = await api.get();
-    const existing = list.filter(item => item.address === ipAddress && item.list === listName);
+    // Consultar si la IP ya está en la lista (el parche en Channel evita el error !empty en RouterOS v7)
+    const existing = await api.where('address', ipAddress).where('list', listName).get();
     
     if (existing.length === 0) {
       await api.add({
@@ -80,9 +98,8 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Buscar el registro de la IP en la lista (descargando la lista completa)
-    const list = await api.get();
-    const records = list.filter(item => item.address === ipAddress && item.list === listName);
+    // Buscar el registro de la IP en la lista (el parche en Channel evita el error !empty en RouterOS v7)
+    const records = await api.where('address', ipAddress).where('list', listName).get();
     
     if (records.length > 0) {
       // Eliminar por su .id

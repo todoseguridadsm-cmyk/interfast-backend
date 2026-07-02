@@ -107,9 +107,9 @@ export default function InvoicesList() {
     setLoading(true);
     try {
       await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
-        amountPaid: parseFloat(payModal.amount),
-        lateFeeApplied: payModal.inv.calculatedLateFee,
-        totalRequired: payModal.inv.totalAmount,
+        amountPaid: parseFloat(payModal.amount) || 0,
+        lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
+        totalRequired: parseFloat(payModal.inv.totalAmount) || parseFloat(payModal.amount) || 0,
         method: 'CASH'
       });
       fetchInvoices();
