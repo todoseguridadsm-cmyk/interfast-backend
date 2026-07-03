@@ -58,20 +58,32 @@ async function connectToMikrotik(nodeName) {
 async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comment = 'Corte Automático CRM') {
   let client = null;
   try {
+    let finalComment = comment;
+    if (!finalComment || finalComment === 'Corte Automático CRM') {
+      try {
+        const dbClient = await prisma.client.findFirst({ where: { ipNumber: ipAddress } });
+        if (dbClient && dbClient.name) {
+          finalComment = `${dbClient.name} (ID: ${dbClient.id}) - Corte CRM`;
+        }
+      } catch (e) {}
+    }
     const conn = await connectToMikrotik(nodeName);
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Consultar si la IP ya está en la lista (el parche en Channel evita el error !empty en RouterOS v7)
-    const existing = await api.where('address', ipAddress).where('list', listName).get();
+    // Consultar por address únicamente (la IP es única en el nodo) y filtrar estricto en JS para evitar bug de RouterOS con OR
+    const records = await api.where('address', ipAddress).get();
+    const existing = (Array.isArray(records) ? records : []).filter(r => 
+      r && r.address === ipAddress && (r.list === listName || r.list === 'Morosos' || r.list === 'corte' || r.list === 'cortados')
+    );
     
     if (existing.length === 0) {
       await api.add({
         list: listName,
         address: ipAddress,
-        comment: comment
+        comment: finalComment
       });
-      console.log(`✅ Mikrotik: IP ${ipAddress} agregada a la lista '${listName}' exitosamente.`);
+      console.log(`✅ Mikrotik: IP ${ipAddress} agregada a la lista '${listName}' exitosamente con comentario '${finalComment}'.`);
     } else {
       console.log(`ℹ️ Mikrotik: La IP ${ipAddress} ya se encontraba en la lista '${listName}'.`);
     }
@@ -98,13 +110,18 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Buscar el registro de la IP en la lista (el parche en Channel evita el error !empty en RouterOS v7)
-    const records = await api.where('address', ipAddress).where('list', listName).get();
+    // Consultar por address únicamente y filtrar en JS para blindaje absoluto contra borrar IPs de otros clientes
+    const records = await api.where('address', ipAddress).get();
+    const targetRecords = (Array.isArray(records) ? records : []).filter(r => 
+      r && r.address === ipAddress && (r.list === listName || r.list === 'Morosos' || r.list === 'corte' || r.list === 'cortados')
+    );
     
-    if (records.length > 0) {
-      // Eliminar por su .id
-      for (const record of records) {
-        await api.remove(record['.id']);
+    if (targetRecords.length > 0) {
+      // Eliminar por su .id verificando estrictamente que sea la IP solicitada
+      for (const record of targetRecords) {
+        if (record['.id'] && record.address === ipAddress) {
+          await api.remove(record['.id']);
+        }
       }
       console.log(`✅ Mikrotik: IP ${ipAddress} eliminada de la lista '${listName}' exitosamente. Servicio restaurado.`);
     } else {

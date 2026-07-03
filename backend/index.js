@@ -184,7 +184,7 @@ async function generateCutoffList(autoCutoff = false) {
                 where: { id: inv.clientId },
                 data: { status: 'SUSPENDED' }
               });
-              await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode);
+              await mikrotik.addIpToCutoffList(inv.client.ipNumber, inv.client.mainNode, 'Morosos', `${inv.client.name || 'Cliente'} (ID: ${inv.client.id || inv.clientId}) - Corte CRM`);
             } catch (err) {
               const msg = err.message || JSON.stringify(err);
               console.error(`Error enviando corte al Mikrotik para IP ${inv.client.ipNumber}:`, msg);
@@ -250,7 +250,7 @@ app.post('/api/cutoffs/execute', async (req, res) => {
             where: { id: cutoff.clientId },
             data: { status: 'SUSPENDED' }
           });
-          await mikrotik.addIpToCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
+          await mikrotik.addIpToCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode, 'Morosos', `${cutoff.client.name || 'Cliente'} (ID: ${cutoff.client.id || cutoff.clientId}) - Corte CRM`);
           successCount++;
         } catch (err) {
           console.error(`Error ejecutando corte para IP ${cutoff.client.ipNumber}:`, err);
@@ -499,7 +499,7 @@ app.put('/api/clients/:id/status', async (req, res) => {
     // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
     if (client.ipNumber && client.mainNode) {
       if (status === 'SUSPENDED') {
-        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
+        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name || 'Cliente'} (ID: ${client.id}) - Corte CRM`); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
       } else if (status === 'ACTIVE') {
         try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message || JSON.stringify(e)); }
       }
@@ -916,7 +916,7 @@ app.post('/api/invoices/mass-cutoff', authenticateToken, async (req, res) => {
           });
           
           // Enviar orden al Mikrotik
-          await mikrotik.addIpToCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+          await mikrotik.addIpToCutoffList(invoice.client.ipNumber, invoice.client.mainNode, 'Morosos', `${invoice.client.name || 'Cliente'} (ID: ${invoice.client.id || invoice.clientId}) - Corte CRM`);
           suspendedCount++;
         } catch (err) {
           const msg = err.message || JSON.stringify(err);
