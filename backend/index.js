@@ -1683,11 +1683,12 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         });
       }
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
-        mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode)
-          .catch(err => {
-            const msg = err.message || JSON.stringify(err);
-            console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
-          });
+        try {
+          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
+        } catch (err) {
+          const msg = err.message || JSON.stringify(err);
+          console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
+        }
       }
     }
 

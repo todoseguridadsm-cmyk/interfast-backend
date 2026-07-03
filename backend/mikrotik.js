@@ -71,21 +71,26 @@ async function addIpToCutoffList(ipAddress, nodeName, listName = 'Morosos', comm
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Consultar por address únicamente (la IP es única en el nodo) y filtrar estricto en JS para evitar bug de RouterOS con OR
-    const records = await api.where('address', ipAddress).get();
-    const existing = (Array.isArray(records) ? records : []).filter(r => 
-      r && r.address === ipAddress && (r.list === listName || r.list === 'Morosos' || r.list === 'corte' || r.list === 'cortados')
-    );
+    const cleanIp = (ipAddress || '').split('/')[0].trim();
+    const records = await api.get();
+    const existing = (Array.isArray(records) ? records : []).filter(r => {
+      if (!r || !r.address) return false;
+      const rIp = r.address.split('/')[0].trim();
+      if (rIp !== cleanIp) return false;
+      const rList = (r.list || '').toLowerCase();
+      const tList = (listName || '').toLowerCase();
+      return rList === tList || rList === 'morosos' || rList === 'corte' || rList === 'cortados' || rList === 'moroso';
+    });
     
     if (existing.length === 0) {
       await api.add({
         list: listName,
-        address: ipAddress,
+        address: cleanIp,
         comment: finalComment
       });
-      console.log(`✅ Mikrotik: IP ${ipAddress} agregada a la lista '${listName}' exitosamente con comentario '${finalComment}'.`);
+      console.log(`✅ Mikrotik: IP ${cleanIp} agregada a la lista '${listName}' exitosamente con comentario '${finalComment}'.`);
     } else {
-      console.log(`ℹ️ Mikrotik: La IP ${ipAddress} ya se encontraba en la lista '${listName}'.`);
+      console.log(`ℹ️ Mikrotik: La IP ${cleanIp} ya se encontraba en la lista '${listName}'.`);
     }
   } catch (err) {
     const msg = err.message || JSON.stringify(err);
@@ -110,22 +115,27 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
     client = conn.client;
     const api = conn.api.menu('/ip/firewall/address-list');
 
-    // Consultar por address únicamente y filtrar en JS para blindaje absoluto contra borrar IPs de otros clientes
-    const records = await api.where('address', ipAddress).get();
-    const targetRecords = (Array.isArray(records) ? records : []).filter(r => 
-      r && r.address === ipAddress && (r.list === listName || r.list === 'Morosos' || r.list === 'corte' || r.list === 'cortados')
-    );
+    const cleanIp = (ipAddress || '').split('/')[0].trim();
+    const records = await api.get();
+    const targetRecords = (Array.isArray(records) ? records : []).filter(r => {
+      if (!r || !r.address) return false;
+      const rIp = r.address.split('/')[0].trim();
+      if (rIp !== cleanIp) return false;
+      const rList = (r.list || '').toLowerCase();
+      const tList = (listName || '').toLowerCase();
+      return rList === tList || rList === 'morosos' || rList === 'corte' || rList === 'cortados' || rList === 'moroso';
+    });
     
     if (targetRecords.length > 0) {
       // Eliminar por su .id verificando estrictamente que sea la IP solicitada
       for (const record of targetRecords) {
-        if (record['.id'] && record.address === ipAddress) {
+        if (record['.id']) {
           await api.remove(record['.id']);
         }
       }
-      console.log(`✅ Mikrotik: IP ${ipAddress} eliminada de la lista '${listName}' exitosamente. Servicio restaurado.`);
+      console.log(`✅ Mikrotik: IP ${cleanIp} eliminada de la lista '${listName}' exitosamente. Servicio restaurado.`);
     } else {
-      console.log(`ℹ️ Mikrotik: La IP ${ipAddress} no estaba en la lista '${listName}', nada que remover.`);
+      console.log(`ℹ️ Mikrotik: La IP ${cleanIp} no estaba en la lista '${listName}', nada que remover.`);
     }
   } catch (err) {
     const msg = err.message || JSON.stringify(err);
