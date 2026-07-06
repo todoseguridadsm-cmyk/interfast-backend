@@ -534,6 +534,33 @@ app.get('/api/clients/:id/ping', async (req, res) => {
   }
 });
 
+app.get('/api/clients/:id/advanced-diagnosis', async (req, res) => {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: parseInt(req.params.id) }
+    });
+
+    if (!client) {
+      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    }
+
+    if (!client.ipNumber || !client.mainNode) {
+      return res.status(400).json({ success: false, error: 'El cliente no tiene IP o Nodo asignado para diagnóstico.' });
+    }
+
+    const diagResult = await mikrotik.advancedDiagnosis(client.ipNumber, client.mainNode);
+    diagResult.clientName = client.name;
+    diagResult.ipNumber = client.ipNumber;
+    diagResult.nodeName = client.mainNode;
+    diagResult.timestamp = new Date().toISOString();
+
+    res.json(diagResult);
+  } catch (error) {
+    console.error('Error in /advanced-diagnosis endpoint:', error);
+    res.status(500).json({ success: false, error: 'Error interno en diagnóstico avanzado' });
+  }
+});
+
 app.get('/api/mikrotik/test/:nodeName', async (req, res) => {
   try {
     const conn = await mikrotik.connectToMikrotik(req.params.nodeName);

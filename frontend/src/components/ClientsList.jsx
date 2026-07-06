@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2 } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -20,6 +20,8 @@ export default function ClientsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [pingingId, setPingingId] = useState(null);
+  const [diagnosingId, setDiagnosingId] = useState(null);
+  const [diagModalData, setDiagModalData] = useState(null);
 
   const handlePing = async (client) => {
     if (!client.ipNumber || !client.mainNode) {
@@ -43,6 +45,27 @@ export default function ClientsList() {
       alert('Error de conexión al intentar hacer ping.');
     } finally {
       setPingingId(null);
+    }
+  };
+
+  const handleAdvancedDiag = async (client) => {
+    if (!client.ipNumber || !client.mainNode) {
+      alert('El cliente no tiene IP o Nodo configurado para el diagnóstico.');
+      return;
+    }
+    setDiagnosingId(client.id);
+    try {
+      const { data } = await axios.get(`https://interfast-backend-95ww.onrender.com/api/clients/${client.id}/advanced-diagnosis`);
+      if (data.success) {
+        setDiagModalData(data);
+      } else {
+        alert('Error en diagnóstico: ' + (data.error || 'Desconocido'));
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error al conectar con el servidor para diagnóstico avanzado.');
+    } finally {
+      setDiagnosingId(null);
     }
   };
 
@@ -417,8 +440,13 @@ export default function ClientsList() {
                       </button>
                     )}
                     {isAdmin && (
-                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
+                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
                         {pingingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Activity size={18} />}
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
+                        {diagnosingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Stethoscope size={18} />}
                       </button>
                     )}
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
@@ -607,6 +635,146 @@ export default function ClientsList() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Diagnóstico Avanzado */}
+      {diagModalData && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className={`flex justify-between items-center p-5 border-b ${
+              diagModalData.overallStatus === 'OPTIMO' ? 'bg-emerald-50 border-emerald-100 text-emerald-900' :
+              diagModalData.overallStatus === 'OBSERVADO' ? 'bg-amber-50 border-amber-100 text-amber-900' :
+              'bg-red-50 border-red-100 text-red-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                {diagModalData.overallStatus === 'OPTIMO' && <CheckCircle2 size={28} className="text-emerald-600" />}
+                {diagModalData.overallStatus === 'OBSERVADO' && <AlertTriangle size={28} className="text-amber-600" />}
+                {diagModalData.overallStatus === 'CRITICO' && <XCircle size={28} className="text-red-600" />}
+                <div>
+                  <h3 className="text-xl font-bold">Diagnóstico Avanzado de Telemetría</h3>
+                  <p className="text-sm opacity-80">{diagModalData.clientName} ({diagModalData.ipNumber}) - Nodo {diagModalData.nodeName}</p>
+                </div>
+              </div>
+              <button onClick={() => setDiagModalData(null)} className="p-1 rounded-full hover:bg-black/5 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Body - Tarjetas Semáforo */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Tarjeta 1: Conexión e Internet (Ping 5 paquetes) */}
+              <div className={`p-4 rounded-xl border ${
+                diagModalData.pingStats.status === 'OPTIMO' ? 'bg-emerald-50/50 border-emerald-200' :
+                diagModalData.pingStats.status === 'OBSERVADO' ? 'bg-amber-50/50 border-amber-200' :
+                'bg-red-50/50 border-red-200'
+              }`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${
+                      diagModalData.pingStats.status === 'OPTIMO' ? 'bg-emerald-500' :
+                      diagModalData.pingStats.status === 'OBSERVADO' ? 'bg-amber-500' :
+                      'bg-red-500 animate-pulse'
+                    }`}></span>
+                    <h4 className="font-bold text-slate-800">Calidad de Conexión y Latencia</h4>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                    diagModalData.pingStats.status === 'OPTIMO' ? 'bg-emerald-100 text-emerald-800' :
+                    diagModalData.pingStats.status === 'OBSERVADO' ? 'bg-amber-100 text-amber-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>{diagModalData.pingStats.status}</span>
+                </div>
+                <p className="text-sm text-slate-600 mt-2 font-medium">{diagModalData.pingStats.message}</p>
+                <div className="flex gap-4 mt-3 text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700">
+                  <div><strong>Estado:</strong> {diagModalData.pingStats.isOnline ? 'Online 🟢' : 'Offline 🔴'}</div>
+                  <div><strong>Latencia (RTT):</strong> {diagModalData.pingStats.avgRtt}</div>
+                  <div><strong>Pérdida Paquetes:</strong> {diagModalData.pingStats.packetLoss}%</div>
+                </div>
+              </div>
+
+              {/* Tarjeta 2: Enlace Capa 2 / ARP / Puerto */}
+              <div className={`p-4 rounded-xl border ${
+                diagModalData.arpStats.layer2Status === 'OPTIMO' ? 'bg-emerald-50/50 border-emerald-200' :
+                'bg-red-50/50 border-red-200'
+              }`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${
+                      diagModalData.arpStats.layer2Status === 'OPTIMO' ? 'bg-emerald-500' :
+                      'bg-red-500 animate-pulse'
+                    }`}></span>
+                    <h4 className="font-bold text-slate-800">Enlace Físico y Capa 2 (ARP/MAC)</h4>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                    diagModalData.arpStats.layer2Status === 'OPTIMO' ? 'bg-emerald-100 text-emerald-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>{diagModalData.arpStats.layer2Status}</span>
+                </div>
+                <p className="text-sm text-slate-600 mt-2 font-medium">{diagModalData.arpStats.message}</p>
+                <div className="flex gap-4 mt-3 text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700">
+                  <div><strong>MAC Address:</strong> {diagModalData.arpStats.macAddress}</div>
+                  <div><strong>Interfaz Nodo:</strong> {diagModalData.arpStats.interface}</div>
+                  <div><strong>Estado ARP:</strong> {diagModalData.arpStats.status}</div>
+                </div>
+              </div>
+
+              {/* Tarjeta 3: DHCP & Conflictos */}
+              <div className={`p-4 rounded-xl border ${
+                diagModalData.dhcpStats.status === 'OPTIMO' ? 'bg-emerald-50/50 border-emerald-200' :
+                'bg-amber-50/50 border-amber-200'
+              }`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${
+                      diagModalData.dhcpStats.status === 'OPTIMO' ? 'bg-emerald-500' :
+                      'bg-amber-500'
+                    }`}></span>
+                    <h4 className="font-bold text-slate-800">Estado de Red y DHCP</h4>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                    diagModalData.dhcpStats.status === 'OPTIMO' ? 'bg-emerald-100 text-emerald-800' :
+                    'bg-amber-100 text-amber-800'
+                  }`}>{diagModalData.dhcpStats.status}</span>
+                </div>
+                <p className="text-sm text-slate-600 mt-2 font-medium">{diagModalData.dhcpStats.message}</p>
+              </div>
+
+              {/* Tarjeta 4: Señal Inalámbrica y Cable UTP */}
+              <div className="p-4 rounded-xl border bg-slate-50 border-slate-200">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2">
+                    <Info size={16} className="text-slate-500" />
+                    <h4 className="font-bold text-slate-700">Señal Inalámbrica (-dBm) y Cable UTP</h4>
+                  </div>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-200 text-slate-700">INFO</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  {diagModalData.wirelessStats.message} Para extraer telemetría de señal (-68 dBm) o tasa del cable ethernet domiciliario (10/100Mbps), el operador debe consultar directamente la antena CPE en la red local.
+                </p>
+              </div>
+
+              {/* Recomendación de Soporte */}
+              <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-950">
+                <h5 className="font-bold text-sm mb-1">💡 Recomendación para Soporte Técnico:</h5>
+                <p className="text-xs leading-relaxed">
+                  {diagModalData.overallStatus === 'OPTIMO' && "El enlace de telemetría desde el nodo principal hasta el equipo está en condiciones ideales. Si el cliente manifiesta lentitud o cortes, indicar reinicio eléctrico del router domiciliario (TP-Link/Mercusys) o verificar si hay interferencia wifi interna en su domicilio."}
+                  {diagModalData.overallStatus === 'OBSERVADO' && "La conexión muestra latencia elevated o posible duplicidad de MAC/IP. Sugerir al técnico revisar si hay micro-cortes, saturación en el nodo o routers mal configurados (Doble NAT) en la instalación."}
+                  {diagModalData.overallStatus === 'CRITICO' && "El equipo presenta pérdida de paquetes o se encuentra desconectado de la tabla ARP del nodo. Es prioritario enviar un técnico para verificar alimentación POE, conectores RJ45, cableado exterior o alineación física de la antena."}
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setDiagModalData(null)}
+                className="px-5 py-2 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors shadow-sm"
+              >
+                Cerrar Diagnóstico
+              </button>
+            </div>
           </div>
         </div>
       )}

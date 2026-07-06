@@ -264,10 +264,122 @@ async function getMikrotikActiveClients(nodeName) {
   }
 }
 
+async function advancedDiagnosis(ipAddress, nodeName) {
+  let client = null;
+  try {
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+
+    // 1. Ping avanzado (5 paquetes a la IP del cliente)
+    let pingStats = { isOnline: false, packetLoss: 100, avgRtt: 'N/A', status: 'CRITICO', message: 'Sin respuesta (Offline)' };
+    try {
+      const pingResults = await client.rosApi.write('/ping', [`=address=${ipAddress}`, '=count=5']);
+      if (pingResults && pingResults.length > 0) {
+        const lastResult = pingResults[pingResults.length - 1];
+        const loss = parseInt(lastResult['packet-loss'] || '100', 10);
+        const rtt = lastResult['avg-rtt'] || '0ms';
+        const online = loss < 100;
+        
+        let status = 'OPTIMO';
+        let msg = `Conexión estable. Latencia: ${rtt}, Pérdida: ${loss}%`;
+        if (loss > 0 && loss < 100) {
+          status = 'CRITICO';
+          msg = `¡Alerta! Pérdida de paquetes del ${loss}%. Posible interferencia o desalineación.`;
+        } else if (loss === 100) {
+          status = 'CRITICO';
+          msg = 'Equipo 100% Offline (Sin respuesta al ping).';
+        } else if (parseInt(rtt) > 80) {
+          status = 'OBSERVADO';
+          msg = `Latencia elevada (${rtt}). Posible saturación o enlace degradado.`;
+        }
+
+        pingStats = { isOnline: online, packetLoss: loss, avgRtt: rtt, status, message: msg };
+      }
+    } catch (e) {
+      console.error('Error en ping avanzado:', e.message);
+    }
+
+    // 2. Estado en Tabla ARP (Capa 2 / Enlace físico con el Nodo)
+    let arpStats = { found: false, macAddress: 'N/A', interface: 'N/A', status: 'CRITICO', layer2Status: 'CRITICO', message: 'No figura en tabla ARP del nodo (Desconectado)' };
+    try {
+      const arpResults = await client.rosApi.write('/ip/arp/print', [`?address=${ipAddress}`]);
+      if (arpResults && arpResults.length > 0) {
+        const arp = arpResults[0];
+        const st = arp.status || 'unknown';
+        const mac = arp['mac-address'] || 'Desconocida';
+        const iface = arp.interface || 'Desconocida';
+        
+        let l2Status = (st === 'reachable' || st === 'delay' || st === 'stale' || st === 'permanent') ? 'OPTIMO' : 'CRITICO';
+        let msg = st === 'reachable' || st === 'delay' ? `Enlace Capa 2 activo por puerto "${iface}".` : `Estado ARP: ${st} en puerto "${iface}".`;
+        
+        arpStats = {
+          found: true,
+          macAddress: mac,
+          interface: iface,
+          status: st,
+          layer2Status: l2Status,
+          message: msg
+        };
+      }
+    } catch (e) {
+      console.error('Error en consulta ARP:', e.message);
+    }
+
+    // 3. DHCP & Conflictos MAC
+    let dhcpStats = { hasLease: false, status: 'OPTIMO', message: 'Configuración de IP normal en el nodo.' };
+    try {
+      if (arpStats.found && arpStats.macAddress !== 'N/A' && arpStats.macAddress !== 'Desconocida') {
+        const arpsWithMac = await client.rosApi.write('/ip/arp/print', [`?mac-address=${arpStats.macAddress}`]);
+        if (arpsWithMac && arpsWithMac.length > 1) {
+          dhcpStats = {
+            hasLease: true,
+            status: 'OBSERVADO',
+            message: `¡Atención! La MAC ${arpStats.macAddress} tiene ${arpsWithMac.length} IPs asociadas en el nodo. Revisar posible conflicto o Doble NAT.`
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Error en consulta DHCP/MAC:', e.message);
+    }
+
+    // Evaluación global
+    let overallStatus = 'OPTIMO';
+    if (pingStats.status === 'CRITICO' || arpStats.layer2Status === 'CRITICO') {
+      overallStatus = 'CRITICO';
+    } else if (pingStats.status === 'OBSERVADO' || dhcpStats.status === 'OBSERVADO') {
+      overallStatus = 'OBSERVADO';
+    }
+
+    return {
+      success: true,
+      pingStats,
+      arpStats,
+      dhcpStats,
+      wirelessStats: {
+        available: false,
+        status: 'INFO',
+        message: 'Telemetría de señal inalámbrica y cable UTP domiciliario requiere acceso directo a IP LAN privada.'
+      },
+      overallStatus
+    };
+  } catch (err) {
+    console.error(`Error general en diagnóstico avanzado para ${ipAddress}:`, err.message);
+    return {
+      success: false,
+      error: err.message || 'Error al conectar con el router MikroTik'
+    };
+  } finally {
+    if (client) {
+      client.close();
+    }
+  }
+}
+
 module.exports = {
   addIpToCutoffList,
   removeIpFromCutoffList,
   pingIp,
+  advancedDiagnosis,
   connectToMikrotik,
   getMikrotikActiveClients
 };
