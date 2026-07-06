@@ -8,7 +8,8 @@ export default function PlansList() {
     name: '', megas: '', 
     priceV1: '', dueDate1: 10,
     priceV2: '', dueDate2: 15,
-    priceV3: '', dueDate3: 20
+    priceV3: '', dueDate3: 20,
+    priceV4: '', dueDate4: 22
   });
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -44,7 +45,8 @@ export default function PlansList() {
       megas: plan.megas || '', 
       priceV1: plan.priceV1 ?? plan.totalPrice ?? '', dueDate1: plan.dueDate1 || 10,
       priceV2: plan.priceV2 ?? plan.totalPrice ?? '', dueDate2: plan.dueDate2 || 15,
-      priceV3: plan.priceV3 ?? plan.totalPrice ?? '', dueDate3: plan.dueDate3 || 20
+      priceV3: plan.priceV3 ?? plan.totalPrice ?? '', dueDate3: plan.dueDate3 || 20,
+      priceV4: plan.priceV4 ?? plan.totalPrice ?? '', dueDate4: plan.dueDate4 || 22
     });
   };
 
@@ -54,7 +56,8 @@ export default function PlansList() {
       name: '', megas: '', 
       priceV1: '', dueDate1: 10,
       priceV2: '', dueDate2: 15,
-      priceV3: '', dueDate3: 20
+      priceV3: '', dueDate3: 20,
+      priceV4: '', dueDate4: 22
     });
   };
 
@@ -70,7 +73,9 @@ export default function PlansList() {
         priceV2: parseFloat(formData.priceV2) || 0,
         dueDate2: parseInt(formData.dueDate2) || 15,
         priceV3: parseFloat(formData.priceV3) || 0,
-        dueDate3: parseInt(formData.dueDate3) || 20
+        dueDate3: parseInt(formData.dueDate3) || 20,
+        priceV4: parseFloat(formData.priceV4) || 0,
+        dueDate4: parseInt(formData.dueDate4) || 22
       };
       
       if (editingId) {
@@ -79,7 +84,7 @@ export default function PlansList() {
         await axios.post('https://interfast-backend-95ww.onrender.com/api/plans', payload);
       }
       
-      setFormData({ name: '', megas: '', priceV1: '', dueDate1: 10, priceV2: '', dueDate2: 15, priceV3: '', dueDate3: 20 });
+      setFormData({ name: '', megas: '', priceV1: '', dueDate1: 10, priceV2: '', dueDate2: 15, priceV3: '', dueDate3: 20, priceV4: '', dueDate4: 22 });
       setEditingId(null);
       fetchPlans();
     } catch (error) {
@@ -154,7 +159,7 @@ export default function PlansList() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div className="grid grid-cols-2 gap-3 mb-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimiento 3 (Día)</label>
                   <input type="number" min="1" max="31" required value={formData.dueDate3} onChange={e => setFormData({...formData, dueDate3: e.target.value})} className="w-full px-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" />
@@ -162,6 +167,17 @@ export default function PlansList() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Precio Total (Con IVA)</label>
                   <div className="relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm font-medium">$</span><input type="number" required step="0.01" value={formData.priceV3} onChange={e => setFormData({...formData, priceV3: e.target.value})} className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" placeholder="18000" /></div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vencimiento 4 (Día)</label>
+                  <input type="number" min="1" max="31" required value={formData.dueDate4} onChange={e => setFormData({...formData, dueDate4: e.target.value})} className="w-full px-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Precio Total (Con IVA)</label>
+                  <div className="relative"><span className="absolute left-2 top-1.5 text-slate-400 text-sm font-medium">$</span><input type="number" required step="0.01" value={formData.priceV4} onChange={e => setFormData({...formData, priceV4: e.target.value})} className="w-full pl-6 pr-2 py-1.5 text-sm bg-white border border-slate-200 rounded focus:border-blue-500" placeholder="19500" /></div>
                 </div>
               </div>
             </div>
@@ -192,13 +208,14 @@ export default function PlansList() {
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 1</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 2</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 3</th>
+                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right text-slate-500">Vencimiento 4</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {plans.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
                       <Server className="mx-auto mb-3 opacity-20" size={48} />
                       No hay planes registrados todavía.
                     </td>
@@ -221,6 +238,10 @@ export default function PlansList() {
                       <td className="px-6 py-4 text-right text-slate-700 font-medium whitespace-nowrap">
                         <span className="text-xs text-slate-400 mr-2">Día {plan.dueDate3 || 20}:</span>
                         ${(plan.priceV3 || plan.totalPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      </td>
+                      <td className="px-6 py-4 text-right text-slate-700 font-medium whitespace-nowrap">
+                        <span className="text-xs text-slate-400 mr-2">Día {plan.dueDate4 || 22}:</span>
+                        ${(plan.priceV4 || plan.totalPrice || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button onClick={() => handleEdit(plan)} className="text-blue-500 hover:text-blue-700 transition-colors p-2 rounded-lg hover:bg-blue-50 mr-2" title="Editar plan">

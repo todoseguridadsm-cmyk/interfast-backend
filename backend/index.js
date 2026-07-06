@@ -705,7 +705,7 @@ app.get('/api/plans', async (req, res) => {
 
 app.post('/api/plans', async (req, res) => {
   try {
-    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3 } = req.body;
+    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3, priceV4, dueDate4 } = req.body;
     // Retro-compatibility (store priceV1 as base/total)
     const basePrice = parseFloat(priceV1 || 0) / 1.21;
     const ivaAmount = basePrice * 0.21;
@@ -723,7 +723,9 @@ app.post('/api/plans', async (req, res) => {
         priceV2: parseFloat(priceV2 || 0),
         dueDate2: parseInt(dueDate2 || 15),
         priceV3: parseFloat(priceV3 || 0),
-        dueDate3: parseInt(dueDate3 || 20)
+        dueDate3: parseInt(dueDate3 || 20),
+        priceV4: parseFloat(priceV4 || 0),
+        dueDate4: parseInt(dueDate4 || 22)
       }
     });
     res.json(plan);
@@ -748,7 +750,7 @@ app.delete('/api/plans/:id', async (req, res) => {
 
 app.put('/api/plans/:id', async (req, res) => {
   try {
-    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3 } = req.body;
+    const { name, megas, priceV1, dueDate1, priceV2, dueDate2, priceV3, dueDate3, priceV4, dueDate4 } = req.body;
     const basePrice = parseFloat(priceV1 || 0) / 1.21;
     const ivaAmount = basePrice * 0.21;
     const totalPrice = parseFloat(priceV1 || 0);
@@ -766,7 +768,9 @@ app.put('/api/plans/:id', async (req, res) => {
         priceV2: parseFloat(priceV2 || 0),
         dueDate2: parseInt(dueDate2 || 15),
         priceV3: parseFloat(priceV3 || 0),
-        dueDate3: parseInt(dueDate3 || 20)
+        dueDate3: parseInt(dueDate3 || 20),
+        priceV4: parseFloat(priceV4 || 0),
+        dueDate4: parseInt(dueDate4 || 22)
       }
     });
     res.json(plan);
@@ -800,9 +804,16 @@ app.get('/api/invoices', async (req, res) => {
       if (inv.status === 'PENDING') {
         const d1 = new Date(inv.dueDate1 || inv.dueDate);
         const d2 = new Date(inv.dueDate2 || inv.dueDate);
+        const d3 = new Date(inv.dueDate3 || inv.dueDate);
 
-        // Si hoy es mayor a Vencimiento 2, paga Precio 3.
-        if (today > d2 && inv.priceV3) {
+        // Si hoy es mayor a Vencimiento 3, paga Precio 4 (deuda fija).
+        if (today > d3 && inv.priceV4) {
+          isLate = true;
+          totalAmount = inv.priceV4;
+          calculatedLateFee = totalAmount - inv.originalAmount;
+        }
+        // Si no pasó el V3, pero sí pasó el V2, paga Precio 3.
+        else if (today > d2 && inv.priceV3) {
           isLate = true;
           totalAmount = inv.priceV3;
           calculatedLateFee = totalAmount - inv.originalAmount;
@@ -857,6 +868,7 @@ app.post('/api/invoices/generate', async (req, res) => {
         const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
         const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
         const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
+        const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
 
         await prisma.invoice.create({
           data: {
@@ -871,6 +883,8 @@ app.post('/api/invoices/generate', async (req, res) => {
             dueDate2: dueDate2Date,
             priceV3: client.plan.priceV3 || client.plan.totalPrice,
             dueDate3: dueDate3Date,
+            priceV4: client.plan.priceV4 || client.plan.totalPrice,
+            dueDate4: dueDate4Date,
             status: 'PENDING'
           }
         });
@@ -1188,8 +1202,12 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
         const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
         const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
 
-        if (today > d2 && inv.priceV3) {
+        if (today > d3 && inv.priceV4) {
+          totalAmountWithFee = inv.priceV4;
+          expirationDate = d4;
+        } else if (today > d2 && inv.priceV3) {
           totalAmountWithFee = inv.priceV3;
           expirationDate = d3;
         } else if (today > d1 && inv.priceV2) {
@@ -1279,8 +1297,12 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
         const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
         const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
         const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
 
-        if (today > d2 && inv.priceV3) {
+        if (today > d3 && inv.priceV4) {
+          totalAmountWithFee = inv.priceV4;
+          expirationDate = d4;
+        } else if (today > d2 && inv.priceV3) {
           totalAmountWithFee = inv.priceV3;
           expirationDate = d3;
         } else if (today > d1 && inv.priceV2) {
@@ -1721,10 +1743,12 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
       const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
       const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
       const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
 
       if (today <= d1) expirationDate = d1;
       else if (today <= d2) expirationDate = d2;
       else if (today <= d3) expirationDate = d3;
+      else if (today <= d4) expirationDate = d4;
       else expirationDate = null; // Sin vencimiento para clientes ultra atrasados
     }
 
@@ -1804,6 +1828,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
         const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
         const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
         const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+        const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
 
         if (today <= d1) {
           expirationDate = d1;
@@ -1814,9 +1839,12 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
         } else if (today <= d3) {
           expirationDate = d3;
           totalAmount = invoice.priceV3 || invoice.originalAmount;
+        } else if (today <= d4) {
+          expirationDate = d4;
+          totalAmount = invoice.priceV4 || invoice.originalAmount;
         } else {
           expirationDate = null;
-          totalAmount = invoice.priceV3 || invoice.originalAmount;
+          totalAmount = invoice.priceV4 || invoice.originalAmount;
         }
       }
 
@@ -2048,6 +2076,7 @@ app.get('/api/admin/fix-invoices', async (req, res) => {
         const dueDate1Date = new Date(inv.year, inv.month - 1, plan.dueDate1 || 10, 23, 59, 59, 999);
         const dueDate2Date = new Date(inv.year, inv.month - 1, plan.dueDate2 || 15, 23, 59, 59, 999);
         const dueDate3Date = new Date(inv.year, inv.month - 1, plan.dueDate3 || 20, 23, 59, 59, 999);
+        const dueDate4Date = new Date(inv.year, inv.month - 1, plan.dueDate4 || 22, 23, 59, 59, 999);
 
         await prisma.invoice.update({
           where: { id: inv.id },
@@ -2059,7 +2088,9 @@ app.get('/api/admin/fix-invoices', async (req, res) => {
             priceV2: plan.priceV2 || plan.totalPrice,
             dueDate2: dueDate2Date,
             priceV3: plan.priceV3 || plan.totalPrice,
-            dueDate3: dueDate3Date
+            dueDate3: dueDate3Date,
+            priceV4: plan.priceV4 || plan.totalPrice,
+            dueDate4: dueDate4Date
           }
         });
         count++;

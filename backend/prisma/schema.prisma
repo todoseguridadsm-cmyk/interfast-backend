@@ -54,9 +54,11 @@ model Plan {
   priceV1    Float    @default(0)
   priceV2    Float    @default(0)
   priceV3    Float    @default(0)
+  priceV4    Float    @default(0)
   dueDate1   Int      @default(10)
   dueDate2   Int      @default(15)
   dueDate3   Int      @default(20)
+  dueDate4   Int      @default(22)
   clients    Client[]
 }
 
@@ -73,9 +75,11 @@ model Invoice {
   priceV1        Float     @default(0)
   priceV2        Float     @default(0)
   priceV3        Float     @default(0)
+  priceV4        Float     @default(0)
   dueDate1       DateTime?
   dueDate2       DateTime?
   dueDate3       DateTime?
+  dueDate4       DateTime?
   afipCae        String?
   afipCbteNro    Int?
   afipCbteTip    Int?
