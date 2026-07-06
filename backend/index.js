@@ -2245,12 +2245,47 @@ app.get('/api/leads', async (req, res) => {
 app.post('/api/leads', async (req, res) => {
   try {
     const { phone, name, address, latitude, longitude, status, notes } = req.body;
+
+    if (phone) {
+      const cleanPhone = phone.toString().replace(/\D/g, '');
+      const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
+      
+      const existingLead = await prisma.lead.findFirst({
+        where: {
+          phone: { contains: shortPhone }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (existingLead) {
+        console.log(`[Lead Anti-Duplicado] Actualizando prospecto existente ID ${existingLead.id} para ${name || existingLead.name} (${phone})...`);
+        let updatedNotes = existingLead.notes;
+        if (notes && (!existingLead.notes || !existingLead.notes.includes(notes))) {
+          updatedNotes = existingLead.notes ? `${existingLead.notes}\n[Act. ${new Date().toLocaleDateString()}] ${notes}` : notes;
+        }
+
+        const updatedLead = await prisma.lead.update({
+          where: { id: existingLead.id },
+          data: {
+            name: name || existingLead.name,
+            address: address || existingLead.address,
+            latitude: latitude ? parseFloat(latitude) : existingLead.latitude,
+            longitude: longitude ? parseFloat(longitude) : existingLead.longitude,
+            status: status || existingLead.status,
+            notes: updatedNotes
+          }
+        });
+        return res.json(updatedLead);
+      }
+    }
+
     const lead = await prisma.lead.create({
       data: { phone, name, address, latitude: latitude ? parseFloat(latitude) : null, longitude: longitude ? parseFloat(longitude) : null, status: status || 'NEW', notes }
     });
     res.json(lead);
   } catch (error) {
-    res.status(500).json({ error: 'Error al crear prospecto' });
+    console.error('Error en POST /api/leads:', error);
+    res.status(500).json({ error: 'Error al crear o actualizar prospecto' });
   }
 });
 
