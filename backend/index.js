@@ -988,6 +988,42 @@ app.post('/api/invoices/generate', async (req, res) => {
   }
 });
 
+// Endpoint de Puesta a Cero para Migración Definitiva (Limpia caja, cobros y facturas pagadas/pasadas, conservando morosos)
+app.post('/api/admin/reset-migration', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Se requiere rol Administrador para este reseteo masivo.' });
+  try {
+    const cashDel = await prisma.cashMovement.deleteMany({});
+    const payDel = await prisma.payment.deleteMany({});
+
+    const nonPendingInvoices = await prisma.invoice.findMany({
+      where: { status: { not: 'PENDING' } },
+      select: { id: true }
+    });
+    const nonPendingIds = nonPendingInvoices.map(inv => inv.id);
+
+    await prisma.cutoffList.deleteMany({
+      where: {
+        OR: [
+          { invoiceId: { in: nonPendingIds } },
+          { status: 'RESOLVED' }
+        ]
+      }
+    });
+
+    const invDel = await prisma.invoice.deleteMany({
+      where: { status: { not: 'PENDING' } }
+    });
+
+    res.json({
+      success: true,
+      message: `✅ Puesta a Cero Completada: Se eliminaron ${cashDel.count} movimientos de caja, ${payDel.count} cobros históricos y ${invDel.count} facturas pagadas/pasadas. Solo se conservaron las facturas pendientes de cobro. ¡El sistema está en $0 listo para la facturación de julio!`
+    });
+  } catch (error) {
+    console.error('Error en reseteo para migración:', error);
+    res.status(500).json({ error: 'Error al ejecutar la puesta a cero.' });
+  }
+});
+
 // Endpoint para corte masivo de morosos (ejecución manual)
 app.post('/api/invoices/mass-cutoff', authenticateToken, async (req, res) => {
   if (req.user.role !== 'ADMIN') return res.sendStatus(403);

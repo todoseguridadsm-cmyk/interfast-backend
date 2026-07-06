@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark } from 'lucide-react';
+import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark, RotateCcw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -39,6 +39,20 @@ export default function InvoicesList() {
     } catch (error) {
       console.error(error);
       alert('Error al generar facturas');
+    }
+    setLoading(false);
+  };
+
+  const handleResetMigration = async () => {
+    if (!window.confirm('⚠️ ¡ATENCIÓN MIGRACIÓN DEFINITIVA!\n\n¿Estás seguro de ejecutar la PUESTA A CERO DEL SISTEMA?\n\n1. Se dejarán los reportes y movimientos de Caja en $0.\n2. Se borrará el historial de cobros antiguos.\n3. Se eliminarán todas las facturas viejas/pagadas para que las cuentas de los clientes al día queden en 0.\n4. ÚNICAMENTE se conservarán las deudas pendientes (morosos) para cobrarlas en el nuevo ciclo.\n\nTras esto, podrás usar el botón "Generar" para emitir limpiamente las facturas de julio.')) return;
+    setLoading(true);
+    try {
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/admin/reset-migration');
+      alert(res.data.message);
+      fetchInvoices();
+    } catch (error) {
+      console.error(error);
+      alert('Error: ' + (error.response?.data?.error || 'No se pudo ejecutar la puesta a cero'));
     }
     setLoading(false);
   };
@@ -542,6 +556,14 @@ export default function InvoicesList() {
           >
             <Play size={16} className={loading ? 'animate-spin' : ''} />
             {loading ? 'Procesando...' : 'Generar'}
+          </button>
+          <button 
+            onClick={handleResetMigration} disabled={loading}
+            className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm shadow-rose-200 transition-colors flex items-center gap-2 disabled:bg-rose-400"
+            title="Limpiar Caja a $0 y borrar facturas pasadas para empezar ciclo limpio"
+          >
+            <RotateCcw size={16} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Limpiando...' : 'Reset Migración ($0)'}
           </button>
         </div>
       </header>
