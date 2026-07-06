@@ -275,6 +275,79 @@ async function ensureCurrentMonthInvoice(clientId) {
   }
 }
 
+// Función helper para envío automático de factura pagada por WhatsApp (Sofi / N8N / Baileys / Evolution API)
+async function sendAutomaticPaidInvoiceNotification(invoiceId) {
+  try {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: parseInt(invoiceId) },
+      include: { client: true }
+    });
+    if (!invoice || !invoice.client || !invoice.client.phone) {
+      console.log(`⚠️ [Auto-Envío Sofi] Factura ${invoiceId} no tiene teléfono registrado para enviar WhatsApp.`);
+      return;
+    }
+
+    const phoneClean = invoice.client.phone.replace(/\D/g, '');
+    if (phoneClean.length < 8) return;
+    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+
+    const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
+    const caeText = invoice.afipCae ? `\n🏷️ *CAE ARCA:* ${invoice.afipCae}` : '';
+    const message = `¡Hola *${invoice.client.name}*! 👋🏻 Soy *Sofi*, el asistente virtual de *INTERFAST*.\n\n🎉 ¡Confirmamos que recibimos tu pago con éxito! Tu servicio está 100% activo y al día.\n\nTe envío el detalle oficial de tu comprobante fiscal:\n📄 *Factura N°:* ${invoice.id}\n📅 *Período:* ${invoice.month}/${invoice.year}\n💰 *Monto Pagado:* $${invoice.originalAmount}${caeText}\n\n📥 *Podés descargar tu comprobante y factura oficial en PDF aquí:*\n${pdfUrl}\n\n¡Muchas gracias por confiar en nosotros! Si necesitas algo más, aquí estoy para ayudarte. 😊`;
+
+    // 1. Enviar por WhatsApp Web interno (Baileys) si está conectado
+    if (waSocket && waStatus === 'CONNECTED') {
+      console.log(`📱 [Auto-Envío Sofi] Enviando factura pagada N°${invoice.id} a ${phoneClean} por Baileys interno...`);
+      await waSocket.sendMessage(targetPhone, { text: message });
+    }
+
+    // 2. Disparar Webhook de N8N (si está configurada la variable N8N_INVOICE_WEBHOOK_URL)
+    if (process.env.N8N_INVOICE_WEBHOOK_URL) {
+      console.log(`🤖 [Auto-Envío Sofi] Disparando webhook a N8N (${process.env.N8N_INVOICE_WEBHOOK_URL})...`);
+      fetch(process.env.N8N_INVOICE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'INVOICE_PAID',
+          clientId: invoice.clientId,
+          clientName: invoice.client.name,
+          phone: phoneClean,
+          targetPhone,
+          invoiceId: invoice.id,
+          month: invoice.month,
+          year: invoice.year,
+          amount: invoice.originalAmount,
+          cae: invoice.afipCae,
+          pdfUrl,
+          message
+        })
+      }).catch(err => console.error('Error enviando a N8N webhook:', err.message));
+    }
+
+    // 3. Enviar por Evolution API si está configurado en variables de entorno
+    if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+      const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
+      console.log(`🟢 [Auto-Envío Sofi] Enviando por Evolution API a ${phoneClean}...`);
+      fetch(evoUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.EVOLUTION_API_KEY
+        },
+        body: JSON.stringify({
+          number: phoneClean,
+          options: { delay: 1200, presence: 'composing' },
+          textMessage: { text: message }
+        })
+      }).catch(err => console.error('Error enviando por Evolution API:', err.message));
+    }
+
+    console.log(`✅ [Auto-Envío Sofi] Notificación automática de pago y factura N°${invoice.id} despachada con éxito.`);
+  } catch (err) {
+    console.error(`❌ [Auto-Envío Sofi] Error en envío automático para factura ID ${invoiceId}:`, err.message || err);
+  }
+}
+
 // Proceso de corte automático programado para el día 22
 cron.schedule('0 8 22 * *', () => {
   generateCutoffList(true);
@@ -1077,7 +1150,8 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
   if (!afip) return res.status(400).json({ error: 'Módulo ARCA/AFIP no está configurado (faltan los archivos cert/key en tu carpeta afip_certs).' });
   const result = await emitAfipInvoiceHelper(req.params.id, afip);
   if (!result.success) return res.status(400).json({ error: result.error });
-  res.json({ message: result.alreadyEmitted ? 'La factura ya contaba con CAE en ARCA.' : 'Comprobante emitido en ARCA con éxito.', cae: result.cae });
+  sendAutomaticPaidInvoiceNotification(req.params.id);
+  res.json({ message: result.alreadyEmitted ? 'La factura ya contaba con CAE en ARCA.' : 'Comprobante emitido en ARCA con éxito y enviado por WhatsApp.', cae: result.cae });
 });
 
 app.post('/api/invoices/mass-afip', async (req, res) => {
@@ -1672,7 +1746,14 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         await ensureCurrentMonthInvoice(invoiceData.clientId);
       }
       if (afip && typeof emitAfipInvoiceHelper === 'function') {
-        emitAfipInvoiceHelper(invoiceId, afip).catch(e => console.error('[Auto-ARCA Caja] Error:', e.message));
+        emitAfipInvoiceHelper(invoiceId, afip)
+          .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
+          .catch(e => {
+            console.error('[Auto-ARCA Caja] Error:', e.message);
+            sendAutomaticPaidInvoiceNotification(invoiceId);
+          });
+      } else {
+        sendAutomaticPaidInvoiceNotification(invoiceId);
       }
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
         try {
@@ -1962,7 +2043,14 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               await ensureCurrentMonthInvoice(invoiceData.clientId);
             }
             if (afip && typeof emitAfipInvoiceHelper === 'function') {
-              emitAfipInvoiceHelper(invoiceId, afip).catch(e => console.error('[Auto-ARCA Webhook MP] Error:', e.message));
+              emitAfipInvoiceHelper(invoiceId, afip)
+                .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
+                .catch(e => {
+                  console.error('[Auto-ARCA Webhook MP] Error:', e.message);
+                  sendAutomaticPaidInvoiceNotification(invoiceId);
+                });
+            } else {
+              sendAutomaticPaidInvoiceNotification(invoiceId);
             }
             if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
               try {
