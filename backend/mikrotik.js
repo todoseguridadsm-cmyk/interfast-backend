@@ -127,10 +127,11 @@ async function removeIpFromCutoffList(ipAddress, nodeName, listName = 'Morosos')
     });
     
     if (targetRecords.length > 0) {
-      // Eliminar por su .id verificando estrictamente que sea la IP solicitada
+      // Eliminar por su id verificando estrictamente que sea la IP solicitada
       for (const record of targetRecords) {
-        if (record['.id']) {
-          await api.remove(record['.id']);
+        const recordId = record.id || record['.id'];
+        if (recordId) {
+          await api.remove(recordId);
         }
       }
       console.log(`✅ Mikrotik: IP ${cleanIp} eliminada de la lista '${listName}' exitosamente. Servicio restaurado.`);
