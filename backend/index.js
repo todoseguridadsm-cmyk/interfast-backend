@@ -402,7 +402,16 @@ app.post('/api/cutoffs/execute', async (req, res) => {
 // 0.2 Cortes de Servicio (Cutoff List)
 app.get('/api/cutoffs', async (req, res) => {
   try {
+    try {
+      await prisma.cutoffList.deleteMany({
+        where: { status: 'RESOLVED' }
+      });
+    } catch (cleanErr) {
+      console.error('Error limpiando cortes resueltos:', cleanErr);
+    }
+
     const cutoffs = await prisma.cutoffList.findMany({
+      where: { status: 'PENDING' },
       include: {
         client: { include: { plan: true } }
       },
@@ -1492,9 +1501,8 @@ app.post('/api/cutoffs/restore', async (req, res) => {
             where: { clientId: cutoff.clientId, status: 'PENDING' },
             data: { status: 'PAID' }
           });
-          await prisma.cutoffList.update({
-            where: { id: cutoff.id },
-            data: { status: 'RESOLVED' }
+          await prisma.cutoffList.delete({
+            where: { id: cutoff.id }
           });
           if (cutoff.client.ipNumber && cutoff.client.mainNode) {
             await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
@@ -1727,9 +1735,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     });
 
     if (finalStatus === 'PAID') {
-      await prisma.cutoffList.updateMany({
-        where: { invoiceId, status: 'PENDING' },
-        data: { status: 'RESOLVED' }
+      await prisma.cutoffList.deleteMany({
+        where: { invoiceId }
       });
       
       const invoiceData = await prisma.invoice.findUnique({
@@ -2024,9 +2031,8 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               }
             });
 
-            await prisma.cutoffList.updateMany({
-              where: { invoiceId: invoiceId, status: 'PENDING' },
-              data: { status: 'RESOLVED' }
+            await prisma.cutoffList.deleteMany({
+              where: { invoiceId: invoiceId }
             });
             
             const invoiceData = await prisma.invoice.findUnique({
