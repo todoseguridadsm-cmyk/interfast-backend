@@ -214,6 +214,66 @@ async function generateCutoffList(autoCutoff = false) {
   }
 }
 
+// Función helper para garantizar que un cliente reconectado/pagado tenga factura generada para el mes actual
+async function ensureCurrentMonthInvoice(clientId) {
+  try {
+    const now = new Date();
+    let currentMonth = now.getMonth() + 1;
+    let currentYear = now.getFullYear();
+
+    if (now.getDate() >= 25) {
+      currentMonth++;
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+    }
+
+    const existing = await prisma.invoice.findFirst({
+      where: { clientId: parseInt(clientId), month: currentMonth, year: currentYear }
+    });
+
+    if (existing) return existing;
+
+    const client = await prisma.client.findUnique({
+      where: { id: parseInt(clientId) },
+      include: { plan: true }
+    });
+
+    if (!client || !client.plan) return null;
+
+    const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
+    const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
+    const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
+    const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
+
+    const newInvoice = await prisma.invoice.create({
+      data: {
+        clientId: client.id,
+        month: currentMonth,
+        year: currentYear,
+        originalAmount: client.plan.priceV1 || client.plan.totalPrice,
+        dueDate: dueDate1Date,
+        priceV1: client.plan.priceV1 || client.plan.totalPrice,
+        dueDate1: dueDate1Date,
+        priceV2: client.plan.priceV2 || client.plan.totalPrice,
+        dueDate2: dueDate2Date,
+        priceV3: client.plan.priceV3 || client.plan.totalPrice,
+        dueDate3: dueDate3Date,
+        priceV4: client.plan.priceV4 || client.plan.totalPrice,
+        dueDate4: dueDate4Date,
+        status: 'PENDING'
+      }
+    });
+
+    console.log(`✅ [Reactivación] Factura automática N°${newInvoice.id} generada para ${client.name} (Mes ${currentMonth}/${currentYear}).`);
+    return newInvoice;
+  } catch (err) {
+    console.error(`⚠️ Error al auto-generar factura para cliente ID ${clientId}:`, err.message);
+    return null;
+  }
+}
+
 // Proceso de corte automático programado para el día 22
 cron.schedule('0 8 22 * *', () => {
   generateCutoffList(true);
@@ -296,6 +356,7 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
           where: { id: cutoff.clientId },
           data: { status: 'ACTIVE' }
         });
+        await ensureCurrentMonthInvoice(cutoff.clientId);
         await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
         const msg = err.message || JSON.stringify(err);
@@ -502,6 +563,7 @@ app.put('/api/clients/:id/status', async (req, res) => {
         try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name || 'Cliente'} (ID: ${client.id}) - Corte CRM`); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
       } else if (status === 'ACTIVE') {
         try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message || JSON.stringify(e)); }
+        await ensureCurrentMonthInvoice(client.id);
       }
     }
     
@@ -1475,6 +1537,7 @@ app.post('/api/cutoffs/restore', async (req, res) => {
             where: { id: cutoff.clientId },
             data: { status: 'ACTIVE' }
           });
+          await ensureCurrentMonthInvoice(cutoff.clientId);
           await prisma.invoice.updateMany({
             where: { clientId: cutoff.clientId, status: 'PENDING' },
             data: { status: 'PAID' }
@@ -1730,6 +1793,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
           where: { id: invoiceData.clientId },
           data: { status: 'ACTIVE' }
         });
+        await ensureCurrentMonthInvoice(invoiceData.clientId);
       }
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
         try {
@@ -2016,6 +2080,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 where: { id: invoiceData.clientId },
                 data: { status: 'ACTIVE' }
               });
+              await ensureCurrentMonthInvoice(invoiceData.clientId);
             }
             if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
               try {
