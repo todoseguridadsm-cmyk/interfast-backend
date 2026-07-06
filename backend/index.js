@@ -803,14 +803,37 @@ app.post('/api/bajas', async (req, res) => {
   try {
     const { clientId, reason } = req.body;
     if (!clientId) return res.status(400).json({ error: 'Falta clientId' });
+    const cId = parseInt(clientId);
+    
+    const existing = await prisma.cancellationRequest.findFirst({
+      where: {
+        clientId: cId,
+        status: 'PENDING'
+      }
+    });
+
+    if (existing) {
+      const updated = await prisma.cancellationRequest.update({
+        where: { id: existing.id },
+        data: {
+          reason: reason && (!existing.reason || !existing.reason.includes(reason)) 
+            ? `${existing.reason} | ${reason}` 
+            : existing.reason,
+          requestedAt: new Date()
+        }
+      });
+      return res.json(updated);
+    }
+
     const baja = await prisma.cancellationRequest.create({
       data: {
-        clientId: parseInt(clientId),
+        clientId: cId,
         reason
       }
     });
     res.json(baja);
   } catch (error) {
+    console.error('Error al registrar baja:', error);
     res.status(500).json({ error: 'Error al registrar la solicitud de baja' });
   }
 });
