@@ -292,8 +292,12 @@ async function sendAutomaticPaidInvoiceNotification(invoiceId) {
     const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
 
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
+    const cbteTipoStr = invoice.afipCbteTip === 1 ? 'Factura A' : 'Factura B';
+    const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
+    const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
+    const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
     const caeText = invoice.afipCae ? `\n🏷️ *CAE ARCA:* ${invoice.afipCae}` : '';
-    const message = `¡Hola *${invoice.client.name}*! 👋🏻 Soy *Sofi*, el asistente virtual de *INTERFAST*.\n\n🎉 ¡Confirmamos que recibimos tu pago con éxito! Tu servicio está 100% activo y al día.\n\nTe envío el detalle oficial de tu comprobante fiscal:\n📄 *Factura N°:* ${invoice.id}\n📅 *Período:* ${invoice.month}/${invoice.year}\n💰 *Monto Pagado:* $${invoice.originalAmount}${caeText}\n\n📥 *Podés descargar tu comprobante y factura oficial en PDF aquí:*\n${pdfUrl}\n\n¡Muchas gracias por confiar en nosotros! Si necesitas algo más, aquí estoy para ayudarte. 😊`;
+    const message = `¡Hola *${invoice.client.name}*! 👋🏻 Soy *Sofi*, el asistente virtual de *INTERFAST*.\n\n🎉 ¡Confirmamos que recibimos tu pago con éxito! Tu servicio está 100% activo y al día.\n\nTe envío el detalle oficial de tu comprobante fiscal:\n📄 *Comprobante:* ${facturaNumText}\n📅 *Período:* ${invoice.month}/${invoice.year}\n💰 *Monto Pagado:* $${invoice.originalAmount}${caeText}\n\n📥 *Podés descargar tu comprobante y factura oficial en PDF aquí:*\n${pdfUrl}\n\n¡Muchas gracias por confiar en nosotros! Si necesitas algo más, aquí estoy para ayudarte. 😊`;
 
     // 1. Enviar por WhatsApp Web interno (Baileys) si está conectado
     if (waSocket && waStatus === 'CONNECTED') {

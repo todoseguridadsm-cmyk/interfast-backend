@@ -237,7 +237,11 @@ export default function InvoicesList() {
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42); // slate-900
     doc.setFont("helvetica", "bold");
-    doc.text("COMPROBANTE DE PAGO ELECTRÓNICO", 14, 52);
+    const cbteTipoStr = inv.afipCbteTip === 1 ? 'FACTURA A' : 'FACTURA B';
+    const ptoVtaStr = String(inv.afipPuntoVenta || 2).padStart(5, '0');
+    const cbteNroStr = String(inv.afipCbteNro || inv.id).padStart(8, '0');
+    const titleText = inv.afipCae ? `${cbteTipoStr} - COMPROBANTE OFICIAL ARCA` : "COMPROBANTE DE PAGO ELECTRÓNICO";
+    doc.text(titleText, 14, 52);
     
     // Datos del Cliente
     doc.setFontSize(10);
@@ -252,11 +256,20 @@ export default function InvoicesList() {
     doc.text(`Dirección: ${inv.client?.address || '---'}`, 14, 86);
 
     // Datos de la Factura
-    doc.text(`Factura N°: F-${inv.year}-${String(inv.month).padStart(2, '0')}-${inv.id}`, 110, 68);
-    doc.text(`Período de Servicio: ${String(inv.month).padStart(2, '0')}/${inv.year}`, 110, 74);
-    const paidDate = inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
-    doc.text(`Fecha de Pago: ${paidDate}`, 110, 80);
-    doc.text(`Estado: ${inv.status === 'PAID' ? 'CANCELADA (PAGO TOTAL)' : 'PAGO PARCIAL A CUENTA'}`, 110, 86);
+    const facturaNroText = inv.afipCae ? `${ptoVtaStr}-${cbteNroStr}` : `F-${inv.year}-${String(inv.month).padStart(2, '0')}-${inv.id}`;
+    doc.text(`Factura N°: ${facturaNroText}`, 110, 68);
+    if (inv.afipCae) {
+      doc.text(`Tipo / Ref: ${cbteTipoStr} (Int: F-${inv.id})`, 110, 74);
+      doc.text(`Período: ${String(inv.month).padStart(2, '0')}/${inv.year}`, 110, 80);
+      const paidDate = inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+      doc.text(`Fecha de Pago: ${paidDate}`, 110, 86);
+      doc.text(`CAE ARCA: ${inv.afipCae}`, 110, 92);
+    } else {
+      doc.text(`Período de Servicio: ${String(inv.month).padStart(2, '0')}/${inv.year}`, 110, 74);
+      const paidDate = inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+      doc.text(`Fecha de Pago: ${paidDate}`, 110, 80);
+      doc.text(`Estado: ${inv.status === 'PAID' ? 'CANCELADA (PAGO TOTAL)' : 'PAGO PARCIAL A CUENTA'}`, 110, 86);
+    }
 
     // Tabla de Conceptos
     const originalAmountRounded = inv.originalAmount ? inv.originalAmount.toFixed(2) : '0.00';
