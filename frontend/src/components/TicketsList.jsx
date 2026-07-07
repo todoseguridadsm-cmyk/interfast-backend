@@ -185,6 +185,10 @@ export default function TicketsList() {
                   <h4 className="font-bold text-slate-900 leading-tight">{t.title}</h4>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.priority==='HIGH'?'bg-red-100 text-red-600':'bg-slate-200 text-slate-600'}`}>{t.priority}</span>
                 </div>
+                <div className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 shadow-sm w-fit">
+                  <Clock size={13} className="text-indigo-500 flex-shrink-0" />
+                  <span>Generado: <strong className="text-slate-700">{new Date(t.createdAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })} hs</strong></span>
+                </div>
                 {t.scheduledAt && <div className="text-xs font-bold text-blue-600 mb-2 flex items-center gap-1"><CalendarClock size={14}/> Visita: {new Date(t.scheduledAt).toLocaleString()}</div>}
                 <p className="text-xs text-slate-600">{t.description}</p>
                 {renderClientData(t.client)}
@@ -214,6 +218,10 @@ export default function TicketsList() {
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold text-slate-900 leading-tight">{t.title}</h4>
                 </div>
+                <div className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 shadow-sm w-fit">
+                  <Clock size={13} className="text-indigo-500 flex-shrink-0" />
+                  <span>Generado: <strong className="text-slate-700">{new Date(t.createdAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })} hs</strong></span>
+                </div>
                 {t.scheduledAt && <div className="text-xs font-bold text-blue-600 mb-2 flex items-center gap-1"><CalendarClock size={14}/> Visita: {new Date(t.scheduledAt).toLocaleString()}</div>}
                 <p className="text-xs text-slate-600">{t.description}</p>
                 {renderClientData(t.client)}
@@ -239,8 +247,12 @@ export default function TicketsList() {
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-bold line-through leading-tight">{t.title}</h4>
                 </div>
+                <div className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 shadow-sm w-fit">
+                  <Clock size={13} className="text-indigo-500 flex-shrink-0" />
+                  <span>Generado: <strong className="text-slate-700">{new Date(t.createdAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })} hs</strong></span>
+                </div>
                 <div className="text-xs font-medium bg-emerald-50 text-emerald-700 p-2 rounded mb-2">
-                  (Cerrado el {new Date(t.updatedAt).toLocaleDateString()})
+                  (Cerrado el {new Date(t.updatedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })} hs)
                 </div>
                 <div className="flex gap-2 justify-center mb-2">
                   {t.routerProvided && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 font-bold rounded">Router ✔️</span>}
