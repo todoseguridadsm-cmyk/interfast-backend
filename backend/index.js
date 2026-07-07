@@ -601,6 +601,17 @@ app.delete('/api/clients/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
+    // 1. Eliminar dependencias indirectas y directas para permitir borrar clientes con deuda o solicitudes de baja
+    await prisma.cancellationRequest.deleteMany({ where: { clientId: id } });
+    await prisma.cutoffList.deleteMany({ where: { clientId: id } });
+
+    const tickets = await prisma.ticket.findMany({ where: { clientId: id } });
+    const ticketIds = tickets.map(t => t.id);
+    if (ticketIds.length > 0) {
+      await prisma.ticketHistory.deleteMany({ where: { ticketId: { in: ticketIds } } });
+      await prisma.ticket.deleteMany({ where: { clientId: id } });
+    }
+
     const invoices = await prisma.invoice.findMany({ where: { clientId: id } });
     const invoiceIds = invoices.map(i => i.id);
     if (invoiceIds.length > 0) {
