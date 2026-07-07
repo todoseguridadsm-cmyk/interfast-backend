@@ -200,7 +200,10 @@ export default function InvoicesList() {
       return;
     }
     const phone = inv.client.phone.replace(/\D/g, '');
-    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${inv.totalAmount.toFixed(2)}*.\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago. (Solicitame el enlace oficial si deseas abonar por allí).\n\n¡Gracias por tu pago!`);
+    const centavos = String(((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1).padStart(2, '0');
+    const totalEs = `${Math.floor(inv.totalAmount)},${centavos}`;
+    const dueDateStr = inv.dueDate1 ? new Date(inv.dueDate1).toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
+    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n¡Muchas gracias!`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
@@ -210,7 +213,10 @@ export default function InvoicesList() {
       return;
     }
     const phone = inv.client.phone.replace(/\D/g, '');
-    const message = encodeURIComponent(`Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet (Período: ${inv.month}/${inv.year}) por un saldo de *$${inv.totalAmount.toFixed(2)}*.\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\n¡Muchas gracias!`);
+    const centavos = String(((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1).padStart(2, '0');
+    const totalEs = `${Math.floor(inv.totalAmount)},${centavos}`;
+    const dueDateStr = inv.dueDate1 ? new Date(inv.dueDate1).toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
+    const message = encodeURIComponent(`Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n¡Muchas gracias!`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
