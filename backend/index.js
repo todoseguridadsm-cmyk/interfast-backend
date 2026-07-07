@@ -2510,7 +2510,7 @@ app.use('/api/bot', (req, res, next) => {
   console.log('[Bot N8N Monitor]', JSON.stringify(logEntry));
   next();
 });
-app.get('/api/admin/bot-logs', (req, res) => res.json(botRequestLogs));
+app.get('/api/bot/logs', (req, res) => res.json(botRequestLogs));
 
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
