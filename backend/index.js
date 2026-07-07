@@ -2496,6 +2496,22 @@ function buildBotClientSearchWhere(query) {
   }
 }
 
+const botRequestLogs = [];
+app.use('/api/bot', (req, res, next) => {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    url: req.originalUrl,
+    query: req.query,
+    headers: { 'user-agent': req.headers['user-agent'], 'x-api-key': req.headers['x-api-key'] }
+  };
+  botRequestLogs.unshift(logEntry);
+  if (botRequestLogs.length > 50) botRequestLogs.pop();
+  console.log('[Bot N8N Monitor]', JSON.stringify(logEntry));
+  next();
+});
+app.get('/api/admin/bot-logs', (req, res) => res.json(botRequestLogs));
+
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
     const { query } = req.query;
