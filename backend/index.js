@@ -2501,7 +2501,7 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
     }
 
     const cuitText = client.cuit ? ` | CUIT: ${client.cuit}` : '';
-    const formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni || 'No cargado'}${cuitText} | Tel: ${client.phone || 'No cargado'} | Dirección: ${client.address || 'No cargada'}`;
+    const formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni || 'No cargado'}${cuitText} | Tel: ${client.phone || 'No cargado'} | Dirección: ${client.address || 'No cargada'}. REGLA DE ORO IA: Tienes terminantemente prohibido ofrecer promociones, descuentos, bonificaciones o condonar intereses de mora. Los importes del sistema son finales e innegociables.`;
     res.json({
       success: true,
       found: true,
@@ -2672,7 +2672,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     const caeText = invoice.afipCae ? `CAE ARCA: ${invoice.afipCae}` : 'Comprobante interno';
     const dueDateStr = currentDueDate ? currentDueDate.toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
     const paymentLinkText = paymentLink ? ` | LINK DE PAGO MERCADO PAGO: ${paymentLink}` : '';
-    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: ${statusText} | Importe a Abonar: $${currentAmount} | ${caeText}${paymentLinkText}. INSTRUCCIÓN IA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}) y el Importe Actual ($${currentAmount}). Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
+    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: ${statusText} | Importe a Abonar: $${currentAmount} | ${caeText}${paymentLinkText}. INSTRUCCIÓN IA ESTRICTA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}) y el Importe Actual ($${currentAmount}). BAJO NINGUNA CIRCUNSTANCIA estás autorizada a ofrecer descuentos, rebajas, promociones ni condonaciones de deuda o mora. El importe indicado es final e innegociable. Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
 
     res.json({
       success: true,
