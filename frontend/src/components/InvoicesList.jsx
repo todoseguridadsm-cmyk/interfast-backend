@@ -398,33 +398,46 @@ export default function InvoicesList() {
     const isSearchingDate = (startDate !== '' && endDate !== '');
     const term = searchTerm.toLowerCase();
     const clientName = (inv.client?.name || '').toLowerCase();
+    const clientDni = (inv.client?.dni || '').toLowerCase();
+    
+    const isAnyFilterActive = isSearchingDate || term !== '' || statusFilter !== 'ALL' || paymentFilter !== 'ALL';
 
-    // Ocultar facturas con CAE (emitidas ARCA) de la página principal, a menos que estemos buscando fechadas o por nombre
-    if (inv.afipCae && !isSearchingDate && !term) {
+    // Ocultar facturas con CAE (emitidas ARCA) solo en la vista por defecto sin filtros activos
+    if (inv.afipCae && !isAnyFilterActive) {
       return false;
     }
 
-    if (term && !clientName.includes(term)) {
+    if (term && !clientName.includes(term) && !clientDni.includes(term) && !inv.id.toString().includes(term)) {
       return false;
     }
 
     // 1. Period Filter (Date Range Calendar)
     if (isSearchingDate) {
        const start = new Date(startDate);
-       start.setHours(0, 0, 0, 0); // Ajustar a inicio de día en hora local
+       start.setHours(0, 0, 0, 0);
        const end = new Date(endDate);
-       end.setHours(23, 59, 59, 999); // Ajustar a fin de día en hora local
+       end.setHours(23, 59, 59, 999);
        
-       const invDate = new Date(inv.dueDate); // Buscamos por la fecha de vencimiento configurada
+       const dueDate = new Date(inv.dueDate);
+       const created = new Date(inv.createdAt);
+       const updated = new Date(inv.updatedAt);
+       const paymentDates = (inv.payments || []).map(p => new Date(p.paymentDate || p.createdAt || inv.updatedAt));
        
-       if (invDate < start || invDate > end) {
+       const allDates = [dueDate, created, updated, ...paymentDates];
+       const matchesDate = allDates.some(d => !isNaN(d) && d >= start && d <= end);
+       
+       if (!matchesDate) {
          return false;
        }
     }
 
     // 2. Payment Method Filter
-    if (paymentFilter === 'CASH') return inv.payments && inv.payments.some(p => p.method === 'CASH');
-    if (paymentFilter === 'MERCADOPAGO') return inv.payments && inv.payments.some(p => p.method === 'MERCADOPAGO');
+    if (paymentFilter === 'CASH') {
+      if (!inv.payments || !inv.payments.some(p => p.method === 'CASH')) return false;
+    }
+    if (paymentFilter === 'MERCADOPAGO') {
+      if (!inv.payments || !inv.payments.some(p => p.method === 'MERCADOPAGO')) return false;
+    }
     
     // 3. Status Filter
     if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
