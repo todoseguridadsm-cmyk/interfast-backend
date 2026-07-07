@@ -2007,6 +2007,20 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
         if (ref.startsWith('MULTI-')) {
           invoiceIdsToProcess = ref.replace('MULTI-', '').split('-').map(id => parseInt(id)).filter(id => !isNaN(id));
+        } else if (ref.startsWith('SUB-')) {
+          const subClientId = parseInt(ref.replace('SUB-', ''));
+          if (!isNaN(subClientId)) {
+            const pendingInv = await prisma.invoice.findFirst({
+              where: { clientId: subClientId, status: 'PENDING' },
+              orderBy: [{ year: 'asc' }, { month: 'asc' }]
+            });
+            if (pendingInv) {
+              console.log(`🔔 Webhook MP (Débito Automático/Suscripción): Imputando pago a factura pendiente #${pendingInv.id} del cliente #${subClientId}`);
+              invoiceIdsToProcess.push(pendingInv.id);
+            } else {
+              console.log(`⚠️ Webhook MP (Débito Automático/Suscripción): El cliente #${subClientId} pagó suscripción pero no tiene facturas pendientes.`);
+            }
+          }
         } else {
           const singleId = parseInt(ref);
           if (!isNaN(singleId)) invoiceIdsToProcess.push(singleId);
@@ -2695,6 +2709,80 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
   } catch (error) {
     console.error('Error en /api/bot/obtener-factura:', error);
     res.status(500).json({ error: 'Error interno consultando factura' });
+  }
+});
+
+// Endpoint para generar Link de Adhesión a Débito Automático (Suscripción Mercado Pago) para N8N
+app.get('/api/bot/debito-automatico', async (req, res) => {
+  try {
+    const { query, clientId } = req.query;
+    const searchTerm = query || clientId;
+    if (!searchTerm) return res.status(400).json({ error: 'Falta parámetro query o clientId para buscar al cliente' });
+
+    const whereClause = buildBotClientSearchWhere(searchTerm);
+    const client = await prisma.client.findFirst({
+      where: whereClause,
+      include: { plan: true }
+    });
+
+    if (!client) {
+      return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${searchTerm}".` });
+    }
+
+    const latestInvoice = await prisma.invoice.findFirst({
+      where: { clientId: client.id },
+      orderBy: { id: 'desc' }
+    });
+
+    const planAmount = latestInvoice?.originalAmount || client.plan?.price || 22990;
+
+    let subscriptionLink = null;
+    if (clientMP) {
+      try {
+        const { PreApproval } = require('mercadopago');
+        const preapproval = new PreApproval(clientMP);
+        const sub = await preapproval.create({
+          body: {
+            reason: `Débito Automático Internet TK${String(client.id).padStart(3, '0')} - ${client.name}`,
+            external_reference: `SUB-${client.id}`,
+            payer_email: client.email || 'cliente@interfast.com.ar',
+            auto_recurring: {
+              frequency: 1,
+              frequency_type: 'months',
+              transaction_amount: parseFloat(planAmount),
+              currency_id: 'ARS'
+            },
+            back_url: 'https://interfast.com.ar',
+            status: 'pending'
+          }
+        });
+        subscriptionLink = sub.init_point;
+      } catch (err) {
+        console.error('[Bot N8N] Error generando PreApproval MercadoPago:', err.message);
+      }
+    }
+
+    if (!subscriptionLink) {
+      subscriptionLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=DEMO-SUB-${client.id}`;
+    }
+
+    const cuitText = client.cuit ? ` | CUIT: ${client.cuit}` : '';
+    const formatted_message = `CLIENTE IDENTIFICADO PARA DÉBITO AUTOMÁTICO -> ID: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni || 'No cargado'}${cuitText} | Importe Mensual: $${planAmount} | ENLACE DE ADHESIÓN A DÉBITO AUTOMÁTICO MERCADO PAGO: ${subscriptionLink}. INSTRUCCIÓN IA: Entrégale el ENLACE DE ADHESIÓN (subscriptionLink) al cliente de forma destacada una sola vez. Explícale que al ingresar allí podrá registrar su tarjeta de débito/crédito o cuenta de Mercado Pago y su cuota mensual se debitará automáticamente cada mes sin que deba realizar pagos manuales ni preocuparse por recargos. BAJO NINGUNA CIRCUNSTANCIA estás autorizada a ofrecer promociones o descuentos.`;
+
+    res.json({
+      success: true,
+      found: true,
+      clientId: client.id,
+      clientName: client.name,
+      dni: client.dni,
+      cuit: client.cuit,
+      planAmount,
+      subscriptionLink,
+      formatted_message
+    });
+  } catch (error) {
+    console.error('Error en /api/bot/debito-automatico:', error);
+    res.status(500).json({ error: 'Error interno generando adhesión a débito automático' });
   }
 });
 
