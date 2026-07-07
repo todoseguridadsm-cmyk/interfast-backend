@@ -2739,31 +2739,44 @@ app.get('/api/bot/debito-automatico', async (req, res) => {
     let subscriptionLink = null;
     if (clientMP) {
       try {
-        const { PreApproval } = require('mercadopago');
-        const preapproval = new PreApproval(clientMP);
-        const sub = await preapproval.create({
+        const { PreApprovalPlan } = require('mercadopago');
+        const preapprovalPlan = new PreApprovalPlan(clientMP);
+        const sub = await preapprovalPlan.create({
           body: {
-            reason: `Débito Automático Internet TK${String(client.id).padStart(3, '0')} - ${client.name}`,
+            reason: `Debito Automatico Internet - TK${String(client.id).padStart(3, '0')} (${client.name})`,
             external_reference: `SUB-${client.id}`,
-            payer_email: client.email || 'cliente@interfast.com.ar',
             auto_recurring: {
               frequency: 1,
               frequency_type: 'months',
               transaction_amount: parseFloat(planAmount),
               currency_id: 'ARS'
             },
-            back_url: 'https://interfast.com.ar',
-            status: 'pending'
+            back_url: 'https://interfast.com.ar'
           }
         });
         subscriptionLink = sub.init_point;
+        console.log(`[Bot N8N] PreApprovalPlan creado exitosamente para cliente #${client.id}: ${subscriptionLink}`);
       } catch (err) {
-        console.error('[Bot N8N] Error generando PreApproval MercadoPago:', err.message);
+        console.error('[Bot N8N] Error generando PreApprovalPlan MP:', err?.message || err, JSON.stringify(err?.cause || {}));
+        try {
+          const preference = new Preference(clientMP);
+          const prefBody = {
+            items: [{ id: `SUB-${client.id}`, title: `Adhesión Débito Automático Internet - TK${String(client.id).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(planAmount) }],
+            payer: { name: client.name, email: client.email || 'cliente@interfast.com.ar' },
+            external_reference: `SUB-${client.id}`,
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+          };
+          const prefs = await preference.create({ body: prefBody });
+          subscriptionLink = prefs.init_point;
+          console.log(`[Bot N8N] Respaldo Preference creado para débito automático #${client.id}: ${subscriptionLink}`);
+        } catch (prefErr) {
+          console.error('[Bot N8N] Error en respaldo Preference MP:', prefErr?.message || prefErr);
+        }
       }
     }
 
     if (!subscriptionLink) {
-      subscriptionLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=DEMO-SUB-${client.id}`;
+      subscriptionLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=INTERFAST-SUB-${client.id}`;
     }
 
     const cuitText = client.cuit ? ` | CUIT: ${client.cuit}` : '';
