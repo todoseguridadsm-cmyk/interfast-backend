@@ -2447,31 +2447,47 @@ app.get('/api/sales-info', async (req, res) => {
 });
 
 // --- ENDPOINTS BLINDADOS PARA BOT N8N (SOPORTE Y BÚSQUEDA) ---
+function buildBotClientSearchWhere(query) {
+  const rawQuery = query.toString().trim();
+  const cleanQuery = rawQuery.replace(/[\.\-\s\+]/g, '');
+  const isNumeric = /^\d+$/.test(cleanQuery);
+
+  if (isNumeric || cleanQuery.length >= 4) {
+    const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
+    const cuitWithHyphens = cleanQuery.length === 11 ? `${cleanQuery.slice(0, 2)}-${cleanQuery.slice(2, 10)}-${cleanQuery.slice(10)}` : rawQuery;
+
+    const orConditions = [
+      { dni: { contains: cleanQuery } },
+      { dni: { contains: rawQuery } },
+      { cuit: { contains: cleanQuery } },
+      { cuit: { contains: rawQuery } },
+      { cuit: { contains: cuitWithHyphens } },
+      { phone: { contains: cleanQuery } },
+      { phone: { contains: rawQuery } },
+      { phone: { contains: shortQuery } },
+      { phone2: { contains: cleanQuery } },
+      { phone2: { contains: shortQuery } },
+      { name: { contains: rawQuery, mode: 'insensitive' } }
+    ];
+
+    if (!isNaN(cleanQuery) && cleanQuery.length <= 8) {
+      orConditions.unshift({ id: parseInt(cleanQuery) });
+    }
+
+    return { OR: orConditions };
+  } else {
+    return {
+      name: { contains: rawQuery, mode: 'insensitive' }
+    };
+  }
+}
+
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) return res.status(400).json({ error: 'Falta parámetro query' });
 
-    const cleanQuery = query.toString().trim().replace(/[\.\-\s\+]/g, '');
-    const isNumeric = /^\d+$/.test(cleanQuery);
-    
-    let whereClause;
-    if (isNumeric) {
-      const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
-      whereClause = {
-        OR: [
-          { dni: { contains: cleanQuery } },
-          { phone: { contains: cleanQuery } },
-          { phone: { contains: shortQuery } },
-          { phone2: { contains: shortQuery } }
-        ]
-      };
-    } else {
-      whereClause = {
-        name: { contains: query.toString().trim(), mode: 'insensitive' }
-      };
-    }
-
+    const whereClause = buildBotClientSearchWhere(query);
     const client = await prisma.client.findFirst({
       where: whereClause
     });
@@ -2484,13 +2500,15 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
       });
     }
 
-    const formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni} | Tel: ${client.phone} | Dirección: ${client.address || 'No cargada'}`;
+    const cuitText = client.cuit ? ` | CUIT: ${client.cuit}` : '';
+    const formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni || 'No cargado'}${cuitText} | Tel: ${client.phone || 'No cargado'} | Dirección: ${client.address || 'No cargada'}`;
     res.json({
       success: true,
       found: true,
       clientId: client.id,
       name: client.name,
       dni: client.dni,
+      cuit: client.cuit,
       phone: client.phone,
       address: client.address,
       formatted_message
@@ -2566,29 +2584,9 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
 app.get('/api/bot/obtener-factura', async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query) return res.status(400).json({ error: 'Falta parámetro query con DNI, teléfono o ID' });
+    if (!query) return res.status(400).json({ error: 'Falta parámetro query con DNI, teléfono, CUIT o ID' });
 
-    const cleanQuery = query.toString().trim().replace(/[\.\-\s\+]/g, '');
-    const isNumeric = /^\d+$/.test(cleanQuery);
-    
-    let whereClause;
-    if (isNumeric) {
-      const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
-      whereClause = {
-        OR: [
-          { id: !isNaN(cleanQuery) ? parseInt(cleanQuery) : -1 },
-          { dni: { contains: cleanQuery } },
-          { phone: { contains: cleanQuery } },
-          { phone: { contains: shortQuery } },
-          { phone2: { contains: shortQuery } }
-        ]
-      };
-    } else {
-      whereClause = {
-        name: { contains: query.toString().trim(), mode: 'insensitive' }
-      };
-    }
-
+    const whereClause = buildBotClientSearchWhere(query);
     const client = await prisma.client.findFirst({ where: whereClause });
     if (!client) {
       return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${query}".` });
