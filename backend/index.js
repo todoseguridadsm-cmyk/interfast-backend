@@ -2715,9 +2715,12 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
 // Endpoint para generar Link de Adhesión a Débito Automático (Suscripción Mercado Pago) para N8N
 app.get('/api/bot/debito-automatico', async (req, res) => {
   try {
-    const { query, clientId } = req.query;
-    const searchTerm = query || clientId;
-    if (!searchTerm) return res.status(400).json({ error: 'Falta parámetro query o clientId para buscar al cliente' });
+    const rawParam = req.query.query || req.query.clientId || req.query.phone || req.query.dni || req.query.id || req.query.cuit || req.query.telefono || req.query.number || req.query.numero || req.query.text || req.query.search || req.query.cliente || req.query.numero_limpio || Object.values(req.query)[0];
+    const searchTerm = rawParam ? rawParam.toString().trim() : null;
+    console.log('[Bot N8N /debito-automatico] Petición recibida:', JSON.stringify(req.query), 'searchTerm interpretado:', searchTerm);
+    if (!searchTerm || searchTerm === '[object Object]' || searchTerm === '{}' || searchTerm === '=') {
+      return res.status(400).json({ error: `Falta parámetro query válido. Recibido por el servidor: ${JSON.stringify(req.query)}` });
+    }
 
     const whereClause = buildBotClientSearchWhere(searchTerm);
     const client = await prisma.client.findFirst({
