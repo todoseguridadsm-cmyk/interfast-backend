@@ -2099,14 +2099,47 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             }
           }
 
-          if (exactCentsMatches.length > 0) {
+          const disambiguate = (candidates) => {
+            if (candidates.length === 1) return candidates[0];
+            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''}`.toLowerCase();
+            const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
+            const payerDni = String(mpPayment.payer?.identification?.number || '');
+
+            for (const inv of candidates) {
+              const clientName = (inv.client?.name || '').toLowerCase();
+              const clientEmail = (inv.client?.email || '').toLowerCase();
+              const clientDni = String(inv.client?.dni || '');
+
+              if (clientDni && clientDni.length > 5 && payerDni.includes(clientDni)) return inv;
+              if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
+              
+              const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
+              if (nameWords.length > 0 && nameWords.some(word => payerName.includes(word))) return inv;
+            }
+            return null;
+          };
+
+          if (exactCentsMatches.length === 1) {
             matchedInvoice = exactCentsMatches[0];
-            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia exacta de centavos/monto ($${transactionAmount}).`);
+            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
+          } else if (exactCentsMatches.length > 1) {
+            console.log(`⚠️ Webhook MP: Colisión detectada (${exactCentsMatches.length} clientes para centavos de $${transactionAmount}). Desambiguando por nombre/DNI del pagador...`);
+            matchedInvoice = disambiguate(exactCentsMatches);
+            if (matchedInvoice) {
+              console.log(`🎯 Webhook MP: ¡DESAMBIGUACIÓN EXITOSA! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} por coincidencia de datos del pagador.`);
+            } else {
+              console.warn(`⚠️ Webhook MP: No se pudo desambiguar automáticamente entre los ${exactCentsMatches.length} clientes que comparten los centavos de $${transactionAmount}.`);
+            }
           } else if (roundedAmountMatches.length === 1) {
             matchedInvoice = roundedAmountMatches[0];
-            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia de monto redondeado ($${transactionAmount}) como candidato único.`);
+            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por monto redondeado único ($${transactionAmount}).`);
           } else if (roundedAmountMatches.length > 1) {
-            console.warn(`⚠️ Webhook MP: Múltiples facturas pendientes coinciden con el monto redondeado $${transactionAmount}. Se requiere imputación manual.`);
+            matchedInvoice = disambiguate(roundedAmountMatches);
+            if (matchedInvoice) {
+              console.log(`🎯 Webhook MP: ¡DESAMBIGUACIÓN EXITOSA en redondeo! Imputada a ${matchedInvoice.client.name}.`);
+            } else {
+              console.warn(`⚠️ Webhook MP: Múltiples facturas coinciden con monto redondeado $${transactionAmount} sin coincidencia de nombre.`);
+            }
           }
 
           if (matchedInvoice) {
