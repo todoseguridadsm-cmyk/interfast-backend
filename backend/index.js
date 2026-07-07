@@ -2699,17 +2699,23 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
 
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
     const statusText = invoice.status === 'PAID' ? 'PAGADA 🟢' : 'PENDIENTE DE PAGO 🔴';
-    const cbteTipoStr = invoice.afipCbteTip === 1 ? 'Factura A' : 'Factura B';
-    const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
-    const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
-    const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
-    const caeText = invoice.afipCae ? `CAE ARCA: ${invoice.afipCae}` : 'Comprobante interno';
     const dueDateStr = currentDueDate ? currentDueDate.toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
-    const paymentLinkText = paymentLink ? ` | LINK DE PAGO MERCADO PAGO: ${paymentLink}` : '';
     const centavos = String((client.id % 99) + 1).padStart(2, '0');
     const aliasAmountEs = `${Math.floor(currentAmount)},${centavos}`;
-    const aliasText = ` | ALIAS MERCADO PAGO (TRANSFERENCIA SIN COMISIÓN): interfastsm | MONTO EXACTO CON CENTAVOS PARA IMPUTACIÓN AUTOMÁTICA: $${aliasAmountEs}`;
-    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: ${statusText} | Importe a Abonar: $${currentAmount}${aliasText}${paymentLinkText}. INSTRUCCIÓN IA ESTRICTA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}) y el Importe Actual ($${currentAmount}). BAJO NINGUNA CIRCUNSTANCIA estás autorizada a ofrecer descuentos, rebajas, promociones ni condonaciones de deuda o mora. El importe indicado es final e innegociable. Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Si el cliente pregunta cómo pagar por transferencia o Alias, dale el Alias 'interfastsm' e indícale que debe transferir el monto exacto con centavos ($${aliasAmountEs}) para que el sistema reconozca e impute su pago automáticamente, pidiéndole luego la foto del comprobante. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
+
+    let formatted_message = '';
+    if (invoice.status === 'PAID') {
+      const caeText = invoice.afipCae ? ` (CAE ARCA: ${invoice.afipCae})` : '';
+      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Estado: PAGADA 🟢${caeText}. INSTRUCCIÓN OBLIGATORIA PARA LA IA: Infórmale con alegría y amabilidad al cliente que su servicio de Internet del período ${invoice.month}/${invoice.year} ya se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal en PDF: ${pdfUrl}`;
+    } else {
+      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar: $${aliasAmountEs} (importe con centavos únicos asignados) | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
+INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
+1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, NO digas "no aplica para este periodo" ni entregues enlaces de descarga de PDF. NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
+2. Infórmale amablemente al cliente que adeuda la factura de Internet del período ${invoice.month}/${invoice.year} por un total de $${aliasAmountEs} (vencimiento: ${dueDateStr}).
+3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
+4. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
+5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}. BAJO NINGUNA CIRCUNSTANCIA ofrezcas descuentos, rebajas ni condonaciones de deuda.`;
+    }
 
     res.json({
       success: true,

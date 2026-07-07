@@ -105,38 +105,37 @@ function generateInvoicePDFStream(invoice, res) {
   const amount = invoice.originalAmount || 0;
   const netAmount = (amount / 1.21).toFixed(2);
   const ivaAmount = (amount - netAmount).toFixed(2);
-  const cbteTipoStr = invoice.afipCbteTip === 1 ? 'A' : 'B';
+  const cbteTipoStr = invoice.status === 'PAID' ? (invoice.afipCbteTip === 1 ? 'A' : 'B') : 'X';
+  const docTitleStr = invoice.status === 'PAID' ? `FACTURA ${cbteTipoStr}` : 'PRESUPUESTO / DEUDA';
   const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
   const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
 
-  // Cabecera superior
-  doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text('INTERFAST - TodoSeguridadSM', { align: 'left' });
-  doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina');
-  doc.text('CUIT: 30-71701055-4 | IVA Responsable Inscripto | Inicio de Actividades: 2021');
-  doc.moveDown(1);
+  // Cabecera superior izquierda (ancho limitado a 185 para no encimar la letra central)
+  doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('INTERFAST - TodoSeguridadSM', 50, 45, { width: 185 });
+  doc.fontSize(9).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina', 50, 65, { width: 185 });
+  doc.text('CUIT: 30-71701055-4\nIVA Responsable Inscripto\nInicio de Actividades: 2021', 50, 85, { width: 185 });
 
-  // Cuadro Central Tipo Comprobante
-  doc.rect(250, 40, 50, 50).fillAndStroke('#f1f5f9', '#94a3b8');
-  doc.fillColor('#0f172a').fontSize(26).font('Helvetica-Bold').text(cbteTipoStr, 265, 50);
-  doc.fontSize(8).text(`COD. 00${invoice.afipCbteTip || 6}`, 260, 78);
+  // Cuadro Central Tipo Comprobante (X=245)
+  doc.rect(245, 40, 45, 45).fillAndStroke('#f1f5f9', '#94a3b8');
+  doc.fillColor('#0f172a').fontSize(24).font('Helvetica-Bold').text(cbteTipoStr, 258, 48);
+  doc.fontSize(7).text(`COD. 00${invoice.afipCbteTip || 0}`, 248, 73);
 
-  // Datos Fiscales Comprobante (Derecha)
-  doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text(`FACTURA ${cbteTipoStr}`, 320, 45);
-  doc.fontSize(11).text(`Punto de Venta: ${ptoVtaStr}   Comp. N°: ${cbteNroStr}`, 320, 65);
-  doc.fontSize(10).font('Helvetica').text(`Fecha de Emisión: ${new Date(invoice.createdAt).toLocaleDateString('es-AR')}`, 320, 85);
+  // Datos Fiscales Comprobante (Derecha, X=305)
+  doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text(docTitleStr, 305, 45);
+  doc.fontSize(10).font('Helvetica-Bold').text(`Punto de Venta: ${ptoVtaStr}   Comp. N°: ${cbteNroStr}`, 305, 65);
+  doc.fontSize(9).font('Helvetica').text(`Fecha de Emisión: ${new Date(invoice.createdAt).toLocaleDateString('es-AR')}`, 305, 85);
 
-  doc.moveTo(50, 115).lineTo(550, 115).strokeColor('#cbd5e1').stroke();
-  doc.moveDown(2);
+  doc.moveTo(50, 125).lineTo(550, 125).strokeColor('#cbd5e1').stroke();
 
-  // Cuadro Cliente
-  doc.rect(50, 130, 500, 70).fillAndStroke('#f8fafc', '#e2e8f0');
-  doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold').text('DATOS DEL RECEPTOR / CLIENTE:', 60, 140);
-  doc.fontSize(10).font('Helvetica').text(`Señor(es): ${clientName}`, 60, 158);
-  doc.text(`CUIT / DNI: ${clientDni}     |     Condición frente al IVA: Consumidor Final / Reg. Gen.`, 60, 175);
-  doc.text(`Domicilio: ${clientAddr}`, 300, 158);
+  // Cuadro Cliente (Y=135)
+  doc.rect(50, 135, 500, 65).fillAndStroke('#f8fafc', '#e2e8f0');
+  doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text('DATOS DEL RECEPTOR / CLIENTE:', 60, 145);
+  doc.fontSize(9).font('Helvetica').text(`Señor(es): ${clientName}`, 60, 160, { width: 230 });
+  doc.text(`CUIT / DNI: ${clientDni} | IVA: Consumidor Final`, 60, 175, { width: 230 });
+  doc.text(`Domicilio: ${clientAddr}`, 300, 160, { width: 240 });
 
-  // Tabla Detalle
-  let y = 220;
+  // Tabla Detalle (Y=215)
+  let y = 215;
   doc.rect(50, y, 500, 25).fill('#1e293b');
   doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold');
   doc.text('DESCRIPCIÓN / SERVICIO', 60, y + 8);
