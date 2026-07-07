@@ -2036,15 +2036,25 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               console.log(`⚠️ Webhook MP (Débito Automático/Suscripción): El cliente #${subClientId} pagó suscripción pero no tiene facturas pendientes.`);
             }
           }
-        } else {
+        } else if (ref && ref.trim() !== '') {
           const singleId = parseInt(ref);
-          if (!isNaN(singleId)) invoiceIdsToProcess.push(singleId);
+          if (!isNaN(singleId)) {
+            // Verificar si el ID en external_reference corresponde a una factura pendiente real de la DB
+            const validInvoice = await prisma.invoice.findFirst({
+              where: { id: singleId, status: 'PENDING' }
+            });
+            if (validInvoice) {
+              invoiceIdsToProcess.push(validInvoice.id);
+            } else {
+              console.log(`⚠️ Webhook MP: La referencia (${ref}) no es una factura pendiente válida. Pasando a conciliación por centavos...`);
+            }
+          }
         }
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
 
         if (invoiceIdsToProcess.length === 0) {
-          console.log(`ℹ️ Webhook MP: Sin referencia (${ref}). Intentando conciliación automática para pago de $${transactionAmount}...`);
+          console.log(`ℹ️ Webhook MP: Sin referencia válida (${ref}). Intentando conciliación automática para pago de $${transactionAmount}...`);
           
           const cents = Math.round((transactionAmount - Math.floor(transactionAmount)) * 100);
           
@@ -2070,8 +2080,9 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
             const amtPaidFloor = Math.floor(transactionAmount);
 
-            // 1. Coincidencia exacta por centavos y monto base
-            if (expectedCents === cents && possibleBaseAmounts.includes(amtPaidFloor)) {
+            // 1. Coincidencia por centavos y monto aproximado (dentro del 30% del valor de la factura para tolerar diferencias de recargo o descuentos)
+            const isAmountClose = possibleBaseAmounts.some(base => Math.abs(base - amtPaidFloor) < (base * 0.3));
+            if (expectedCents === cents && isAmountClose) {
               exactCentsMatches.push(inv);
             }
 
