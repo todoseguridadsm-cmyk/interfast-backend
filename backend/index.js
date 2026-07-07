@@ -1314,7 +1314,8 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         paymentLink = prefs.init_point;
       }
 
-      const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet (Período: ${inv.month}/${inv.year}).\n\nEl total a abonar es de *$${totalAmountWithFee.toFixed(2)}*.\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago en nuestro nuevo enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
+      const dueDateStr = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`;
+      const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Fecha de Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalAmountWithFee.toFixed(2)}*\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago en nuestro nuevo enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       
@@ -1409,7 +1410,8 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
         paymentLink = prefs.init_point;
       }
 
-      const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet (Período: ${inv.month}/${inv.year}) por un saldo de *$${totalAmountWithFee.toFixed(2)}*.\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\nPodés abonar de forma segura en nuestro enlace oficial:\n${paymentLink}\n\n¡Muchas gracias!`;
+      const dueDateStr = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`;
+      const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalAmountWithFee.toFixed(2)}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\nPodés abonar de forma segura en nuestro enlace oficial:\n${paymentLink}\n\n¡Muchas gracias!`;
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       
@@ -2609,6 +2611,28 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       if (updatedInv && updatedInv.afipCae) invoice.afipCae = updatedInv.afipCae;
     }
 
+    let paymentLink = null;
+    if (invoice.status !== 'PAID') {
+      if (clientMP) {
+        try {
+          const preference = new Preference(clientMP);
+          const prefBody = {
+            items: [{ id: `INV-${invoice.id}`, title: `Internet TK${String(invoice.clientId).padStart(3, '0')} (${invoice.month}/${invoice.year})`, quantity: 1, unit_price: parseFloat(invoice.originalAmount) }],
+            payer: { name: client.name, email: client.email || 'test@test.com' },
+            external_reference: invoice.id.toString(),
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+          };
+          const prefs = await preference.create({ body: prefBody });
+          paymentLink = prefs.init_point;
+        } catch (mpErr) {
+          console.error('[Bot N8N] Error generando link MercadoPago:', mpErr.message);
+        }
+      }
+      if (!paymentLink) {
+        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${invoice.id}`;
+      }
+    }
+
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
     const statusText = invoice.status === 'PAID' ? 'PAGADA 🟢' : 'PENDIENTE DE PAGO 🔴';
     const cbteTipoStr = invoice.afipCbteTip === 1 ? 'Factura A' : 'Factura B';
@@ -2616,7 +2640,9 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
     const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
     const caeText = invoice.afipCae ? `CAE ARCA: ${invoice.afipCae}` : 'Comprobante interno';
-    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Estado: ${statusText} | Importe: $${invoice.originalAmount} | ${caeText}. INSTRUCCIÓN IA: Entrega el enlace de descarga (pdfUrl) exactamente una (1) sola vez al cliente en tu respuesta, no repitas el link.`;
+    const dueDateStr = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
+    const paymentLinkText = paymentLink ? ` | LINK DE PAGO MERCADO PAGO: ${paymentLink}` : '';
+    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento: ${dueDateStr} | Estado: ${statusText} | Importe: $${invoice.originalAmount} | ${caeText}${paymentLinkText}. INSTRUCCIÓN IA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}). Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
 
     res.json({
       success: true,
@@ -2627,9 +2653,11 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       invoiceId: invoice.id,
       month: invoice.month,
       year: invoice.year,
+      dueDate: dueDateStr,
       amount: invoice.originalAmount,
       status: invoice.status,
       cae: invoice.afipCae,
+      paymentLink,
       pdfUrl,
       formatted_message
     });
