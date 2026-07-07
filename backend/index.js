@@ -2010,20 +2010,28 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
     console.log(`🔔 Webhook MP DISPARADO: topic=${topic}, ID detectado=${paymentId}`);
 
-    if ((topic === 'payment' || topic === 'payment.created') && paymentId && clientMP) {
-      // 1. Ir a MP y preguntar los detalles reales del pago por seguridad
+    if (paymentId && clientMP) {
+      // 1. Ir a MP y preguntar los detalles reales del pago por seguridad sin importar el string exacto de topic
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
-      console.log(`⏳ Webhook MP: Leyendo status del pago en la API -> Estado: ${mpPayment.status}, Referencia: ${mpPayment.external_reference}`);
+      console.log(`⏳ Webhook MP: Leyendo status del pago en la API -> Estado: ${mpPayment.status}, Referencia: ${mpPayment.external_reference}, Descripción: ${mpPayment.description || mpPayment.reason}`);
 
       if (mpPayment.status === 'approved') {
-        const ref = mpPayment.external_reference || '';
+        const ref = (mpPayment.external_reference || mpPayment.metadata?.external_reference || '').toString().trim();
+        const description = (mpPayment.description || mpPayment.reason || '').toString();
         let invoiceIdsToProcess = [];
 
         if (ref.startsWith('MULTI-')) {
           invoiceIdsToProcess = ref.replace('MULTI-', '').split('-').map(id => parseInt(id)).filter(id => !isNaN(id));
-        } else if (ref.startsWith('SUB-')) {
-          const subClientId = parseInt(ref.replace('SUB-', ''));
+        } else if (ref.startsWith('SUB-') || description.includes('SUB-') || /TK\d+/.test(description)) {
+          let subClientId = NaN;
+          if (ref.startsWith('SUB-')) {
+            subClientId = parseInt(ref.replace('SUB-', ''));
+          } else {
+            const match = description.match(/SUB-(\d+)/) || description.match(/TK0*(\d+)/);
+            if (match && match[1]) subClientId = parseInt(match[1]);
+          }
+
           if (!isNaN(subClientId)) {
             const pendingInv = await prisma.invoice.findFirst({
               where: { clientId: subClientId, status: 'PENDING' },
@@ -2899,6 +2907,7 @@ app.get('/api/bot/debito-automatico', async (req, res) => {
           body: {
             reason: `Debito Automatico Internet - TK${String(client.id).padStart(3, '0')} (${client.name})`,
             external_reference: `SUB-${client.id}`,
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook",
             auto_recurring: {
               frequency: 1,
               frequency_type: 'months',
