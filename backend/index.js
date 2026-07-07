@@ -1314,7 +1314,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         paymentLink = prefs.init_point;
       }
 
-      const dueDateStr = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`;
+      const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
       const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Fecha de Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalAmountWithFee.toFixed(2)}*\n\nAhora puedes saldar tu cuenta de forma rápida y 100% segura con Mercado Pago en nuestro nuevo enlace oficial:\n${paymentLink}\n\n¡Gracias por tu pago!`;
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
@@ -1410,7 +1410,7 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
         paymentLink = prefs.init_point;
       }
 
-      const dueDateStr = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`;
+      const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
       const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalAmountWithFee.toFixed(2)}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\nSi ya abonaste, por favor envíanos el comprobante por este medio para asentar el pago en el sistema. De lo contrario, te pedimos regularizar el saldo a la brevedad para evitar la suspensión del servicio.\n\nPodés abonar de forma segura en nuestro enlace oficial:\n${paymentLink}\n\n¡Muchas gracias!`;
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
@@ -2611,17 +2611,49 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       if (updatedInv && updatedInv.afipCae) invoice.afipCae = updatedInv.afipCae;
     }
 
+    const today = new Date();
+    let currentAmount = invoice.priceV1 || invoice.originalAmount;
+    let currentDueDate = invoice.dueDate1 ? new Date(invoice.dueDate1) : new Date(invoice.dueDate || today);
+    let tierName = "Vencimiento 1";
+
+    if (invoice.dueDate1 && invoice.status === 'PENDING') {
+      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+
+      if (today > d3 && invoice.priceV4) {
+        currentAmount = invoice.priceV4;
+        currentDueDate = d4;
+        tierName = "Vencimiento 4";
+      } else if (today > d2 && invoice.priceV3) {
+        currentAmount = invoice.priceV3;
+        currentDueDate = d3;
+        tierName = "Vencimiento 3";
+      } else if (today > d1 && invoice.priceV2) {
+        currentAmount = invoice.priceV2;
+        currentDueDate = d2;
+        tierName = "Vencimiento 2";
+      } else {
+        currentDueDate = d1;
+      }
+    }
+
     let paymentLink = null;
     if (invoice.status !== 'PAID') {
       if (clientMP) {
         try {
           const preference = new Preference(clientMP);
           const prefBody = {
-            items: [{ id: `INV-${invoice.id}`, title: `Internet TK${String(invoice.clientId).padStart(3, '0')} (${invoice.month}/${invoice.year})`, quantity: 1, unit_price: parseFloat(invoice.originalAmount) }],
+            items: [{ id: `INV-${invoice.id}`, title: `Internet TK${String(invoice.clientId).padStart(3, '0')} (${invoice.month}/${invoice.year}) - ${tierName}`, quantity: 1, unit_price: parseFloat(currentAmount) }],
             payer: { name: client.name, email: client.email || 'test@test.com' },
             external_reference: invoice.id.toString(),
             notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
           };
+          if (currentDueDate && currentDueDate >= today) {
+            prefBody.expires = true;
+            prefBody.expiration_date_to = currentDueDate.toISOString();
+          }
           const prefs = await preference.create({ body: prefBody });
           paymentLink = prefs.init_point;
         } catch (mpErr) {
@@ -2640,9 +2672,9 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
     const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
     const caeText = invoice.afipCae ? `CAE ARCA: ${invoice.afipCae}` : 'Comprobante interno';
-    const dueDateStr = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
+    const dueDateStr = currentDueDate ? currentDueDate.toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
     const paymentLinkText = paymentLink ? ` | LINK DE PAGO MERCADO PAGO: ${paymentLink}` : '';
-    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento: ${dueDateStr} | Estado: ${statusText} | Importe: $${invoice.originalAmount} | ${caeText}${paymentLinkText}. INSTRUCCIÓN IA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}). Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
+    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: ${statusText} | Importe a Abonar: $${currentAmount} | ${caeText}${paymentLinkText}. INSTRUCCIÓN IA: Menciona siempre y de forma destacada la Fecha de Vencimiento (${dueDateStr}) y el Importe Actual ($${currentAmount}). Si está pendiente, entrega el enlace de pago (paymentLink) una sola vez. Entrega también el enlace de descarga PDF (pdfUrl) una sola vez sin repetir links.`;
 
     res.json({
       success: true,
@@ -2654,7 +2686,8 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       month: invoice.month,
       year: invoice.year,
       dueDate: dueDateStr,
-      amount: invoice.originalAmount,
+      amount: currentAmount,
+      tierName,
       status: invoice.status,
       cae: invoice.afipCae,
       paymentLink,
