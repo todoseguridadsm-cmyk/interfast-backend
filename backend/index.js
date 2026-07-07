@@ -2030,12 +2030,71 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           if (!isNaN(singleId)) invoiceIdsToProcess.push(singleId);
         }
 
+        const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+
         if (invoiceIdsToProcess.length === 0) {
-          console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${ref}).`);
-          return;
+          console.log(`ℹ️ Webhook MP: Sin referencia (${ref}). Intentando conciliación automática para pago de $${transactionAmount}...`);
+          
+          const cents = Math.round((transactionAmount - Math.floor(transactionAmount)) * 100);
+          
+          const pendingInvoices = await prisma.invoice.findMany({
+            where: { status: 'PENDING' },
+            include: { client: true }
+          });
+          
+          let matchedInvoice = null;
+          let exactCentsMatches = [];
+          let roundedAmountMatches = [];
+
+          for (const inv of pendingInvoices) {
+            const expectedCents = ((inv.clientId || inv.id || 1) % 99) + 1;
+            
+            const possibleBaseAmounts = [
+              Math.floor(inv.originalAmount),
+              Math.floor(inv.priceV1),
+              inv.priceV2 ? Math.floor(inv.priceV2) : null,
+              inv.priceV3 ? Math.floor(inv.priceV3) : null,
+              inv.priceV4 ? Math.floor(inv.priceV4) : null
+            ].filter(a => a !== null && a > 0);
+
+            const amtPaidFloor = Math.floor(transactionAmount);
+
+            // 1. Coincidencia exacta por centavos y monto base
+            if (expectedCents === cents && possibleBaseAmounts.includes(amtPaidFloor)) {
+              exactCentsMatches.push(inv);
+            }
+
+            // 2. Coincidencia por redondeo (si el cliente pagó monto entero sin centavos o redondeó hacia arriba/abajo)
+            const possibleRounded = new Set();
+            possibleBaseAmounts.forEach(base => {
+              possibleRounded.add(base);
+              possibleRounded.add(base + 1); // Redondeo hacia arriba (ej. 22990.29 -> 22991)
+              possibleRounded.add(base - 1);
+            });
+
+            if (possibleRounded.has(amtPaidFloor)) {
+              roundedAmountMatches.push(inv);
+            }
+          }
+
+          if (exactCentsMatches.length > 0) {
+            matchedInvoice = exactCentsMatches[0];
+            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia exacta de centavos/monto ($${transactionAmount}).`);
+          } else if (roundedAmountMatches.length === 1) {
+            matchedInvoice = roundedAmountMatches[0];
+            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia de monto redondeado ($${transactionAmount}) como candidato único.`);
+          } else if (roundedAmountMatches.length > 1) {
+            console.warn(`⚠️ Webhook MP: Múltiples facturas pendientes coinciden con el monto redondeado $${transactionAmount}. Se requiere imputación manual.`);
+          }
+
+          if (matchedInvoice) {
+            invoiceIdsToProcess.push(matchedInvoice.id);
+          } else {
+            console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${ref}) y no se halló factura coincidente para el monto $${transactionAmount}.`);
+            return;
+          }
         }
 
-        const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
         let remainingAmount = transactionAmount;
 
         for (const invoiceId of invoiceIdsToProcess) {
