@@ -112,7 +112,7 @@ function generateInvoicePDFStream(invoice, res) {
   // Cabecera superior
   doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text('INTERFAST - TodoSeguridadSM', { align: 'left' });
   doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina');
-  doc.text('CUIT: 30-71689234-9 | IVA Responsable Inscripto | Inicio de Actividades: 2021');
+  doc.text('CUIT: 30-71701055-4 | IVA Responsable Inscripto | Inicio de Actividades: 2021');
   doc.moveDown(1);
 
   // Cuadro Central Tipo Comprobante
