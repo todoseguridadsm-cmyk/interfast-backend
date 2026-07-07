@@ -2717,7 +2717,7 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}. BAJO NINGUNA CIRCUNSTANCIA ofrezcas descuentos, rebajas ni condonaciones de deuda.`;
     }
 
-    res.json({
+    const responseObj = {
       success: true,
       found: true,
       hasInvoice: true,
@@ -2730,11 +2730,16 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
       amount: currentAmount,
       tierName,
       status: invoice.status,
-      cae: invoice.status === 'PAID' ? invoice.afipCae : null,
       paymentLink,
-      pdfUrl: invoice.status === 'PAID' ? pdfUrl : null,
       formatted_message
-    });
+    };
+
+    if (invoice.status === 'PAID') {
+      responseObj.cae = invoice.afipCae;
+      responseObj.pdfUrl = pdfUrl;
+    }
+
+    res.json(responseObj);
   } catch (error) {
     console.error('Error en /api/bot/obtener-factura:', error);
     res.status(500).json({ error: 'Error interno consultando factura' });
