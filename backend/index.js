@@ -2734,7 +2734,10 @@ app.get('/api/bot/debito-automatico', async (req, res) => {
       orderBy: { id: 'desc' }
     });
 
-    const planAmount = latestInvoice?.originalAmount || client.plan?.price || 22990;
+    let planAmount = latestInvoice?.originalAmount || client.plan?.price || 22990;
+    if (!planAmount || isNaN(planAmount) || parseFloat(planAmount) <= 0) {
+      planAmount = 22990; // Precio por defecto si el plan está en $0 para evitar que Mercado Pago rechace el link de suscripción
+    }
 
     let subscriptionLink = null;
     if (clientMP) {
