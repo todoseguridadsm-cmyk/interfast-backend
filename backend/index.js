@@ -2730,9 +2730,9 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
       amount: currentAmount,
       tierName,
       status: invoice.status,
-      cae: invoice.afipCae,
+      cae: invoice.status === 'PAID' ? invoice.afipCae : null,
       paymentLink,
-      pdfUrl,
+      pdfUrl: invoice.status === 'PAID' ? pdfUrl : null,
       formatted_message
     });
   } catch (error) {
