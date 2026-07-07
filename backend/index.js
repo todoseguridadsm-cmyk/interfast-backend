@@ -2611,8 +2611,12 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
 
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
     const statusText = invoice.status === 'PAID' ? 'PAGADA 🟢' : 'PENDIENTE DE PAGO 🔴';
+    const cbteTipoStr = invoice.afipCbteTip === 1 ? 'Factura A' : 'Factura B';
+    const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
+    const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
+    const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
     const caeText = invoice.afipCae ? `CAE ARCA: ${invoice.afipCae}` : 'Comprobante interno';
-    const formatted_message = `FACTURA DEL CLIENTE: ${client.name} | Factura N°: ${invoice.id} (${invoice.month}/${invoice.year}) | Estado: ${statusText} | Importe: $${invoice.originalAmount} | ${caeText} | LINK DESCARGA PDF FISCAL: ${pdfUrl}`;
+    const formatted_message = `COMPROBANTE DEL CLIENTE: ${client.name} | Comprobante: ${facturaNumText} (${invoice.month}/${invoice.year}) | Estado: ${statusText} | Importe: $${invoice.originalAmount} | ${caeText}. INSTRUCCIÓN IA: Entrega el enlace de descarga (pdfUrl) exactamente una (1) sola vez al cliente en tu respuesta, no repitas el link.`;
 
     res.json({
       success: true,
