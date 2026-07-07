@@ -43,20 +43,6 @@ export default function InvoicesList() {
     setLoading(false);
   };
 
-  const handleResetMigration = async () => {
-    if (!window.confirm('⚠️ ¡ATENCIÓN MIGRACIÓN DEFINITIVA!\n\n¿Estás seguro de ejecutar la PUESTA A CERO DEL SISTEMA?\n\n1. Se dejarán los reportes y movimientos de Caja en $0.\n2. Se borrará el historial de cobros antiguos.\n3. Se eliminarán todas las facturas viejas/pagadas para que las cuentas de los clientes al día queden en 0.\n4. ÚNICAMENTE se conservarán las deudas pendientes (morosos) para cobrarlas en el nuevo ciclo.\n\nTras esto, podrás usar el botón "Generar" para emitir limpiamente las facturas de julio.')) return;
-    setLoading(true);
-    try {
-      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/admin/reset-migration');
-      alert(res.data.message);
-      fetchInvoices();
-    } catch (error) {
-      console.error(error);
-      alert('Error: ' + (error.response?.data?.error || 'No se pudo ejecutar la puesta a cero'));
-    }
-    setLoading(false);
-  };
-
   const handleDeleteInvoice = async (id) => {
     if (!window.confirm('¿Estás seguro de que deseas anular y eliminar esta factura? Si te equivocaste de monto, podrás generarla nuevamente tras corregir el Plan del cliente.')) return;
     
@@ -568,34 +554,30 @@ export default function InvoicesList() {
             <Download size={16} />
             Exportar
           </button>
-          <button 
-            onClick={() => startMassiveNotify(false)} disabled={loading}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
-          >
-            <MessageCircle size={16} />
-            {loading ? 'Trabajando...' : 'Notificar Todos'}
-          </button>
-          <button 
-            onClick={() => startMassiveWarning(false)} disabled={loading}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-orange-400"
-          >
-            <AlertCircle size={16} />
-            {loading ? 'Trabajando...' : 'Avisar Cortes'}
-          </button>
+          {selectedInvoices.length === 0 && (
+            <>
+              <button 
+                onClick={() => startMassiveNotify(false)} disabled={loading}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
+              >
+                <MessageCircle size={16} />
+                {loading ? 'Trabajando...' : 'Notificar Todos'}
+              </button>
+              <button 
+                onClick={() => startMassiveWarning(false)} disabled={loading}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-orange-400"
+              >
+                <AlertCircle size={16} />
+                {loading ? 'Trabajando...' : 'Avisar Cortes'}
+              </button>
+            </>
+          )}
           <button 
             onClick={handleGenerate} disabled={loading}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-indigo-200 transition-colors flex items-center gap-2 disabled:bg-indigo-400"
           >
             <Play size={16} className={loading ? 'animate-spin' : ''} />
             {loading ? 'Procesando...' : 'Generar'}
-          </button>
-          <button 
-            onClick={handleResetMigration} disabled={loading}
-            className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm shadow-rose-200 transition-colors flex items-center gap-2 disabled:bg-rose-400"
-            title="Limpiar Caja a $0 y borrar facturas pasadas para empezar ciclo limpio"
-          >
-            <RotateCcw size={16} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Limpiando...' : 'Reset Migración ($0)'}
           </button>
         </div>
       </header>
