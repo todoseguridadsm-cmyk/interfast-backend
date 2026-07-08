@@ -2108,7 +2108,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           }
 
           const disambiguate = (candidates) => {
-            if (candidates.length === 1) return candidates[0];
             const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''}`.toLowerCase();
             const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
             const payerDni = String(mpPayment.payer?.identification?.number || '');
@@ -2122,9 +2121,12 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
               
               const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
-              if (nameWords.length > 0 && nameWords.some(word => payerName.includes(word))) return inv;
+              const matchedWordsCount = nameWords.filter(word => payerName.includes(word)).length;
+              if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
+                return inv;
+              }
             }
-            return null;
+            return candidates.length === 1 ? candidates[0] : null;
           };
 
           if (exactCentsMatches.length === 1) {
@@ -2138,15 +2140,12 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             } else {
               console.warn(`⚠️ Webhook MP: No se pudo desambiguar automáticamente entre los ${exactCentsMatches.length} clientes que comparten los centavos de $${transactionAmount}.`);
             }
-          } else if (roundedAmountMatches.length === 1) {
-            matchedInvoice = roundedAmountMatches[0];
-            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por monto redondeado único ($${transactionAmount}).`);
-          } else if (roundedAmountMatches.length > 1) {
+          } else if (roundedAmountMatches.length > 0) {
             matchedInvoice = disambiguate(roundedAmountMatches);
             if (matchedInvoice) {
-              console.log(`🎯 Webhook MP: ¡DESAMBIGUACIÓN EXITOSA en redondeo! Imputada a ${matchedInvoice.client.name}.`);
+              console.log(`🎯 Webhook MP: ¡ÉXITO en redondeo/monto! Imputada a ${matchedInvoice.client.name}.`);
             } else {
-              console.warn(`⚠️ Webhook MP: Múltiples facturas coinciden con monto redondeado $${transactionAmount} sin coincidencia de nombre.`);
+              console.warn(`⚠️ Webhook MP: Múltiples facturas coinciden con monto redondeado $${transactionAmount} sin coincidencia clara de nombre/DNI.`);
             }
           }
 

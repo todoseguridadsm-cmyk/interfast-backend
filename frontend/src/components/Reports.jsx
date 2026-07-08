@@ -197,7 +197,7 @@ export default function Reports() {
                     {combined.map(item => {
                       if (item.isPayment) {
                         const p = item;
-                        const isMP = p.method === 'MERCADOPAGO';
+                        const isMP = p.method && p.method.startsWith('MERCADOPAGO');
                         const fee = p.mpFee || 0;
                         const tax = p.mpTax || 0;
                         const totalDeductions = fee + tax;
