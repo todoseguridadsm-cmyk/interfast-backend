@@ -2249,6 +2249,9 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 app.get('/api/reports/sales', async (req, res) => {
   try {
     const payments = await prisma.payment.findMany({
+      where: {
+        method: { not: 'OTRO_SISTEMA' }
+      },
       include: {
         invoice: {
           include: { client: { include: { plan: true } } }
