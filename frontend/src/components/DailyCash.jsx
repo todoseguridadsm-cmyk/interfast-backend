@@ -53,7 +53,7 @@ export default function DailyCash() {
 
   const baseItems = [];
   
-  data.payments.forEach(p => {
+  (data.payments || []).forEach(p => {
     // Ingreso principal
     baseItems.push({
       id: `P-${p.id}`,
@@ -95,7 +95,7 @@ export default function DailyCash() {
     }
   });
 
-  data.movements.forEach(m => {
+  (data.movements || []).forEach(m => {
     const isMp = (m.category && m.category.startsWith('MP_'));
     const cleanCategory = isMp ? m.category.replace('MP_', '') : (m.category || 'GASTO_GENERAL');
     baseItems.push({
@@ -132,6 +132,9 @@ export default function DailyCash() {
   const manualMpIn = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
   const manualMpOut = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
   
+  const manualIn = manualCashIn + manualMpIn;
+  const manualOut = manualCashOut + manualMpOut;
+
   const matiasOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_MATIAS').reduce((acc, i) => acc + i.amount, 0);
   const victorOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_VICTOR').reduce((acc, i) => acc + i.amount, 0);
   const gastosOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'GASTO_GENERAL').reduce((acc, i) => acc + i.amount, 0);
