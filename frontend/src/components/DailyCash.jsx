@@ -8,7 +8,8 @@ export default function DailyCash() {
   const [loading, setLoading] = useState(true);
   
   const todayDateStr = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(todayDateStr);
+  const firstDayOfMonthStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+  const [startDate, setStartDate] = useState(firstDayOfMonthStr);
   const [endDate, setEndDate] = useState(todayDateStr);
 
   const [filterType, setFilterType] = useState('ALL');
@@ -59,7 +60,7 @@ export default function DailyCash() {
     baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: (p.method && p.method.includes('MERCADOPAGO')) ? 'MERCADOPAGO' : 'FACTURACION',
+      source: p.method === 'CASH' ? 'FACTURACION' : 'MERCADOPAGO',
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
