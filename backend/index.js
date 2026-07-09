@@ -1707,7 +1707,7 @@ app.get('/api/cash/daily', async (req, res) => {
     const payments = await prisma.payment.findMany({
       where: {
         paymentDate: { gte: startOfDay, lte: endOfDay },
-        method: { in: ['CASH', 'MERCADOPAGO'] } // AHORA TRAE AMBOS
+        method: { not: 'OTRO_SISTEMA' } // Trae todos los cobros reales (CASH, MERCADOPAGO, TRANSFERENCIA, etc.)
       },
       include: {
         invoice: { include: { client: true } },

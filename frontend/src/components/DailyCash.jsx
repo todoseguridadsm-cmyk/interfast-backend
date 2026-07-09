@@ -59,7 +59,7 @@ export default function DailyCash() {
     baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: p.method === 'MERCADOPAGO' ? 'MERCADOPAGO' : 'FACTURACION',
+      source: (p.method && p.method.includes('MERCADOPAGO')) ? 'MERCADOPAGO' : 'FACTURACION',
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
