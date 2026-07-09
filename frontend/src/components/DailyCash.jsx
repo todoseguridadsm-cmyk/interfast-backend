@@ -17,6 +17,7 @@ export default function DailyCash() {
 
   const [showModal, setShowModal] = useState(false);
   const [type, setType] = useState('OUT');
+  const [vault, setVault] = useState('EFECTIVO');
   const [category, setCategory] = useState('GASTO_GENERAL');
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
@@ -40,14 +41,11 @@ export default function DailyCash() {
     e.preventDefault();
     if(!amount || !desc) return alert('Por favor completa todos los campos.');
     try {
-       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, category: type === 'OUT' ? category : 'INGRESO', description: desc });
+       const finalCategory = vault === 'MP' ? `MP_${category}` : category;
+       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, category: type === 'OUT' ? finalCategory : (vault === 'MP' ? 'MP_INGRESO' : 'INGRESO'), description: desc });
        setShowModal(false);
-       setAmount(''); setDesc(''); setCategory('GASTO_GENERAL');
-       if(startDate === todayDateStr && endDate === todayDateStr) {
-           fetchCash();
-       } else {
-           alert('Movimiento registrado en caja correctamente. Cambiá al día de hoy para verlo.');
-       }
+       setAmount(''); setDesc(''); setCategory('GASTO_GENERAL'); setVault('EFECTIVO');
+       fetchCash();
     } catch (err) {
        alert('Error: ' + (err.response?.data?.error || err.message));
     }
@@ -61,6 +59,7 @@ export default function DailyCash() {
       id: `P-${p.id}`,
       type: 'IN',
       source: p.method === 'CASH' ? 'FACTURACION' : 'MERCADOPAGO',
+      vault: p.method === 'CASH' ? 'EFECTIVO' : 'MP',
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
@@ -73,6 +72,7 @@ export default function DailyCash() {
         id: `F-${p.id}`,
         type: 'OUT',
         source: 'MERCADOPAGO_FEE',
+        vault: 'MP',
         title: `Cargo Mercado Pago (Fac. #${p.invoiceId})`,
         amount: p.mpFee,
         date: new Date(p.paymentDate),
@@ -86,6 +86,7 @@ export default function DailyCash() {
         id: `T-${p.id}`,
         type: 'OUT',
         source: 'MERCADOPAGO_TAX',
+        vault: 'MP',
         title: `Impuestos MP (Fac. #${p.invoiceId})`,
         amount: p.mpTax,
         date: new Date(p.paymentDate),
@@ -95,11 +96,14 @@ export default function DailyCash() {
   });
 
   data.movements.forEach(m => {
+    const isMp = (m.category && m.category.startsWith('MP_'));
+    const cleanCategory = isMp ? m.category.replace('MP_', '') : (m.category || 'GASTO_GENERAL');
     baseItems.push({
       id: `M-${m.id}`,
       type: m.type,
-      category: m.category || 'GASTO_GENERAL',
+      category: cleanCategory,
       source: 'MANUAL',
+      vault: isMp ? 'MP' : 'EFECTIVO',
       title: m.description,
       amount: m.amount,
       date: new Date(m.createdAt),
@@ -122,15 +126,18 @@ export default function DailyCash() {
   const mpIn = filteredItems.filter(i => i.source === 'MERCADOPAGO' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
   const mpOut = filteredItems.filter(i => (i.source === 'MERCADOPAGO_FEE' || i.source === 'MERCADOPAGO_TAX') && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
 
-  const manualIn = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
-  const manualOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const manualCashIn = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'EFECTIVO' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
+  const manualCashOut = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'EFECTIVO' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+
+  const manualMpIn = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
+  const manualMpOut = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
   
   const matiasOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_MATIAS').reduce((acc, i) => acc + i.amount, 0);
   const victorOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_VICTOR').reduce((acc, i) => acc + i.amount, 0);
   const gastosOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'GASTO_GENERAL').reduce((acc, i) => acc + i.amount, 0);
 
-  const netCash = (invoiceIn + manualIn) - manualOut;
-  const netMp = mpIn - mpOut;
+  const netCash = (invoiceIn + manualCashIn) - manualCashOut;
+  const netMp = (mpIn + manualMpIn) - mpOut - manualMpOut;
 
   // Extract unique users
   const uniqueUsers = Array.from(new Set(baseItems.map(i => i.user)));
@@ -292,6 +299,9 @@ export default function DailyCash() {
                             <div>
                                 <h4 className={`font-black text-base tracking-tight ${item.type === 'IN' ? 'text-slate-800' : 'text-red-700'}`}>{item.title}</h4>
                                 <div className="text-xs text-slate-500 font-medium flex items-center gap-2 mt-1">
+                                    <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black tracking-wider ${item.vault === 'MP' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                        {item.vault === 'MP' ? '💳 Mercado Pago' : '💵 Efectivo Físico'}
+                                    </span>
                                     <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider">
                                         <MonitorCheck size={10}/> {item.source} {item.category && item.category !== 'INGRESO' && `(${item.category.replace('_', ' ')})`}
                                     </span>
@@ -327,6 +337,18 @@ export default function DailyCash() {
                 <button type="button" onClick={()=>setType('IN')} className={`py-3 rounded-2xl font-black uppercase text-sm border-2 transition-all ${type === 'IN' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 scale-100 shadow-sm' : 'border-slate-200 text-slate-400 hover:bg-slate-50 scale-95 opacity-70'}`}>
                   Ingreso Libre
                 </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Caja de Origen / Destino</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={()=>setVault('EFECTIVO')} className={`py-3 rounded-2xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-2 ${vault === 'EFECTIVO' ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-sm' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                    💵 Efectivo Físico
+                  </button>
+                  <button type="button" onClick={()=>setVault('MP')} className={`py-3 rounded-2xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-2 ${vault === 'MP' ? 'border-blue-500 bg-blue-50 text-blue-800 shadow-sm' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+                    💳 Mercado Pago
+                  </button>
+                </div>
               </div>
 
               <div>
