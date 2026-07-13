@@ -452,7 +452,7 @@ export default function InvoicesList() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allSelectableIds = filteredInvoices.filter(inv => (inv.status === 'PENDING' && !inv.notifiedAt) || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
+      const allSelectableIds = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
       setSelectedInvoices(allSelectableIds);
     } else {
       setSelectedInvoices([]);
@@ -467,7 +467,7 @@ export default function InvoicesList() {
     }
   };
 
-  const selectableCount = filteredInvoices.filter(inv => (inv.status === 'PENDING' && !inv.notifiedAt) || (inv.status === 'PAID' && !inv.afipCae)).length;
+  const selectableCount = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).length;
   const isAllSelected = selectableCount > 0 && selectedInvoices.length === selectableCount;
 
   return (
@@ -617,7 +617,7 @@ export default function InvoicesList() {
               ) : (
                 [...filteredInvoices].sort((a, b) => (a.client?.name || '').localeCompare(b.client?.name || '')).map(inv => {
                   const isPaid = inv.status === 'PAID';
-                  const isSelectable = (!isPaid && !inv.notifiedAt) || (isPaid && !inv.afipCae);
+                  const isSelectable = !isPaid || (isPaid && !inv.afipCae);
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
                       <td className="px-3 py-3 text-center">
