@@ -12,6 +12,7 @@ export default function POSCaja() {
   const [clientInvoices, setClientInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
+  const [operator, setOperator] = useState('HUMBERTO');
 
   // Initial Fetch to have clients & invoices array cached
   const fetchData = async () => {
@@ -58,7 +59,7 @@ export default function POSCaja() {
         amountPaid: parseFloat(payModal.amount) || 0,
         lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
         totalRequired: parseFloat(payModal.inv.totalAmount) || parseFloat(payModal.amount) || 0,
-        method: 'CASH'
+        method: 'CASH_' + operator
       });
       // Payment success!
       setPayModal({ show: false, inv: null, amount: '' });
@@ -326,6 +327,19 @@ export default function POSCaja() {
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 flex justify-between items-center">
                 <span className="font-bold text-slate-600 uppercase text-xs tracking-wider">Total Requerido:</span>
                 <span className="font-black text-2xl text-slate-900">${payModal.inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Operador que cobra</label>
+                <select 
+                  value={operator}
+                  onChange={(e) => setOperator(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                >
+                  <option value="HUMBERTO">Humberto</option>
+                  <option value="VICTOR">Víctor</option>
+                  <option value="MATIAS">Matías</option>
+                </select>
               </div>
 
               <div>

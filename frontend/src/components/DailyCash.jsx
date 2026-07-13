@@ -21,6 +21,7 @@ export default function DailyCash() {
   const [category, setCategory] = useState('GASTO_GENERAL');
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
+  const [operator, setOperator] = useState('HUMBERTO');
 
   const fetchCash = async () => {
     setLoading(true);
@@ -42,9 +43,10 @@ export default function DailyCash() {
     if(!amount || !desc) return alert('Por favor completa todos los campos.');
     try {
        const finalCategory = vault === 'MP' ? `MP_${category}` : category;
-       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, category: type === 'OUT' ? finalCategory : (vault === 'MP' ? 'MP_INGRESO' : 'INGRESO'), description: desc });
+       const prefixedDesc = `[CAJA: ${operator}] ${desc}`;
+       await axios.post('https://interfast-backend-95ww.onrender.com/api/cash/movement', { type, amount, category: type === 'OUT' ? finalCategory : (vault === 'MP' ? 'MP_INGRESO' : 'INGRESO'), description: prefixedDesc });
        setShowModal(false);
-       setAmount(''); setDesc(''); setCategory('GASTO_GENERAL'); setVault('EFECTIVO');
+       setAmount(''); setDesc(''); setCategory('GASTO_GENERAL'); setVault('EFECTIVO'); setOperator('HUMBERTO');
        fetchCash();
     } catch (err) {
        alert('Error: ' + (err.response?.data?.error || err.message));
@@ -55,15 +57,17 @@ export default function DailyCash() {
   
   (data.payments || []).forEach(p => {
     // Ingreso principal
+    const isCash = p.method.startsWith('CASH');
+    const paymentOperator = p.method.includes('_') ? p.method.split('_')[1] : (p.user?.username || 'Sistema');
     baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: p.method === 'CASH' ? 'FACTURACION' : 'MERCADOPAGO',
-      vault: p.method === 'CASH' ? 'EFECTIVO' : 'MP',
+      source: isCash ? 'FACTURACION' : 'MERCADOPAGO',
+      vault: isCash ? 'EFECTIVO' : 'MP',
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
-      user: p.user?.username || 'Sistema'
+      user: paymentOperator.toUpperCase()
     });
     
     // Comisiones MP
@@ -76,7 +80,7 @@ export default function DailyCash() {
         title: `Cargo Mercado Pago (Fac. #${p.invoiceId})`,
         amount: p.mpFee,
         date: new Date(p.paymentDate),
-        user: 'Sistema'
+        user: 'SISTEMA'
       });
     }
     
@@ -90,7 +94,7 @@ export default function DailyCash() {
         title: `Impuestos MP (Fac. #${p.invoiceId})`,
         amount: p.mpTax,
         date: new Date(p.paymentDate),
-        user: 'Sistema'
+        user: 'SISTEMA'
       });
     }
   });
@@ -98,16 +102,20 @@ export default function DailyCash() {
   (data.movements || []).forEach(m => {
     const isMp = (m.category && m.category.startsWith('MP_'));
     const cleanCategory = isMp ? m.category.replace('MP_', '') : (m.category || 'GASTO_GENERAL');
+    const descMatch = m.description.match(/^\[CAJA:\s*([^\]]+)\]\s*(.*)$/);
+    const movementOperator = descMatch ? descMatch[1] : (m.user?.username || 'Sistema');
+    const displayDescription = descMatch ? descMatch[2] : m.description;
+    
     baseItems.push({
       id: `M-${m.id}`,
       type: m.type,
       category: cleanCategory,
       source: 'MANUAL',
       vault: isMp ? 'MP' : 'EFECTIVO',
-      title: m.description,
+      title: displayDescription,
       amount: m.amount,
       date: new Date(m.createdAt),
-      user: m.user?.username || 'GHOST'
+      user: movementOperator.toUpperCase()
     });
   });
 
@@ -141,6 +149,11 @@ export default function DailyCash() {
 
   const netCash = (invoiceIn + manualCashIn) - manualCashOut;
   const netMp = (mpIn + manualMpIn) - mpOut - manualMpOut;
+
+  // Cajas individuales por operador
+  const matiasCash = filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'MATIAS' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0) - filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'MATIAS' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const victorCash = filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'VICTOR' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0) - filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'VICTOR' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const humbertoCash = netCash - victorCash - matiasCash;
 
   // Extract unique users
   const uniqueUsers = Array.from(new Set(baseItems.map(i => i.user)));
@@ -262,6 +275,11 @@ export default function DailyCash() {
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-2xl shadow-lg shadow-emerald-200 text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform">
             <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-wider mb-1">Caja Fuerte Efectivo</p>
             <h4 className="text-2xl font-black">${netCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</h4>
+            <div className="border-t border-emerald-400/30 mt-2 pt-2 space-y-1 text-[11px] font-bold">
+              <div className="flex justify-between"><span>Caja Humberto:</span> <span>${humbertoCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></div>
+              <div className="flex justify-between"><span>Caja Víctor:</span> <span>${victorCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></div>
+              <div className="flex justify-between"><span>Caja Matías:</span> <span>${matiasCash.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></div>
+            </div>
         </div>
 
         {/* MERCADO PAGO */}
@@ -381,6 +399,18 @@ export default function DailyCash() {
                 </div>
               )}
               
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Caja del Operador (Origen / Destino)</label>
+                <select 
+                  value={operator} onChange={e => setOperator(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all cursor-pointer"
+                >
+                  <option value="HUMBERTO">Humberto</option>
+                  <option value="VICTOR">Víctor</option>
+                  <option value="MATIAS">Matías</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Concepto</label>
                 <input 
