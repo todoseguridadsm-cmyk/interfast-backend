@@ -248,26 +248,65 @@ async function ensureCurrentMonthInvoice(clientId) {
     const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
     const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
 
+    let discountToApply = 0;
+    let remainingBalance = 0;
+    const basePrice = client.plan.priceV1 || client.plan.totalPrice;
+
+    if (client.walletBalance > 0) {
+      if (client.walletBalance >= basePrice) {
+        discountToApply = basePrice;
+        remainingBalance = client.walletBalance - basePrice;
+      } else {
+        discountToApply = client.walletBalance;
+        remainingBalance = 0;
+      }
+      
+      await prisma.client.update({
+        where: { id: client.id },
+        data: { walletBalance: remainingBalance }
+      });
+      console.log(`💳 [Reactivación] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
+    }
+
+    const priceV1Val = Math.max(0, basePrice - discountToApply);
+    const priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
+    const priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
+    const priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+
+    const invoiceStatus = priceV1Val === 0 ? 'PAID' : 'PENDING';
+
     const newInvoice = await prisma.invoice.create({
       data: {
         clientId: client.id,
         month: currentMonth,
         year: currentYear,
-        originalAmount: client.plan.priceV1 || client.plan.totalPrice,
+        originalAmount: priceV1Val,
         dueDate: dueDate1Date,
-        priceV1: client.plan.priceV1 || client.plan.totalPrice,
+        priceV1: priceV1Val,
         dueDate1: dueDate1Date,
-        priceV2: client.plan.priceV2 || client.plan.totalPrice,
+        priceV2: priceV2Val,
         dueDate2: dueDate2Date,
-        priceV3: client.plan.priceV3 || client.plan.totalPrice,
+        priceV3: priceV3Val,
         dueDate3: dueDate3Date,
-        priceV4: client.plan.priceV4 || client.plan.totalPrice,
+        priceV4: priceV4Val,
         dueDate4: dueDate4Date,
-        status: 'PENDING'
+        status: invoiceStatus
       }
     });
 
-    console.log(`✅ [Reactivación] Factura automática N°${newInvoice.id} generada para ${client.name} (Mes ${currentMonth}/${currentYear}).`);
+    if (invoiceStatus === 'PAID') {
+      await prisma.payment.create({
+        data: {
+          invoiceId: newInvoice.id,
+          method: 'CREDIT', // SALDO_A_FAVOR
+          amountPaid: discountToApply,
+          lateFeeApplied: 0,
+          userId: 1
+        }
+      });
+    }
+
+    console.log(`✅ [Reactivación] Factura automática N°${newInvoice.id} generada para ${client.name} (Mes ${currentMonth}/${currentYear}). Estado: ${invoiceStatus}`);
     return newInvoice;
   } catch (err) {
     console.error(`⚠️ Error al auto-generar factura para cliente ID ${clientId}:`, err.message);
@@ -1080,24 +1119,64 @@ app.post('/api/invoices/generate', async (req, res) => {
         const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
         const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
 
-        await prisma.invoice.create({
+        let discountToApply = 0;
+        let remainingBalance = 0;
+        const basePrice = client.plan.priceV1 || client.plan.totalPrice;
+
+        if (client.walletBalance > 0) {
+          if (client.walletBalance >= basePrice) {
+            discountToApply = basePrice;
+            remainingBalance = client.walletBalance - basePrice;
+          } else {
+            discountToApply = client.walletBalance;
+            remainingBalance = 0;
+          }
+          
+          await prisma.client.update({
+            where: { id: client.id },
+            data: { walletBalance: remainingBalance }
+          });
+          console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
+        }
+
+        const priceV1Val = Math.max(0, basePrice - discountToApply);
+        const priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
+        const priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
+        const priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+
+        const invoiceStatus = priceV1Val === 0 ? 'PAID' : 'PENDING';
+
+        const createdInv = await prisma.invoice.create({
           data: {
             clientId: client.id,
             month: currentMonth,
             year: currentYear,
-            originalAmount: client.plan.priceV1 || client.plan.totalPrice,
+            originalAmount: priceV1Val,
             dueDate: dueDate1Date,
-            priceV1: client.plan.priceV1 || client.plan.totalPrice,
+            priceV1: priceV1Val,
             dueDate1: dueDate1Date,
-            priceV2: client.plan.priceV2 || client.plan.totalPrice,
+            priceV2: priceV2Val,
             dueDate2: dueDate2Date,
-            priceV3: client.plan.priceV3 || client.plan.totalPrice,
+            priceV3: priceV3Val,
             dueDate3: dueDate3Date,
-            priceV4: client.plan.priceV4 || client.plan.totalPrice,
+            priceV4: priceV4Val,
             dueDate4: dueDate4Date,
-            status: 'PENDING'
+            status: invoiceStatus
           }
         });
+
+        if (invoiceStatus === 'PAID') {
+          await prisma.payment.create({
+            data: {
+              invoiceId: createdInv.id,
+              method: 'CREDIT', // SALDO_A_FAVOR
+              amountPaid: discountToApply,
+              lateFeeApplied: 0,
+              userId: 1
+            }
+          });
+        }
+
         generatedCount++;
       }
     }
@@ -2298,6 +2377,24 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               
               await waSocket.sendMessage(targetPhone, { text: diffMsg });
               console.log(`✉️ WhatsApp de diferencia enviado a ${invoice.client.name}`);
+            }
+          } else if (difference < -5.0) {
+            const excessCredit = -difference;
+            console.log(`💳 Webhook MP: Pago en exceso detectado para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Crédito a favor: $${excessCredit}`);
+            if (invoice.clientId) {
+              await prisma.client.update({
+                where: { id: invoice.clientId },
+                data: { walletBalance: { increment: excessCredit } }
+              });
+
+              if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
+                const phoneClean = invoice.client.phone.replace(/\D/g, '');
+                const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+                const creditMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n🎉 *Crédito a Favor:* Como el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}*, registramos un saldo a favor en tu cuenta de *$${excessCredit.toFixed(2)}*, el cual se aplicará automáticamente como descuento en tu próxima factura mensual.\n\n¡Muchas gracias!`;
+                
+                await waSocket.sendMessage(targetPhone, { text: creditMsg });
+                console.log(`✉️ WhatsApp de saldo a favor enviado a ${invoice.client.name}`);
+              }
             }
           }
 
