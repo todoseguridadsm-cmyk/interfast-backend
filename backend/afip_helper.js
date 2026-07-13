@@ -95,10 +95,7 @@ async function emitAfipInvoiceHelper(invoiceId, afipInstance) {
   }
 }
 
-function generateInvoicePDFStream(invoice, res) {
-  const doc = new PDFDocument({ margin: 50 });
-  doc.pipe(res);
-
+function drawInvoicePDF(doc, invoice) {
   const clientName = invoice.client ? invoice.client.name : 'Consumidor Final';
   const clientDni = invoice.client ? (invoice.client.cuit || invoice.client.dni || '00000000') : '00000000';
   const clientAddr = invoice.client ? (invoice.client.address || 'Mendoza, Argentina') : 'Mendoza, Argentina';
@@ -110,31 +107,31 @@ function generateInvoicePDFStream(invoice, res) {
   const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
   const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
 
-  // Cabecera superior izquierda (ancho limitado a 185 para no encimar la letra central)
+  // Cabecera superior izquierda
   doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('INTERFAST - TodoSeguridadSM', 50, 45, { width: 185 });
   doc.fontSize(9).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina', 50, 65, { width: 185 });
   doc.text('CUIT: 30-71701055-4\nIVA Responsable Inscripto\nInicio de Actividades: 2021', 50, 85, { width: 185 });
 
-  // Cuadro Central Tipo Comprobante (X=245)
+  // Cuadro Central Tipo Comprobante
   doc.rect(245, 40, 45, 45).fillAndStroke('#f1f5f9', '#94a3b8');
   doc.fillColor('#0f172a').fontSize(24).font('Helvetica-Bold').text(cbteTipoStr, 258, 48);
   doc.fontSize(7).text(`COD. 00${invoice.afipCbteTip || 0}`, 248, 73);
 
-  // Datos Fiscales Comprobante (Derecha, X=305)
+  // Datos Fiscales Comprobante
   doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text(docTitleStr, 305, 45);
   doc.fontSize(10).font('Helvetica-Bold').text(`Punto de Venta: ${ptoVtaStr}   Comp. N°: ${cbteNroStr}`, 305, 65);
   doc.fontSize(9).font('Helvetica').text(`Fecha de Emisión: ${new Date(invoice.createdAt).toLocaleDateString('es-AR')}`, 305, 85);
 
   doc.moveTo(50, 125).lineTo(550, 125).strokeColor('#cbd5e1').stroke();
 
-  // Cuadro Cliente (Y=135)
+  // Cuadro Cliente
   doc.rect(50, 135, 500, 65).fillAndStroke('#f8fafc', '#e2e8f0');
   doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text('DATOS DEL RECEPTOR / CLIENTE:', 60, 145);
   doc.fontSize(9).font('Helvetica').text(`Señor(es): ${clientName}`, 60, 160, { width: 230 });
   doc.text(`CUIT / DNI: ${clientDni} | IVA: Consumidor Final`, 60, 175, { width: 230 });
   doc.text(`Domicilio: ${clientAddr}`, 300, 160, { width: 240 });
 
-  // Tabla Detalle (Y=215)
+  // Tabla Detalle
   let y = 215;
   doc.rect(50, y, 500, 25).fill('#1e293b');
   doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold');
@@ -151,8 +148,23 @@ function generateInvoicePDFStream(invoice, res) {
   doc.text(`$${netAmount}`, 405, y + 15);
   doc.text(`$${netAmount}`, 485, y + 15);
 
-  // Totales
+  // Totales & Cuadro de Vencimientos Escalonados
   y += 60;
+  
+  // Box Vencimientos (Izquierda)
+  doc.rect(50, y, 270, 90).fillAndStroke('#f8fafc', '#cbd5e1');
+  doc.fillColor('#0f172a').fontSize(9).font('Helvetica-Bold').text('VENCIMIENTOS Y TARIFAS VIGENTES:', 60, y + 12);
+  doc.fontSize(8).font('Helvetica').fillColor('#334155');
+  const d1 = invoice.dueDate1 ? new Date(invoice.dueDate1).toLocaleDateString('es-AR') : '10/07/2026';
+  const d2 = invoice.dueDate2 ? new Date(invoice.dueDate2).toLocaleDateString('es-AR') : '15/07/2026';
+  const d3 = invoice.dueDate3 ? new Date(invoice.dueDate3).toLocaleDateString('es-AR') : '20/07/2026';
+  const d4 = invoice.dueDate4 ? new Date(invoice.dueDate4).toLocaleDateString('es-AR') : '22/07/2026';
+  doc.text(`• Vencimiento 1 (Hasta ${d1}): $${(invoice.priceV1 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 28);
+  doc.text(`• Vencimiento 2 (Hasta ${d2}): $${(invoice.priceV2 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 41);
+  doc.text(`• Vencimiento 3 (Hasta ${d3}): $${(invoice.priceV3 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 54);
+  doc.text(`• Vencimiento 4 (Desde ${d4} / Corte): $${(invoice.priceV4 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 67);
+
+  // Box Totales (Derecha)
   doc.rect(330, y, 220, 90).fillAndStroke('#f8fafc', '#cbd5e1');
   doc.fillColor('#475569').fontSize(10).font('Helvetica');
   doc.text('Subtotal Neto:', 345, y + 15);
@@ -175,11 +187,33 @@ function generateInvoicePDFStream(invoice, res) {
   doc.text(`Fecha de Vencimiento de CAE: ${invoice.afipVtoCae || '18/07/2026'}`, 60, y + 50);
 
   doc.fontSize(8).fillColor('#64748b').text('Este documento es una representación impresa de un comprobante fiscal electrónico emitido según las normativas vigentes de ARCA.', 50, y + 90, { align: 'center', width: 500 });
+}
 
+function generateInvoicePDFStream(invoice, res) {
+  const doc = new PDFDocument({ margin: 50 });
+  doc.pipe(res);
+  drawInvoicePDF(doc, invoice);
   doc.end();
+}
+
+function generateInvoicePDFBuffer(invoice) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks = [];
+      doc.on('data', chunk => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', err => reject(err));
+      drawInvoicePDF(doc, invoice);
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
 module.exports = {
   emitAfipInvoiceHelper,
-  generateInvoicePDFStream
+  generateInvoicePDFStream,
+  generateInvoicePDFBuffer
 };
