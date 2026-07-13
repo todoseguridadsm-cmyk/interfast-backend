@@ -108,9 +108,11 @@ function drawInvoicePDF(doc, invoice) {
   const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
 
   // Cabecera superior izquierda
-  doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('INTERFAST - TodoSeguridadSM', 50, 45, { width: 185 });
-  doc.fontSize(9).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina', 50, 65, { width: 185 });
-  doc.text('CUIT: 30-71701055-4\nIVA Responsable Inscripto\nInicio de Actividades: 2021', 50, 85, { width: 185 });
+  doc.fillColor('#1e293b').fontSize(14).font('Helvetica-Bold').text('INTERFAST', 50, 45, { width: 185 });
+  doc.fontSize(10).text('TodoSeguridadSM', { width: 185 });
+  doc.moveDown(0.2);
+  doc.fontSize(8).font('Helvetica').fillColor('#64748b').text('Proveedor de Servicios de Internet WISP | Mendoza, Argentina', { width: 185 });
+  doc.text('CUIT: 30-71701055-4\nIVA Responsable Inscripto\nInicio de Actividades: 2021', { width: 185 });
 
   // Cuadro Central Tipo Comprobante
   doc.rect(245, 40, 45, 45).fillAndStroke('#f1f5f9', '#94a3b8');
