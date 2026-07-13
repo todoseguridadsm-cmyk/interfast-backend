@@ -99,9 +99,43 @@ function drawInvoicePDF(doc, invoice) {
   const clientName = invoice.client ? invoice.client.name : 'Consumidor Final';
   const clientDni = invoice.client ? (invoice.client.cuit || invoice.client.dni || '00000000') : '00000000';
   const clientAddr = invoice.client ? (invoice.client.address || 'Mendoza, Argentina') : 'Mendoza, Argentina';
-  const amount = invoice.originalAmount || 0;
-  const netAmount = (amount / 1.21).toFixed(2);
-  const ivaAmount = (amount - netAmount).toFixed(2);
+  // Calcular el monto total a mostrar de forma dinámica según la fecha y centavos
+  let finalAmount = invoice.originalAmount || 0;
+  if (invoice.status === 'PENDING') {
+    const today = new Date();
+    let currentAmount = invoice.priceV1 || invoice.originalAmount || 0;
+    if (invoice.dueDate1) {
+      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+
+      if (today > d3 && invoice.priceV4) {
+        currentAmount = invoice.priceV4;
+      } else if (today > d2 && invoice.priceV3) {
+        currentAmount = invoice.priceV3;
+      } else if (today > d1 && invoice.priceV2) {
+        currentAmount = invoice.priceV2;
+      }
+    }
+    const valCents = ((invoice.clientId || invoice.id || 1) % 1000);
+    const centsOffset = valCents / 100;
+    finalAmount = currentAmount + centsOffset;
+  } else {
+    const paymentsSum = invoice.payments && invoice.payments.length > 0
+      ? invoice.payments.reduce((acc, p) => acc + p.amountPaid, 0)
+      : 0;
+    if (paymentsSum > 0) {
+      finalAmount = paymentsSum;
+    } else {
+      const valCents = ((invoice.clientId || invoice.id || 1) % 1000);
+      const centsOffset = valCents / 100;
+      finalAmount = (invoice.originalAmount || 0) + centsOffset;
+    }
+  }
+
+  const netAmount = (finalAmount / 1.21).toFixed(2);
+  const ivaAmount = (finalAmount - netAmount).toFixed(2);
   const cbteTipoStr = invoice.status === 'PAID' ? (invoice.afipCbteTip === 1 ? 'A' : 'B') : 'X';
   const docTitleStr = invoice.status === 'PAID' ? `FACTURA ${cbteTipoStr}` : 'PRESUPUESTO / DEUDA';
   const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
@@ -178,7 +212,7 @@ function drawInvoicePDF(doc, invoice) {
   doc.moveTo(345, y + 55).lineTo(535, y + 55).strokeColor('#cbd5e1').stroke();
   doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold');
   doc.text('IMPORTE TOTAL:', 345, y + 65);
-  doc.text(`$${amount.toFixed(2)}`, 460, y + 65, { align: 'right', width: 75 });
+  doc.text(`$${finalAmount.toFixed(2)}`, 460, y + 65, { align: 'right', width: 75 });
 
   // Pie Fiscal ARCA / CAE
   y += 120;
