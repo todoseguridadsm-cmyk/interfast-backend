@@ -319,7 +319,7 @@ async function sendAutomaticPaidInvoiceNotification(invoiceId) {
   try {
     const invoice = await prisma.invoice.findUnique({
       where: { id: parseInt(invoiceId) },
-      include: { client: true }
+      include: { client: true, payments: true }
     });
     if (!invoice || !invoice.client || !invoice.client.phone) {
       console.log(`⚠️ [Auto-Envío Sofi] Factura ${invoiceId} no tiene teléfono registrado para enviar WhatsApp.`);
@@ -330,13 +330,17 @@ async function sendAutomaticPaidInvoiceNotification(invoiceId) {
     if (phoneClean.length < 8) return;
     const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
 
+    const totalPaid = invoice.payments && invoice.payments.length > 0
+      ? invoice.payments.reduce((sum, p) => sum + p.amountPaid, 0)
+      : invoice.originalAmount;
+
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
     const cbteTipoStr = invoice.afipCbteTip === 1 ? 'Factura A' : 'Factura B';
     const ptoVtaStr = String(invoice.afipPuntoVenta || 2).padStart(5, '0');
     const cbteNroStr = String(invoice.afipCbteNro || invoice.id).padStart(8, '0');
     const facturaNumText = invoice.afipCae ? `${cbteTipoStr} N° ${ptoVtaStr}-${cbteNroStr} (Ref: F-${invoice.id})` : `F-${invoice.id}`;
     const caeText = invoice.afipCae ? `\n🏷️ *CAE ARCA:* ${invoice.afipCae}` : '';
-    const message = `¡Hola *${invoice.client.name}*! 👋🏻 Soy *Sofi*, el asistente virtual de *INTERFAST*.\n\n🎉 ¡Confirmamos que recibimos tu pago con éxito! Tu servicio está 100% activo y al día.\n\nTe envío el detalle oficial de tu comprobante fiscal:\n📄 *Comprobante:* ${facturaNumText}\n📅 *Período:* ${invoice.month}/${invoice.year}\n💰 *Monto Pagado:* $${invoice.originalAmount}${caeText}\n\n📥 *Podés descargar tu comprobante y factura oficial en PDF aquí:*\n${pdfUrl}\n\n¡Muchas gracias por confiar en nosotros! Si necesitas algo más, aquí estoy para ayudarte. 😊`;
+    const message = `¡Hola *${invoice.client.name}*! 👋🏻 Soy *Sofi*, el asistente virtual de *INTERFAST*.\n\n🎉 ¡Confirmamos que recibimos tu pago con éxito! Tu servicio está 100% activo y al día.\n\nTe envío el detalle oficial de tu comprobante fiscal:\n📄 *Comprobante:* ${facturaNumText}\n📅 *Período:* ${invoice.month}/${invoice.year}\n💰 *Monto Pagado:* $${totalPaid}${caeText}\n\n📥 *Podés descargar tu comprobante y factura oficial en PDF aquí:*\n${pdfUrl}\n\n¡Muchas gracias por confiar en nosotros! Si necesitas algo más, aquí estoy para ayudarte. 😊`;
 
     // 1. Enviar por WhatsApp Web interno (Baileys) si está conectado
     if (waSocket && waStatus === 'CONNECTED') {
@@ -359,7 +363,7 @@ async function sendAutomaticPaidInvoiceNotification(invoiceId) {
           invoiceId: invoice.id,
           month: invoice.month,
           year: invoice.year,
-          amount: invoice.originalAmount,
+          amount: totalPaid,
           cae: invoice.afipCae,
           pdfUrl,
           message
@@ -2263,6 +2267,38 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             }
           }
 
+          if (!matchedInvoice) {
+            console.log(`ℹ️ Webhook MP: Sin coincidencia por centavos. Buscando por aproximación de monto y nombre/DNI/email...`);
+            let nameAndAmountMatches = [];
+            for (const inv of pendingInvoices) {
+              const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
+              const possibleBaseAmounts = [
+                inv.originalAmount,
+                inv.priceV1,
+                inv.priceV2,
+                inv.priceV3,
+                inv.priceV4
+              ].filter(a => a !== null && a > 0);
+
+              const matchesBaseAmount = possibleBaseAmounts.some(amt => 
+                Math.abs(transactionAmount - amt) < 5.0 || 
+                Math.abs((transactionAmount - expectedCentsOffset) - amt) < 5.0
+              );
+              
+              if (matchesBaseAmount) {
+                nameAndAmountMatches.push(inv);
+              }
+            }
+
+            if (nameAndAmountMatches.length > 0) {
+              matchedInvoice = disambiguate(nameAndAmountMatches);
+              if (matchedInvoice) {
+                console.log(`🎯 Webhook MP [Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} sin coincidencia estricta de centavos.`);
+              }
+            }
+          }
+
+
           if (matchedInvoice) {
             invoiceIdsToProcess.push(matchedInvoice.id);
           } else {
@@ -3235,6 +3271,312 @@ cron.schedule('* * * * *', async () => {
   }
 });
 
+// Sincronización periódica de Mercado Pago (cada 10 minutos)
+// Busca cobros acreditados sin webhook y los concilia por centavos o referencia
+cron.schedule('*/10 * * * *', async () => {
+  if (!clientMP) return;
+  try {
+    console.log('[Cron MP Sync] Iniciando conciliación periódica de Mercado Pago...');
+    const payment = new Payment(clientMP);
+    const searchResponse = await payment.search({
+      options: {
+        sort: 'date_created',
+        criteria: 'desc',
+        limit: 100,
+        filters: {
+          begin_date: 'NOW-7DAYS',
+          end_date: 'NOW',
+          status: 'approved'
+        }
+      }
+    });
+
+
+    const mpPayments = searchResponse.results || [];
+    
+    for (const mpPayment of mpPayments) {
+      if (mpPayment.status !== 'approved') continue;
+
+      const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+      const ref = (mpPayment.external_reference || mpPayment.metadata?.external_reference || '').toString().trim();
+      const description = (mpPayment.description || mpPayment.reason || '').toString();
+
+      let invoiceIdsToProcess = [];
+
+      if (ref.startsWith('MULTI-')) {
+        invoiceIdsToProcess = ref.replace('MULTI-', '').split('-').map(id => parseInt(id)).filter(id => !isNaN(id));
+      } else if (ref.startsWith('SUB-') || description.includes('SUB-') || /TK\d+/.test(description)) {
+        let subClientId = NaN;
+        if (ref.startsWith('SUB-')) {
+          subClientId = parseInt(ref.replace('SUB-', ''));
+        } else {
+          const match = description.match(/SUB-(\d+)/) || description.match(/TK0*(\d+)/);
+          if (match && match[1]) subClientId = parseInt(match[1]);
+        }
+        if (!isNaN(subClientId)) {
+          const pendingInv = await prisma.invoice.findFirst({
+            where: { clientId: subClientId, status: 'PENDING' },
+            orderBy: [{ year: 'asc' }, { month: 'asc' }]
+          });
+          if (pendingInv) {
+            invoiceIdsToProcess.push(pendingInv.id);
+          }
+        }
+      } else if (ref && ref.trim() !== '') {
+        const singleId = parseInt(ref);
+        if (!isNaN(singleId)) {
+          const validInvoice = await prisma.invoice.findFirst({
+            where: { id: singleId, status: 'PENDING' }
+          });
+          if (validInvoice) {
+            invoiceIdsToProcess.push(validInvoice.id);
+          }
+        }
+      }
+
+      if (invoiceIdsToProcess.length === 0) {
+        const pendingInvoices = await prisma.invoice.findMany({
+          where: { status: 'PENDING' },
+          include: { client: true }
+        });
+
+        let matchedInvoice = null;
+        let exactCentsMatches = [];
+
+        for (const inv of pendingInvoices) {
+          const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
+          const possibleAmounts = [
+            inv.originalAmount + expectedCentsOffset,
+            inv.priceV1 + expectedCentsOffset,
+            inv.priceV2 ? inv.priceV2 + expectedCentsOffset : null,
+            inv.priceV3 ? inv.priceV3 + expectedCentsOffset : null,
+            inv.priceV4 ? inv.priceV4 + expectedCentsOffset : null
+          ].filter(a => a !== null && a > 0);
+
+          const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
+          if (matchesCentsAndAmount) {
+            exactCentsMatches.push(inv);
+          }
+        }
+
+        const disambiguate = (candidates) => {
+          const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''}`.toLowerCase();
+          const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
+          const payerDni = String(mpPayment.payer?.identification?.number || '');
+
+          for (const inv of candidates) {
+            const clientName = (inv.client?.name || '').toLowerCase();
+            const clientEmail = (inv.client?.email || '').toLowerCase();
+            const clientDni = String(inv.client?.dni || '');
+
+            if (clientDni && clientDni.length > 5 && payerDni.includes(clientDni)) return inv;
+            if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
+
+            const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
+            const matchedWordsCount = nameWords.filter(word => payerName.includes(word)).length;
+            if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
+              return inv;
+            }
+          }
+          return candidates.length === 1 ? candidates[0] : null;
+        };
+
+        if (exactCentsMatches.length === 1) {
+          matchedInvoice = exactCentsMatches[0];
+          console.log(`🎯 [Cron MP Sync] ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client?.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
+        } else if (exactCentsMatches.length > 1) {
+          matchedInvoice = disambiguate(exactCentsMatches);
+          if (matchedInvoice) {
+            console.log(`🎯 [Cron MP Sync] ¡DESAMBIGUACIÓN EXITOSA! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client?.name} por coincidencia de datos del pagador.`);
+          }
+        }
+
+        if (!matchedInvoice) {
+          console.log(`[Cron MP Sync] Sin coincidencia por centavos. Buscando por aproximación de monto y nombre/DNI/email...`);
+          let nameAndAmountMatches = [];
+          for (const inv of pendingInvoices) {
+            const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
+            const possibleBaseAmounts = [
+              inv.originalAmount,
+              inv.priceV1,
+              inv.priceV2,
+              inv.priceV3,
+              inv.priceV4
+            ].filter(a => a !== null && a > 0);
+
+            const matchesBaseAmount = possibleBaseAmounts.some(amt => 
+              Math.abs(transactionAmount - amt) < 5.0 || 
+              Math.abs((transactionAmount - expectedCentsOffset) - amt) < 5.0
+            );
+            
+            if (matchesBaseAmount) {
+              nameAndAmountMatches.push(inv);
+            }
+          }
+
+          if (nameAndAmountMatches.length > 0) {
+            matchedInvoice = disambiguate(nameAndAmountMatches);
+            if (matchedInvoice) {
+              console.log(`🎯 [Cron MP Sync - Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client?.name} sin coincidencia estricta de centavos.`);
+            }
+          }
+        }
+
+        if (matchedInvoice) {
+          invoiceIdsToProcess.push(matchedInvoice.id);
+        }
+      }
+
+      for (const invoiceId of invoiceIdsToProcess) {
+        const invoice = await prisma.invoice.findUnique({
+          where: { id: invoiceId },
+          include: { client: true }
+        });
+
+        if (!invoice || invoice.status === 'PAID') continue;
+
+        const existingPayment = await prisma.payment.findFirst({
+          where: { invoiceId: invoiceId }
+        });
+        if (existingPayment) {
+          await prisma.invoice.update({
+            where: { id: invoiceId },
+            data: { status: 'PAID' }
+          });
+          continue;
+        }
+
+        console.log(`[Cron MP Sync] Procesando conciliación automática para Factura #${invoiceId} ($${transactionAmount})`);
+
+        const today = new Date();
+        let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
+        let activeTierName = "Vencimiento 1";
+
+        if (invoice.dueDate1) {
+          const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+          const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+          const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+          const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+
+          if (today > d3 && invoice.priceV4) {
+            expectedAmountForDate = invoice.priceV4;
+            activeTierName = "Vencimiento 4";
+          } else if (today > d2 && invoice.priceV3) {
+            expectedAmountForDate = invoice.priceV3;
+            activeTierName = "Vencimiento 3";
+          } else if (today > d1 && invoice.priceV2) {
+            expectedAmountForDate = invoice.priceV2;
+            activeTierName = "Vencimiento 2";
+          }
+        }
+
+        const expectedCentsOffset = ((invoice.clientId || invoice.id || 1) % 1000) / 100;
+        const expectedTotalForDate = expectedAmountForDate + expectedCentsOffset;
+
+        let mpFee = 0;
+        let mpTax = 0;
+        if (mpPayment.fee_details && Array.isArray(mpPayment.fee_details)) {
+          mpPayment.fee_details.forEach(fee => {
+            if (fee.type === 'mercadopago_fee') {
+              mpFee += parseFloat(fee.amount) || 0;
+            } else {
+              mpTax += parseFloat(fee.amount) || 0;
+            }
+          });
+        } else {
+          mpFee = parseFloat((transactionAmount * 0.078147).toFixed(2));
+        }
+
+        await prisma.$transaction(async (tx) => {
+          await tx.invoice.update({
+            where: { id: invoiceId },
+            data: { status: 'PAID' }
+          });
+
+          await tx.payment.create({
+            data: {
+              invoiceId: invoiceId,
+              method: 'MERCADOPAGO',
+              amountPaid: transactionAmount,
+              mpFee: mpFee,
+              mpTax: mpTax,
+              lateFeeApplied: Math.max(0, expectedAmountForDate - (invoice.priceV1 || invoice.originalAmount))
+            }
+          });
+
+          await tx.cutoffList.deleteMany({
+            where: { invoiceId: invoiceId }
+          });
+
+          if (invoice.clientId) {
+            await tx.client.update({
+              where: { id: invoice.clientId },
+              data: { status: 'ACTIVE' }
+            });
+          }
+        });
+
+        console.log(`[Cron MP Sync] Factura #${invoiceId} del cliente ${invoice.client?.name} marcada como PAGADA.`);
+
+        if (invoice.clientId) {
+          await ensureCurrentMonthInvoice(invoice.clientId);
+        }
+
+        try {
+          const Afip = require('@afipsdk/afip.js');
+          const afipInstance = new Afip({
+            CUIT: 30717010554,
+            res_folder: './afip_certs/',
+            production: true
+          });
+          console.log(`[Cron MP Sync] Emitiendo comprobante en AFIP/ARCA para Factura #${invoiceId}...`);
+          const afipRes = await emitAfipInvoiceHelper(invoiceId, afipInstance);
+          if (afipRes.success) {
+            console.log(`[Cron MP Sync] AFIP: Factura emitida con éxito. CAE: ${afipRes.cae}`);
+          } else {
+            console.error(`[Cron MP Sync] AFIP Error: ${afipRes.error}`);
+          }
+        } catch (afipErr) {
+          console.error('[Cron MP Sync] Error en módulo AFIP:', afipErr.message);
+        }
+
+        const difference = expectedTotalForDate - transactionAmount;
+        if (difference > 5.0) {
+          console.log(`[Cron MP Sync] Diferencia mayor a $5 detectada ($${difference}). Generando factura de diferencia.`);
+          await prisma.invoice.create({
+            data: {
+              clientId: invoice.clientId,
+              month: invoice.month,
+              year: invoice.year,
+              originalAmount: difference,
+              dueDate: new Date(),
+              status: 'PENDING',
+              priceV1: difference,
+              priceV2: difference,
+              priceV3: difference,
+              priceV4: difference,
+              dueDate1: new Date(),
+              dueDate2: new Date(),
+              dueDate3: new Date(),
+              dueDate4: new Date()
+            }
+          });
+
+          if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
+            const phoneClean = invoice.client.phone.replace(/\D/g, '');
+            const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+            const diffMsg = `Hola ${invoice.client?.name}! 👋\n\nConfirmamos la acreditación de tu pago de *$${transactionAmount.toFixed(2)}*.\n\n⚠️ *Aviso de Diferencia:* Como tu pago fue registrado el día ${new Date().toLocaleDateString('es-AR')}, el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}* (${activeTierName}).\n\nPor este motivo, se generó automáticamente una factura por la diferencia de *$${difference.toFixed(2)}* en tu cuenta.\n\n¡Muchas gracias!`;
+            await waSocket.sendMessage(targetPhone, { text: diffMsg });
+          }
+        }
+      }
+    }
+  } catch (cronErr) {
+    console.error('[Cron MP Sync] Error en tarea de sincronización:', cronErr.message || cronErr);
+  }
+});
+
+
 app.get('/api/mikrotik/active-clients', async (req, res) => {
   try {
     const nodes = await prisma.node.findMany({ where: { isActive: true } });
@@ -3276,6 +3618,27 @@ app.get('/api/mikrotik/active-clients', async (req, res) => {
     res.status(500).json({ error: 'Error interno obteniendo clientes activos.' });
   }
 });
+
+app.get('/api/admin/test-mp', async (req, res) => {
+  if (!clientMP) {
+    return res.status(500).json({ error: 'clientMP is not configured' });
+  }
+  try {
+    const payment = new Payment(clientMP);
+    const searchResponse = await payment.search({
+      options: {
+        sort: 'date_created',
+        criteria: 'desc',
+        limit: 50
+      }
+    });
+    res.json(searchResponse);
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    res.status(500).json({ error: error.message || error });
+  }
+});
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
