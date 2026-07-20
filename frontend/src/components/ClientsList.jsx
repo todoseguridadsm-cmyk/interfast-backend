@@ -7,6 +7,7 @@ export default function ClientsList() {
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : { role: 'STAFF' };
   const isAdmin = user.role === 'ADMIN';
+  const canManageClients = isAdmin || (user.permissions && Array.isArray(user.permissions) && (user.permissions.includes('CLIENTES') || user.permissions.includes('ALL')));
 
   const [clients, setClients] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -197,7 +198,7 @@ export default function ClientsList() {
   };
 
   const handleToggleStatus = async (client) => {
-    if (!isAdmin) return;
+    if (!canManageClients) return;
     const newStatus = client.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     if (!window.confirm(`¿Estás seguro de cambiar el estado del cliente a ${newStatus}? Esto cortará o habilitará su servicio de internet en el router automáticamente.`)) return;
     
@@ -332,7 +333,7 @@ export default function ClientsList() {
           <p className="text-slate-500 mt-1">Gestión de abonados y números de cliente (TK000).</p>
         </div>
         <div className="flex gap-3">
-          {isAdmin && (
+          {canManageClients && (
             <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 cursor-pointer" title="Importar Planilla Excel">
               <Download className="rotate-180" size={18} />
               Importar
@@ -347,7 +348,7 @@ export default function ClientsList() {
             <Download size={18} />
             Excel
           </button>
-          {isAdmin && (
+          {canManageClients && (
             <button 
               onClick={() => { closeModal(); setIsModalOpen(true); }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
@@ -424,27 +425,27 @@ export default function ClientsList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right flex justify-end gap-1">
-                    {client.status === 'PENDING' && isAdmin && (
+                    {client.status === 'PENDING' && canManageClients && (
                       <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
                         <Check size={18} />
                       </button>
                     )}
-                    {isAdmin && client.status !== 'BAJA' && client.status !== 'PENDING' && (
+                    {canManageClients && client.status !== 'BAJA' && client.status !== 'PENDING' && (
                       <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-2 rounded-lg mr-1 ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
                         <Power size={18} />
                       </button>
                     )}
-                    {isAdmin && (
+                    {canManageClients && (
                       <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
                         <Edit2 size={18} />
                       </button>
                     )}
-                    {isAdmin && (
+                    {canManageClients && (
                       <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
                         {pingingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Activity size={18} />}
                       </button>
                     )}
-                    {isAdmin && (
+                    {canManageClients && (
                       <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
                         {diagnosingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Stethoscope size={18} />}
                       </button>
@@ -452,7 +453,7 @@ export default function ClientsList() {
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
                       <MessageCircle size={18} />
                     </button>
-                    {isAdmin && (
+                    {canManageClients && (
                       <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
                         <Trash2 size={18} />
                       </button>

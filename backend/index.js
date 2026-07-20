@@ -2874,7 +2874,7 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
       return res.json({
         success: false,
         found: false,
-        message: `No se encontró ningún cliente en el sistema con el criterio: "${query}". NO DEBES CREAR NINGÚN TICKET NI INVENTAR UN ID.`
+        message: `No se encontró ningún cliente activo en el sistema con el criterio: "${query}". REGLA DE ORO IA: Si el usuario está consultando por una NUEVA INSTALACIÓN o solicitud de alta reciente, NO le insistas pidiendo más números de DNI/teléfono diciendo que no lo encuentras ni intentes crear ticket de soporte. Explícale amablemente que las coordinaciones de nuevas instalaciones y turnos los gestiona directamente el área de Instalaciones/Ventas, y toma o deriva sus datos para que lo contacten.`
       });
     }
 
@@ -2899,15 +2899,33 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
 
 app.post('/api/bot/crear-ticket', async (req, res) => {
   try {
-    const { clientId, title, description, priority } = req.body;
-    if (!clientId || isNaN(parseInt(clientId))) {
-      return res.status(400).json({ error: 'El clientId debe ser un ID numérico válido.' });
+    const rawId = req.body.clientId || req.body.id || req.body.client_id || req.query.clientId || req.query.id || req.query.client_id || req.body.phone || req.query.phone || req.body.dni || req.query.dni || req.body.query || req.query.query || req.body.cliente || req.query.cliente || req.body.numero_limpio || req.query.numero_limpio;
+    const { title, description, priority } = req.body;
+
+    if (!rawId) {
+      return res.status(400).json({ error: 'Falta parámetro clientId o identificador numérico/teléfono/DNI del cliente para crear el ticket.' });
     }
 
-    const parsedId = parseInt(clientId);
-    const client = await prisma.client.findUnique({ where: { id: parsedId } });
+    let parsedId = !isNaN(parseInt(rawId)) && rawId.toString().trim().length <= 8 ? parseInt(rawId) : null;
+    let client = null;
+
+    if (parsedId && parsedId <= 2147483647) {
+      client = await prisma.client.findUnique({ where: { id: parsedId } });
+    }
+
+    // Si no se encontró por ID numérico primario (por ejemplo, si la IA o N8N envió por error el DNI, CUIT o Teléfono como clientId)
     if (!client) {
-      return res.status(400).json({ error: `No existe un cliente con el ID ${parsedId} en la base de datos.` });
+      const strVal = rawId.toString().trim();
+      const whereClause = buildBotClientSearchWhere(strVal);
+      client = await prisma.client.findFirst({ where: whereClause });
+      if (client) {
+        parsedId = client.id;
+        console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: la IA envió '${rawId}', se resolvió al cliente ID ${client.id} (${client.name}).`);
+      }
+    }
+
+    if (!client) {
+      return res.status(400).json({ error: `No existe un cliente con el identificador '${rawId}' en la base de datos para crear el ticket.` });
     }
 
     // Prevención estricta de duplicados
@@ -2925,7 +2943,7 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
         success: true,
         duplicate_prevented: true,
         ticketId: existingTicket.id,
-        message: `El cliente ${client.name} ya tiene el ticket de soporte #${existingTicket.id} en estado ABIERTO. No es necesario crear uno nuevo.`
+        message: `El cliente ${client.name} ya tiene el ticket de soporte #${existingTicket.id} en estado ABIERTO. No es necesario crear uno nuevo. REGLA OBLIGATORIA IA: Infórmale al cliente que ya existe el ticket #${existingTicket.id} abierto para su caso y NO LE VUELVAS A PEDIR DNI NI TELÉFONO.`
       });
     }
 
@@ -2949,7 +2967,7 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
     res.json({
       success: true,
       ticketId: ticket.id,
-      message: `Ticket #${ticket.id} creado exitosamente para ${client.name}.`,
+      message: `Ticket #${ticket.id} creado exitosamente para ${client.name}. REGLA OBLIGATORIA IA: Infórmale al cliente que su ticket de soporte técnico fue generado bajo el número #${ticket.id} y que un técnico se comunicará a la brevedad. TIENES TERMINANTEMENTE PROHIBIDO VOLVER A PEDIRLE SU DNI, CUIT O NÚMERO DE CELULAR una vez creado el ticket.`,
       ticket
     });
   } catch (error) {
