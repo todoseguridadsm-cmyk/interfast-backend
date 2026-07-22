@@ -1900,6 +1900,20 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       }
     });
 
+    if (parseFloat(amountPaid) > 0) {
+      const invInfo = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } });
+      const clientDesc = invInfo?.client?.name || `Cliente #${invInfo?.clientId || ''}`;
+      await prisma.cashMovement.create({
+        data: {
+          type: 'IN',
+          amount: parseFloat(amountPaid),
+          category: 'PAGO_FACTURA',
+          description: `Cobro ${method || 'CASH'} - Factura #${invoiceId} (${clientDesc})`,
+          userId: parseInt(req.user?.id) || 1
+        }
+      });
+    }
+
     // Recalcular saldo iterando todos los pagos historicos
     const allPayments = await prisma.payment.findMany({ where: { invoiceId } });
     const totalGathered = allPayments.reduce((acc, p) => acc + p.amountPaid, 0);
@@ -1907,6 +1921,30 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     // Comparar contra la meta enviada por el front (o originalAmount si falta)
     const requiredTarget = totalRequired ? parseFloat(totalRequired) : 9999999;
     const finalStatus = (totalGathered + 0.01) >= requiredTarget ? 'PAID' : 'PARTIAL';
+
+    // Generar automáticamente deuda por la diferencia si pagaron de menos habiendo recargo activo
+    if (requiredTarget < 9999999 && (requiredTarget - totalGathered) > 10) {
+      const diffAmount = Math.round((requiredTarget - totalGathered) * 100) / 100;
+      const invInfo = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+      if (invInfo && invInfo.clientId) {
+        await prisma.invoice.create({
+          data: {
+            clientId: invInfo.clientId,
+            month: invInfo.month,
+            year: invInfo.year,
+            originalAmount: diffAmount,
+            priceV1: diffAmount,
+            priceV2: diffAmount,
+            priceV3: diffAmount,
+            priceV4: diffAmount,
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            dueDate1: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            status: 'PENDING'
+          }
+        });
+        console.log(`⚠️ [PUT Pay] Pago inferior al recargo ($${totalGathered} vs $${requiredTarget}). Generada factura por diferencia de $${diffAmount} al cliente #${invInfo.clientId}`);
+      }
+    }
 
     const invoice = await prisma.invoice.update({
       where: { id: invoiceId },
@@ -2365,6 +2403,36 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               lateFeeApplied: 0
             }
           });
+
+          await prisma.cashMovement.create({
+            data: {
+              type: 'IN',
+              amount: transactionAmount,
+              category: 'PAGO_FACTURA',
+              description: `Cobro Automático Web/Webhook - Factura #${invoiceId} (${invoice.client?.name || 'Cliente'})`,
+              userId: 1
+            }
+          });
+
+          if (expectedTotalForDate - transactionAmount > 10) {
+            const diffAmount = Math.round((expectedTotalForDate - transactionAmount) * 100) / 100;
+            await prisma.invoice.create({
+              data: {
+                clientId: invoice.clientId,
+                month: invoice.month,
+                year: invoice.year,
+                originalAmount: diffAmount,
+                priceV1: diffAmount,
+                priceV2: diffAmount,
+                priceV3: diffAmount,
+                priceV4: diffAmount,
+                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                dueDate1: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                status: 'PENDING'
+              }
+            });
+            console.log(`⚠️ [MP Webhook] Pago menor al recargo activo ($${transactionAmount} vs $${expectedTotalForDate}). Generada factura de diferencia por $${diffAmount} al cliente #${invoice.clientId}`);
+          }
 
           await prisma.cutoffList.deleteMany({
             where: { invoiceId: invoiceId }
@@ -3063,7 +3131,10 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     let formatted_message = '';
     if (invoice.status === 'PAID') {
       const caeText = invoice.afipCae ? ` (CAE ARCA: ${invoice.afipCae})` : '';
-      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Estado: PAGADA 🟢${caeText}. INSTRUCCIÓN OBLIGATORIA PARA LA IA: Infórmale con alegría y amabilidad al cliente que su servicio de Internet del período ${invoice.month}/${invoice.year} ya se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal en PDF: ${pdfUrl}`;
+      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Estado: PAGADA 🟢${caeText}.
+INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
+1. Infórmale con alegría y amabilidad al cliente que su servicio de Internet del período ${invoice.month}/${invoice.year} ya se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal en PDF: ${pdfUrl}
+2. REGLA ESTRICTA AL EVALUAR COMPROBANTES DE PAGO ENVIADOS POR EL CLIENTE: Si el cliente acaba de enviarte una foto o captura de comprobante de transferencia, DEBES VERIFICAR SIEMPRE LA FECHA DE PAGO y EL MONTO TRANSFERIDO comparado con los recargos por fecha de vencimiento. Si el cliente abonó un importe menor al que le correspondía para la fecha actual (por ejemplo, abonó el importe de un vencimiento anterior que ya había vencido), DEBES INFORMÁRSELO DE FORMA CLARA Y EDUCADA: "Hemos registrado tu pago y tu servicio se mantendrá activo, pero al haber abonado luego del vencimiento del recargo, ha quedado un saldo adeudado por la diferencia correspondiente a la fecha actual que se verá reflejado en tu cuenta/próxima factura".`;
     } else {
       formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar: $${aliasAmountEs} (importe con centavos únicos asignados) | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
@@ -3072,7 +3143,7 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
 4. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
 5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}. BAJO NINGUNA CIRCUNSTANCIA ofrezcas descuentos, rebajas ni condonaciones de deuda.
-6. ADVERTENCIA DE VENCIMIENTO Y DIFERENCIA: Explícale al cliente de forma amigable pero clara que si transfiere un importe menor o el de un vencimiento anterior habiendo ya pasado la fecha de vencimiento, el sistema tomará el pago para mantener activo su servicio de internet, pero acumulará automáticamente la diferencia adeudada como saldo pendiente para su próxima factura.`;
+6. ADVERTENCIA Y ANÁLISIS DE COMPROBANTES / VENCIMIENTOS: Si el cliente te envía una captura de comprobante o pregunta por una transferencia, DEBES VERIFICAR RIGUROSAMENTE LA FECHA y EL MONTO en el comprobante. Explícale o adviértele de forma amigable que si transfiere un importe menor o el de un vencimiento anterior habiendo ya pasado la fecha límite, el sistema tomará el pago para mantener activo su servicio de internet, pero generará automáticamente una deuda por la diferencia como saldo pendiente.`;
     }
 
     const responseObj = {
