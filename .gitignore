@@ -48,3 +48,10 @@ certs/
 *.key
 *.csr
 node_modules
+scratch/
+backend/scratch/
+REGLA DE ORO/
+*.PDF
+*.pdf
+*.doc
+*.docx

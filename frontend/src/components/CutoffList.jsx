@@ -85,7 +85,7 @@ export default function CutoffList() {
 
   const handleRestoreCutoffs = async () => {
     if (selectedCutoffs.length === 0) return;
-    if (!window.confirm(`¿Estás seguro de que deseas RESTAURAR el servicio y marcar las facturas como PAGADAS para los ${selectedCutoffs.length} clientes seleccionados?`)) {
+    if (!window.confirm(`¿Estás seguro de que deseas RESTAURAR/LARGAR el servicio de Internet en el Mikrotik para los ${selectedCutoffs.length} clientes seleccionados? (Nota: Sus facturas se mantendrán en estado PENDING y no pasarán a pagado)`)) {
       return;
     }
     try {

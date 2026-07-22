@@ -1683,13 +1683,6 @@ app.post('/api/cutoffs/restore', async (req, res) => {
             data: { status: 'ACTIVE' }
           });
           await ensureCurrentMonthInvoice(cutoff.clientId);
-          await prisma.invoice.updateMany({
-            where: { clientId: cutoff.clientId, status: 'PENDING' },
-            data: { status: 'PAID' }
-          });
-          await prisma.cutoffList.delete({
-            where: { id: cutoff.id }
-          });
           if (cutoff.client.ipNumber && cutoff.client.mainNode) {
             await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
           }
@@ -1699,7 +1692,7 @@ app.post('/api/cutoffs/restore', async (req, res) => {
         }
       }
     }
-    res.json({ message: `Servicio restaurado y facturas marcadas como pagadas para ${successCount} clientes.` });
+    res.json({ message: `Servicio de Internet restaurado en Mikrotik para ${successCount} clientes (las facturas se mantienen en estado PENDING).` });
   } catch (error) {
     res.status(500).json({ error: 'Error restaurando los servicios' });
   }
