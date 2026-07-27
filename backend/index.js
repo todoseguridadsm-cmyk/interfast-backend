@@ -3147,7 +3147,8 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES: Si pregunta si puede pagar solo un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de ese mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA más los centavos de su ID) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses están pagos, aclárale que siguen pendientes.
 5. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
 6. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
-7. ADVERTENCIA: Si envían comprobante, VERIFICA FECHA Y MONTO RIGUROSAMENTE. Si pagan menos, informa la deuda restante.`;
+7. ADVERTENCIA REVISIÓN COMPROBANTES: Si el cliente envía una imagen o foto de un comprobante de transferencia, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ NI QUE SU SERVICIO ESTÁ ACTIVO. Responde amablemente: "¡Hola! He recibido tu comprobante de pago. El mismo pasará a revisión por administración para que impacte en tu cuenta a la brevedad."
+8. REGLA CORTE DE SERVICIO: Los cortes de servicio se realizan los días 22 de cada mes. Si el cliente tiene múltiples facturas pendientes, y pregunta si pagando solo UNA de ellas se le reconecta el servicio, aclárale educadamente que NO, ya que la deuda del mes restante también se encuentra vencida y pasada de fecha de corte, por lo que deberá cancelar el total acumulado para recuperar su conexión.`;
 
     } else {
       // Cliente al día, buscar la última pagada
@@ -3174,7 +3175,7 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
       formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoiceForPDF.month}/${invoiceForPDF.year} | Estado: PAGADA 🟢${caeText}.
 INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
 1. Infórmale con alegría y amabilidad al cliente que su servicio de Internet se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal de su último pago (${invoiceForPDF.month}/${invoiceForPDF.year}) en PDF: ${pdfUrl}
-2. REGLA ESTRICTA AL EVALUAR COMPROBANTES DE PAGO: Si el cliente envía comprobante de transferencia, verificar fecha y monto. Si pagó de menos, informarle que quedó un saldo adeudado.`;
+2. ADVERTENCIA REVISIÓN COMPROBANTES: Si el cliente envía una imagen o foto de un comprobante de transferencia, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ. Responde amablemente: "¡Hola! He recibido tu comprobante de pago. El mismo pasará a revisión por administración para que impacte en tu cuenta a la brevedad."`;
     }
 
     const responseObj = {
