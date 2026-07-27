@@ -3031,10 +3031,10 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
     console.log(`[Bot N8N] Ticket #${ticket.id} creado exitosamente para el cliente ID ${parsedId} (${client.name}).`);
 
     // -------------------------------------------------------------------------
-    // NOTIFICACIÓN AUTOMÁTICA DE NUEVO TICKET AL TÉCNICO (5492634795131)
+    // NOTIFICACIÓN AUTOMÁTICA DE NUEVO TICKET AL TÉCNICO
     // -------------------------------------------------------------------------
     try {
-      const techPhone = '5492634795131';
+      const techPhone = '5492634302101';
       const techTarget = `${techPhone}@s.whatsapp.net`;
       const techMessage = `🚨 *NUEVO TICKET TÉCNICO GENERADO POR SOFI* 🚨\n\n` +
                           `👤 *Cliente:* ${client.name}\n` +
