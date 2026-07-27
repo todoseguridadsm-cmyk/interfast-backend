@@ -3053,101 +3053,120 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${query}".` });
     }
 
-    const invoice = await prisma.invoice.findFirst({
-      where: { clientId: client.id },
-      orderBy: { id: 'desc' },
+    let pendingInvoices = await prisma.invoice.findMany({
+      where: { clientId: client.id, status: 'PENDING' },
+      orderBy: { id: 'asc' },
       include: { client: { include: { plan: true } }, payments: true }
     });
 
-    if (!invoice) {
-      return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${client.name} no tiene ninguna factura generada en el sistema actualmente.` });
-    }
+    let invoiceForPDF = null;
+    let formatted_message = '';
+    const valCents = (client.id % 1000);
+    const centsOffset = valCents / 100;
 
-    if (invoice.status === 'PAID' && !invoice.afipCae && afip) {
-      console.log(`[Bot N8N] Emitiendo factura N°${invoice.id} en ARCA automáticamente para solicitud del cliente...`);
-      await emitAfipInvoiceHelper(invoice.id, afip);
-      const updatedInv = await prisma.invoice.findUnique({ where: { id: invoice.id } });
-      if (updatedInv && updatedInv.afipCae) invoice.afipCae = updatedInv.afipCae;
-    }
+    if (pendingInvoices.length > 0) {
+      let totalDebtBase = 0;
+      let periods = [];
+      let latestDueDate = null;
+      const today = new Date();
 
-    const today = new Date();
-    let currentAmount = invoice.priceV1 || invoice.originalAmount;
-    let currentDueDate = invoice.dueDate1 ? new Date(invoice.dueDate1) : new Date(invoice.dueDate || today);
-    let tierName = "Vencimiento 1";
+      for (const inv of pendingInvoices) {
+        let currentAmount = inv.priceV1 || inv.originalAmount;
+        let currentDueDate = inv.dueDate1 ? new Date(inv.dueDate1) : new Date(inv.dueDate || today);
 
-    if (invoice.dueDate1 && invoice.status === 'PENDING') {
-      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+        if (inv.dueDate1) {
+          const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+          const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+          const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+          const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
 
-      if (today > d3 && invoice.priceV4) {
-        currentAmount = invoice.priceV4;
-        currentDueDate = d4;
-        tierName = "Vencimiento 4";
-      } else if (today > d2 && invoice.priceV3) {
-        currentAmount = invoice.priceV3;
-        currentDueDate = d3;
-        tierName = "Vencimiento 3";
-      } else if (today > d1 && invoice.priceV2) {
-        currentAmount = invoice.priceV2;
-        currentDueDate = d2;
-        tierName = "Vencimiento 2";
-      } else {
-        currentDueDate = d1;
+          if (today > d3 && inv.priceV4) {
+            currentAmount = inv.priceV4;
+            currentDueDate = d4;
+          } else if (today > d2 && inv.priceV3) {
+            currentAmount = inv.priceV3;
+            currentDueDate = d3;
+          } else if (today > d1 && inv.priceV2) {
+            currentAmount = inv.priceV2;
+            currentDueDate = d2;
+          } else {
+            currentDueDate = d1;
+          }
+        }
+        
+        totalDebtBase += parseFloat(currentAmount);
+        periods.push(`${inv.month}/${inv.year}`);
+        if (!latestDueDate || currentDueDate > latestDueDate) {
+          latestDueDate = currentDueDate;
+        }
       }
-    }
 
-    let paymentLink = null;
-    if (invoice.status !== 'PAID') {
+      invoiceForPDF = pendingInvoices[pendingInvoices.length - 1]; // Use last pending invoice for PDF
+      const currentTotal = totalDebtBase + centsOffset;
+      const aliasAmountEs = `${Math.floor(currentTotal)},${String(valCents % 100).padStart(2, '0')}`;
+      const periodsStr = periods.join(' y ');
+
+      let paymentLink = null;
       if (clientMP) {
         try {
           const preference = new Preference(clientMP);
           const prefBody = {
-            items: [{ id: `INV-${invoice.id}`, title: `Internet TK${String(invoice.clientId).padStart(3, '0')} (${invoice.month}/${invoice.year}) - ${tierName}`, quantity: 1, unit_price: parseFloat(currentAmount) }],
+            items: [{ id: `MUL-INV-${client.id}`, title: `Internet TK${String(client.id).padStart(3, '0')} (${periodsStr})`, quantity: 1, unit_price: parseFloat(currentTotal.toFixed(2)) }],
             payer: { name: client.name, email: client.email || 'test@test.com' },
-            external_reference: invoice.id.toString(),
+            external_reference: invoiceForPDF.id.toString(), // We send the last invoice ID for webhook parsing (might need attention later, but usually handles the latest)
             notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
           };
-          if (currentDueDate && currentDueDate >= today) {
+          if (latestDueDate && latestDueDate >= today) {
             prefBody.expires = true;
-            prefBody.expiration_date_to = currentDueDate.toISOString();
+            prefBody.expiration_date_to = latestDueDate.toISOString();
           }
           const prefs = await preference.create({ body: prefBody });
           paymentLink = prefs.init_point;
         } catch (mpErr) {
-          console.error('[Bot N8N] Error generando link MercadoPago:', mpErr.message);
+          console.error('[Bot N8N] Error generando link MercadoPago multiple:', mpErr.message);
         }
       }
       if (!paymentLink) {
-        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${invoice.id}`;
+        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${client.id}`;
       }
-    }
 
-    const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}`;
-    const statusText = invoice.status === 'PAID' ? 'PAGADA 🟢' : 'PENDIENTE DE PAGO 🔴';
-    const dueDateStr = currentDueDate ? currentDueDate.toLocaleDateString('es-AR') : `10/${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
-    const valCents = (client.id % 1000);
-    const centsOffset = valCents / 100;
-    const currentTotal = currentAmount + centsOffset;
-    const aliasAmountEs = `${Math.floor(currentTotal)},${String(valCents % 100).padStart(2, '0')}`;
+      const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
 
-    let formatted_message = '';
-    if (invoice.status === 'PAID') {
-      const caeText = invoice.afipCae ? ` (CAE ARCA: ${invoice.afipCae})` : '';
-      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Estado: PAGADA 🟢${caeText}.
-INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
-1. Infórmale con alegría y amabilidad al cliente que su servicio de Internet del período ${invoice.month}/${invoice.year} ya se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal en PDF: ${pdfUrl}
-2. REGLA ESTRICTA AL EVALUAR COMPROBANTES DE PAGO ENVIADOS POR EL CLIENTE: Si el cliente acaba de enviarte una foto o captura de comprobante de transferencia, DEBES VERIFICAR SIEMPRE LA FECHA DE PAGO y EL MONTO TRANSFERIDO comparado con los recargos por fecha de vencimiento. Si el cliente abonó un importe menor al que le correspondía para la fecha actual (por ejemplo, abonó el importe de un vencimiento anterior que ya había vencido), DEBES INFORMÁRSELO DE FORMA CLARA Y EDUCADA: "Hemos registrado tu pago y tu servicio se mantendrá activo, pero al haber abonado luego del vencimiento del recargo, ha quedado un saldo adeudado por la diferencia correspondiente a la fecha actual que se verá reflejado en tu cuenta/próxima factura".`;
-    } else {
-      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoice.month}/${invoice.year} | Vencimiento Activo (${tierName}): ${dueDateStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar: $${aliasAmountEs} (importe con centavos únicos asignados) | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
+      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
-2. Infórmale amablemente al cliente que adeuda la factura de Internet del período ${invoice.month}/${invoice.year} por un total de $${aliasAmountEs} (vencimiento: ${dueDateStr}). OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle de factura con los 4 vencimientos en PDF: ${pdfUrl}
+2. Infórmale amablemente al cliente que adeuda el/los período(s) ${periodsStr} por un total acumulado de $${aliasAmountEs}. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle de la factura en PDF: ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
 4. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
-5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}. BAJO NINGUNA CIRCUNSTANCIA ofrezcas descuentos, rebajas ni condonaciones de deuda.
-6. ADVERTENCIA Y ANÁLISIS DE COMPROBANTES / VENCIMIENTOS: Si el cliente te envía una captura de comprobante o pregunta por una transferencia, DEBES VERIFICAR RIGUROSAMENTE LA FECHA y EL MONTO en el comprobante. Explícale o adviértele de forma amigable que si transfiere un importe menor o el de un vencimiento anterior habiendo ya pasado la fecha límite, el sistema tomará el pago para mantener activo su servicio de internet, pero generará automáticamente una deuda por la diferencia como saldo pendiente.`;
+5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
+6. ADVERTENCIA: Si envían comprobante, VERIFICA FECHA Y MONTO RIGUROSAMENTE. Si pagan menos, informa la deuda restante.`;
+
+    } else {
+      // Cliente al día, buscar la última pagada
+      invoiceForPDF = await prisma.invoice.findFirst({
+        where: { clientId: client.id },
+        orderBy: { id: 'desc' },
+        include: { client: { include: { plan: true } }, payments: true }
+      });
+
+      if (!invoiceForPDF) {
+        return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${client.name} no tiene ninguna factura generada en el sistema actualmente.` });
+      }
+
+      if (invoiceForPDF.status === 'PAID' && !invoiceForPDF.afipCae && afip) {
+        console.log(`[Bot N8N] Emitiendo factura N°${invoiceForPDF.id} en ARCA automáticamente para solicitud del cliente...`);
+        await emitAfipInvoiceHelper(invoiceForPDF.id, afip);
+        const updatedInv = await prisma.invoice.findUnique({ where: { id: invoiceForPDF.id } });
+        if (updatedInv && updatedInv.afipCae) invoiceForPDF.afipCae = updatedInv.afipCae;
+      }
+
+      const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
+      const caeText = invoiceForPDF.afipCae ? ` (CAE ARCA: ${invoiceForPDF.afipCae})` : '';
+      
+      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoiceForPDF.month}/${invoiceForPDF.year} | Estado: PAGADA 🟢${caeText}.
+INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
+1. Infórmale con alegría y amabilidad al cliente que su servicio de Internet se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal de su último pago (${invoiceForPDF.month}/${invoiceForPDF.year}) en PDF: ${pdfUrl}
+2. REGLA ESTRICTA AL EVALUAR COMPROBANTES DE PAGO: Si el cliente envía comprobante de transferencia, verificar fecha y monto. Si pagó de menos, informarle que quedó un saldo adeudado.`;
     }
 
     const responseObj = {
@@ -3156,20 +3175,15 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
       hasInvoice: true,
       clientId: client.id,
       clientName: client.name,
-      invoiceId: invoice.id,
-      month: invoice.month,
-      year: invoice.year,
-      dueDate: dueDateStr,
-      amount: currentAmount,
-      tierName,
-      status: invoice.status,
-      paymentLink,
+      invoiceId: invoiceForPDF.id,
+      month: invoiceForPDF.month,
+      year: invoiceForPDF.year,
+      status: invoiceForPDF.status,
       formatted_message
     };
 
-    if (invoice.status === 'PAID') {
-      responseObj.cae = invoice.afipCae;
-      responseObj.pdfUrl = pdfUrl;
+    if (invoiceForPDF.status === 'PAID') {
+      responseObj.cae = invoiceForPDF.afipCae;
     }
 
     res.json(responseObj);
