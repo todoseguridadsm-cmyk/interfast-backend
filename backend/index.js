@@ -1851,7 +1851,10 @@ app.get('/api/cash/daily', async (req, res) => {
     });
 
     const movements = await prisma.cashMovement.findMany({
-      where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+      where: { 
+        createdAt: { gte: startOfDay, lte: endOfDay },
+        category: { not: 'PAGO_FACTURA' }
+      },
       include: { user: { select: { username: true } } },
       orderBy: { createdAt: 'asc' }
     });
