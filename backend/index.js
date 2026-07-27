@@ -3051,6 +3051,28 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
         await waSocket.sendMessage(techTarget, { text: techMessage });
       }
 
+      // Intentar enviar por WAHA si está configurado
+      if (process.env.WAHA_API_URL) {
+        const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
+        const sessionName = process.env.WAHA_SESSION || 'default';
+        console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por WAHA a ${techPhone}...`);
+        
+        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (process.env.WAHA_API_KEY) {
+          headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+        }
+
+        fetch(wahaUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            chatId: `${techPhone}@c.us`,
+            text: techMessage,
+            session: sessionName
+          })
+        }).catch(err => console.error('Error enviando alerta técnica por WAHA:', err.message));
+      }
+
       // Intentar enviar por Evolution API si está configurado
       if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
         const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
