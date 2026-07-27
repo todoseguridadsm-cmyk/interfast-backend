@@ -2542,6 +2542,7 @@ app.get('/api/reports/sales', async (req, res) => {
     });
 
     const movements = await prisma.cashMovement.findMany({
+      where: { category: { not: 'PAGO_FACTURA' } },
       orderBy: { createdAt: 'desc' }
     });
 
