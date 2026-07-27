@@ -3029,6 +3029,49 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
     });
 
     console.log(`[Bot N8N] Ticket #${ticket.id} creado exitosamente para el cliente ID ${parsedId} (${client.name}).`);
+
+    // -------------------------------------------------------------------------
+    // NOTIFICACIÓN AUTOMÁTICA DE NUEVO TICKET AL TÉCNICO (5492634795131)
+    // -------------------------------------------------------------------------
+    try {
+      const techPhone = '5492634795131';
+      const techTarget = `${techPhone}@s.whatsapp.net`;
+      const techMessage = `🚨 *NUEVO TICKET TÉCNICO GENERADO POR SOFI* 🚨\n\n` +
+                          `👤 *Cliente:* ${client.name}\n` +
+                          `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
+                          `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
+                          `📄 *Asunto:* ${title || 'Soporte Técnico'}\n` +
+                          `📝 *Detalle:* ${description || 'Sin detalle'}\n\n` +
+                          `🎫 *Ticket N°:* ${ticket.id}\n` +
+                          `🔗 *Revisalo en el CRM.*`;
+
+      // Intentar enviar por Baileys interno
+      if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
+        console.log(`📱 [Auto-Envío Técnico] Enviando alerta de ticket #${ticket.id} a ${techPhone} por Baileys...`);
+        await waSocket.sendMessage(techTarget, { text: techMessage });
+      }
+
+      // Intentar enviar por Evolution API si está configurado
+      if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+        const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
+        console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por Evolution API a ${techPhone}...`);
+        fetch(evoUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.EVOLUTION_API_KEY
+          },
+          body: JSON.stringify({
+            number: techPhone,
+            options: { delay: 1200, presence: 'composing' },
+            textMessage: { text: techMessage }
+          })
+        }).catch(err => console.error('Error enviando alerta técnica por Evolution API:', err.message));
+      }
+    } catch (notifErr) {
+      console.error('Error enviando notificación al técnico:', notifErr.message);
+    }
+    // -------------------------------------------------------------------------
     res.json({
       success: true,
       ticketId: ticket.id,
