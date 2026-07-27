@@ -3067,6 +3067,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     if (pendingInvoices.length > 0) {
       let totalDebtBase = 0;
       let periods = [];
+      let breakdown = [];
       let latestDueDate = null;
       const today = new Date();
 
@@ -3096,6 +3097,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         
         totalDebtBase += parseFloat(currentAmount);
         periods.push(`${inv.month}/${inv.year}`);
+        breakdown.push(`- Período ${inv.month}/${inv.year}: $${parseFloat(currentAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}`);
         if (!latestDueDate || currentDueDate > latestDueDate) {
           latestDueDate = currentDueDate;
         }
@@ -3131,15 +3133,21 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       }
 
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
+      const breakdownStr = breakdown.join('\\n');
 
       formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
+DETALLE INDIVIDUAL DE LA DEUDA:
+${breakdownStr}
+(Recordar: sumar a cada pago individual los centavos del ID de cliente que son $0,${String(valCents % 100).padStart(2, '0')}).
+
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
 2. Infórmale amablemente al cliente que adeuda el/los período(s) ${periodsStr} por un total acumulado de $${aliasAmountEs}. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle de la factura en PDF: ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
-4. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
-5. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
-6. ADVERTENCIA: Si envían comprobante, VERIFICA FECHA Y MONTO RIGUROSAMENTE. Si pagan menos, informa la deuda restante.`;
+4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES: Si pregunta si puede pagar solo un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de ese mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA más los centavos de su ID) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses están pagos, aclárale que siguen pendientes.
+5. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
+6. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
+7. ADVERTENCIA: Si envían comprobante, VERIFICA FECHA Y MONTO RIGUROSAMENTE. Si pagan menos, informa la deuda restante.`;
 
     } else {
       // Cliente al día, buscar la última pagada
