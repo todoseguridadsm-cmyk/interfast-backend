@@ -1967,7 +1967,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
           where: { id: invoiceData.clientId },
           data: { status: 'ACTIVE' }
         });
-        await ensureCurrentMonthInvoice(invoiceData.clientId);
+        // await ensureCurrentMonthInvoice(invoiceData.clientId); // Desactivado por solicitud del usuario
       }
       if (afip && typeof emitAfipInvoiceHelper === 'function') {
         emitAfipInvoiceHelper(invoiceId, afip)
@@ -2443,7 +2443,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               where: { id: invoice.clientId },
               data: { status: 'ACTIVE' }
             });
-            await ensureCurrentMonthInvoice(invoice.clientId);
+            // await ensureCurrentMonthInvoice(invoice.clientId); // Desactivado por solicitud del usuario
           }
 
           const difference = expectedTotalForDate - transactionAmount;
@@ -3601,7 +3601,7 @@ cron.schedule('*/10 * * * *', async () => {
         console.log(`[Cron MP Sync] Factura #${invoiceId} del cliente ${invoice.client?.name} marcada como PAGADA.`);
 
         if (invoice.clientId) {
-          await ensureCurrentMonthInvoice(invoice.clientId);
+          // await ensureCurrentMonthInvoice(invoice.clientId); // Desactivado por solicitud del usuario
         }
 
         try {
