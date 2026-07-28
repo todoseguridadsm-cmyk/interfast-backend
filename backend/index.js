@@ -167,13 +167,21 @@ async function generateCutoffList(autoCutoff = false) {
     const existingCutoffs = await prisma.cutoffList.findMany({
       where: { status: 'PENDING' }
     });
-    const existingSet = new Set(existingCutoffs.map(c => `${c.clientId}-${c.invoiceId}`));
+    const existingSet = new Set(existingCutoffs.map(c => c.clientId));
+
+    const vipClients = ['VICTOR CASA', 'MATIAS BRANDI', 'HUMBERTO MONTALDI'];
 
     let count = 0;
     const toCreate = [];
 
     for (const inv of pendingInvoices) {
-      if (!existingSet.has(`${inv.clientId}-${inv.id}`)) {
+      if (!inv.client || !inv.client.name) continue;
+      
+      const clientName = inv.client.name.toUpperCase();
+      const isVip = vipClients.some(vip => clientName.includes(vip));
+      if (isVip) continue; // Saltear clientes VIP
+
+      if (!existingSet.has(inv.clientId)) {
         if (autoCutoff) {
           // Si es automático, procesamos y comunicamos con Mikrotik uno por uno
           await prisma.cutoffList.create({
@@ -196,6 +204,8 @@ async function generateCutoffList(autoCutoff = false) {
           toCreate.push({ clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' });
         }
         
+        // Agregar al set para no procesarlo de nuevo si tiene otra factura
+        existingSet.add(inv.clientId);
         count++;
       }
     }
@@ -1109,9 +1119,16 @@ app.post('/api/invoices/generate', async (req, res) => {
     }
 
     let generatedCount = 0;
+    const vipClients = ['VICTOR CASA', 'MATIAS BRANDI', 'HUMBERTO MONTALDI'];
 
     for (const client of clients) {
       if (!client.plan) continue;
+      
+      if (client.name) {
+        const clientName = client.name.toUpperCase();
+        const isVip = vipClients.some(vip => clientName.includes(vip));
+        if (isVip) continue; // No generar facturas a los VIP
+      }
 
       const existing = await prisma.invoice.findFirst({
         where: { clientId: client.id, month: currentMonth, year: currentYear }
