@@ -2295,14 +2295,12 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           let exactCentsMatches = [];
 
           for (const inv of pendingInvoices) {
-            const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
-            
             const possibleAmounts = [
-              inv.originalAmount + expectedCentsOffset,
-              inv.priceV1 + expectedCentsOffset,
-              inv.priceV2 ? inv.priceV2 + expectedCentsOffset : null,
-              inv.priceV3 ? inv.priceV3 + expectedCentsOffset : null,
-              inv.priceV4 ? inv.priceV4 + expectedCentsOffset : null
+              inv.originalAmount,
+              inv.priceV1,
+              inv.priceV2 ? inv.priceV2 : null,
+              inv.priceV3 ? inv.priceV3 : null,
+              inv.priceV4 ? inv.priceV4 : null
             ].filter(a => a !== null && a > 0);
 
             const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
@@ -2351,7 +2349,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             console.log(`ℹ️ Webhook MP: Sin coincidencia por centavos. Buscando por aproximación de monto y nombre/DNI/email...`);
             let nameAndAmountMatches = [];
             for (const inv of pendingInvoices) {
-              const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
               const possibleBaseAmounts = [
                 inv.originalAmount,
                 inv.priceV1,
@@ -2360,10 +2357,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 inv.priceV4
               ].filter(a => a !== null && a > 0);
 
-              const matchesBaseAmount = possibleBaseAmounts.some(amt => 
-                Math.abs(transactionAmount - amt) < 5.0 || 
-                Math.abs((transactionAmount - expectedCentsOffset) - amt) < 5.0
-              );
+              const matchesBaseAmount = possibleBaseAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
               
               if (matchesBaseAmount) {
                 nameAndAmountMatches.push(inv);
@@ -2420,8 +2414,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             }
           }
 
-          const expectedCentsOffset = ((invoice.clientId || invoice.id || 1) % 1000) / 100;
-          const expectedTotalForDate = expectedAmountForDate + expectedCentsOffset;
+          const expectedTotalForDate = expectedAmountForDate;
 
           const updatedInvoice = await prisma.invoice.updateMany({
             where: { id: invoiceId, status: 'PENDING' },
