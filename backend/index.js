@@ -2311,7 +2311,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           }
 
           const disambiguate = (candidates) => {
-            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''}`.toLowerCase();
+            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.toLowerCase();
             const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
             const payerDni = String(mpPayment.payer?.identification?.number || '');
 
