@@ -1143,10 +1143,18 @@ app.post('/api/invoices/generate', async (req, res) => {
           console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
         }
 
-        const priceV1Val = Math.max(0, basePrice - discountToApply);
-        const priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
-        const priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
-        const priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+        const expectedCentsOffset = (client.id % 1000) / 100;
+        
+        let priceV1Val = Math.max(0, basePrice - discountToApply);
+        let priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
+        let priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
+        let priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+
+        // Añadir los centavos únicos a los montos (solo si el precio no es 0 por saldo a favor total)
+        if (priceV1Val > 0) priceV1Val = Math.round((priceV1Val + expectedCentsOffset) * 100) / 100;
+        if (priceV2Val > 0) priceV2Val = Math.round((priceV2Val + expectedCentsOffset) * 100) / 100;
+        if (priceV3Val > 0) priceV3Val = Math.round((priceV3Val + expectedCentsOffset) * 100) / 100;
+        if (priceV4Val > 0) priceV4Val = Math.round((priceV4Val + expectedCentsOffset) * 100) / 100;
 
         const invoiceStatus = priceV1Val === 0 ? 'PAID' : 'PENDING';
 
@@ -3169,8 +3177,8 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       }
 
       invoiceForPDF = pendingInvoices[pendingInvoices.length - 1]; // Use last pending invoice for PDF
-      const currentTotal = totalDebtBase + centsOffset;
-      const aliasAmountEs = `${Math.floor(currentTotal)},${String(valCents % 100).padStart(2, '0')}`;
+      const currentTotal = totalDebtBase; // Ya incluye los centavos desde la DB
+      const aliasAmountEs = currentTotal.toLocaleString('es-AR', {minimumFractionDigits:2});
       const periodsStr = periods.join(' y ');
 
       let paymentLink = null;
@@ -3198,21 +3206,20 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       }
 
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
-      const breakdownStr = breakdown.join('\\n');
+      const breakdownStr = breakdown.join('\n');
 
       formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
 DETALLE INDIVIDUAL DE LA DEUDA:
 ${breakdownStr}
-(Recordar: sumar a cada pago individual los centavos del ID de cliente que son $0,${String(valCents % 100).padStart(2, '0')}).
 
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
 2. Infórmale amablemente al cliente que adeuda el/los período(s) ${periodsStr} por un total acumulado de $${aliasAmountEs}. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle de la factura en PDF: ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
-4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES: Si pregunta si puede pagar solo un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de ese mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA más los centavos de su ID) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses están pagos, aclárale que siguen pendientes.
+4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES: Si pregunta si puede pagar solo un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de ese mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses están pagos, aclárale que siguen pendientes.
 5. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
 6. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
-7. ADVERTENCIA REVISIÓN COMPROBANTES: Si el cliente envía una imagen o foto de un comprobante de transferencia, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ NI QUE SU SERVICIO ESTÁ ACTIVO. Responde amablemente: "¡Hola! He recibido tu comprobante de pago. El mismo pasará a revisión por administración para que impacte en tu cuenta a la brevedad."
+7. REGLA ESTRICTA DE COMPROBANTES Y PAGOS PARCIALES: Si el cliente te envía una imagen de un comprobante de pago, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ. Dile que pasará a revisión administrativa. ADEMÁS: Si en tu análisis de la imagen del comprobante notas que el cliente abonó MENOS plata que el monto total de $${aliasAmountEs}, DEBES ADVERTIRLE EXPLÍCITAMENTE: "He notado que el monto del comprobante es menor al total adeudado. Ten en cuenta que si el sistema detecta un pago parcial, se generará automáticamente una deuda por la diferencia en tu cuenta hasta que la canceles en su totalidad".
 8. REGLA CORTE DE SERVICIO: Los cortes de servicio se realizan los días 22 de cada mes. Si el cliente tiene múltiples facturas pendientes, y pregunta si pagando solo UNA de ellas se le reconecta el servicio, aclárale educadamente que NO, ya que la deuda del mes restante también se encuentra vencida y pasada de fecha de corte, por lo que deberá cancelar el total acumulado para recuperar su conexión.`;
 
     } else {
