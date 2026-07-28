@@ -587,11 +587,32 @@ app.get('/api/dashboard', async (req, res) => {
     const clientsCount = await prisma.client.count();
     const invoices = await prisma.invoice.findMany({ where: { status: 'PENDING' } });
 
-    const pendingTotal = invoices.reduce((acc, inv) => acc + inv.originalAmount, 0);
+    const today = new Date();
+    let pendingTotal = 0;
+    let pendingTotalWithInterests = 0;
+
+    for (const inv of invoices) {
+      pendingTotal += inv.priceV1 || inv.originalAmount || 0;
+      
+      let currentAmount = inv.priceV1 || inv.originalAmount || 0;
+      if (inv.dueDate1) {
+        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
+
+        if (today > d3 && inv.priceV4) currentAmount = inv.priceV4;
+        else if (today > d2 && inv.priceV3) currentAmount = inv.priceV3;
+        else if (today > d1 && inv.priceV2) currentAmount = inv.priceV2;
+      }
+      pendingTotalWithInterests += currentAmount;
+    }
 
     res.json({
       activeClients: clientsCount,
-      pendingTotal,
+      pendingTotal: pendingTotalWithInterests, // <-- El frontend lee pendingTotal. Lo sobreescribimos con los intereses actuales para que coincida.
+      pendingTotalBase: pendingTotal, 
+      pendingTotalWithInterests, 
       pendingInvoicesCount: invoices.length
     });
   } catch (error) {
