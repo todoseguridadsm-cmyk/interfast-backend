@@ -454,7 +454,11 @@ export default function InvoicesList() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allSelectableIds = filteredInvoices.filter(inv => inv.status === 'PENDING' || (inv.status === 'PAID' && !inv.afipCae)).map(inv => inv.id);
+      const now = new Date();
+      const allSelectableIds = filteredInvoices.filter(inv => {
+        const recentlyNotified = inv.notifiedAt && (now - new Date(inv.notifiedAt)) < 24 * 60 * 60 * 1000;
+        return (inv.status === 'PENDING' && !recentlyNotified) || (inv.status === 'PAID' && !inv.afipCae);
+      }).map(inv => inv.id);
       setSelectedInvoices(allSelectableIds);
     } else {
       setSelectedInvoices([]);
@@ -619,7 +623,8 @@ export default function InvoicesList() {
               ) : (
                 [...filteredInvoices].sort((a, b) => (a.client?.name || '').localeCompare(b.client?.name || '')).map(inv => {
                   const isPaid = inv.status === 'PAID';
-                  const isSelectable = !isPaid || (isPaid && !inv.afipCae);
+                  const recentlyNotified = inv.notifiedAt && (new Date() - new Date(inv.notifiedAt)) < 24 * 60 * 60 * 1000;
+                  const isSelectable = (!isPaid && !recentlyNotified) || (isPaid && !inv.afipCae);
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
                       <td className="px-3 py-3 text-center">
@@ -693,14 +698,16 @@ export default function InvoicesList() {
                             >
                               Cobrar
                             </button>
-                            <button 
-                              onClick={() => manualWhatsApp(inv)} 
-                              className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200" 
-                              title="Mensaje Normal WhatsApp"
-                            >
-                              <MessageCircle size={16} />
-                            </button>
-                            {inv.status === 'PENDING' && (
+                            {!recentlyNotified && (
+                              <button 
+                                onClick={() => manualWhatsApp(inv)} 
+                                className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200" 
+                                title="Mensaje Normal WhatsApp"
+                              >
+                                <MessageCircle size={16} />
+                              </button>
+                            )}
+                            {inv.status === 'PENDING' && !recentlyNotified && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
                                 className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
