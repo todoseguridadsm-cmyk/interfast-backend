@@ -2303,7 +2303,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               inv.priceV4 ? inv.priceV4 : null
             ].filter(a => a !== null && a > 0);
 
-            const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
+            const matchesCentsAndAmount = possibleAmounts.some(amt => Math.round(transactionAmount * 100) === Math.round(amt * 100));
 
             if (matchesCentsAndAmount) {
               exactCentsMatches.push(inv);
