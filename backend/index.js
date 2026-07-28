@@ -2970,11 +2970,11 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
     if (!query) return res.status(400).json({ error: 'Falta parámetro query' });
 
     const whereClause = buildBotClientSearchWhere(query);
-    const client = await prisma.client.findFirst({
+    const matchingClients = await prisma.client.findMany({
       where: whereClause
     });
 
-    if (!client) {
+    if (!matchingClients || matchingClients.length === 0) {
       return res.json({
         success: false,
         found: false,
@@ -2982,17 +2982,28 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
       });
     }
 
-    const cuitText = client.cuit ? ` | CUIT: ${client.cuit}` : '';
-    const formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${client.id} | Nombre: ${client.name} | DNI: ${client.dni || 'No cargado'}${cuitText} | Tel: ${client.phone || 'No cargado'} | Dirección: ${client.address || 'No cargada'}. REGLA DE ORO IA: Tienes terminantemente prohibido ofrecer promociones, descuentos, bonificaciones o condonar intereses de mora. Los importes del sistema son finales e innegociables.`;
+    const primaryClient = matchingClients[0];
+    const clientsList = matchingClients.map(c => `- ID ${c.id}: ${c.name} | Dir: ${c.address || 'Sin Dirección'} | DNI: ${c.dni || 'No cargado'}`).join('\n');
+    
+    let formatted_message = '';
+    if (matchingClients.length === 1) {
+      const cuitText = primaryClient.cuit ? ` | CUIT: ${primaryClient.cuit}` : '';
+      formatted_message = `CLIENTE ENCONTRADO -> ID NUMERICO PARA HERRAMIENTAS: ${primaryClient.id} | Nombre: ${primaryClient.name} | DNI: ${primaryClient.dni || 'No cargado'}${cuitText} | Tel: ${primaryClient.phone || 'No cargado'} | Dirección: ${primaryClient.address || 'No cargada'}. REGLA DE ORO IA: Tienes terminantemente prohibido ofrecer promociones, descuentos, bonificaciones o condonar intereses de mora. Los importes del sistema son finales e innegociables.`;
+    } else {
+      formatted_message = `SE ENCONTRARON ${matchingClients.length} CUENTAS REGISTRADAS PARA ESTE CONTACTO:\n${clientsList}\n\nID PRINCIPAL PARA HERRAMIENTAS: ${primaryClient.id}. REGLA DE ORO IA: Tienes terminantemente prohibido ofrecer promociones, descuentos, bonificaciones o condonar intereses de mora. Los importes del sistema son finales e innegociables.`;
+    }
+
     res.json({
       success: true,
       found: true,
-      clientId: client.id,
-      name: client.name,
-      dni: client.dni,
-      cuit: client.cuit,
-      phone: client.phone,
-      address: client.address,
+      count: matchingClients.length,
+      clientId: primaryClient.id,
+      name: primaryClient.name,
+      dni: primaryClient.dni,
+      cuit: primaryClient.cuit,
+      phone: primaryClient.phone,
+      address: primaryClient.address,
+      matchingClients,
       formatted_message
     });
   } catch (error) {
@@ -3152,21 +3163,22 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     if (!query) return res.status(400).json({ error: 'Falta parámetro query con DNI, teléfono, CUIT o ID' });
 
     const whereClause = buildBotClientSearchWhere(query);
-    const client = await prisma.client.findFirst({ where: whereClause });
-    if (!client) {
+    const matchingClients = await prisma.client.findMany({ where: whereClause });
+    if (!matchingClients || matchingClients.length === 0) {
       return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${query}".` });
     }
 
+    const primaryClient = matchingClients[0];
+    const clientIds = matchingClients.map(c => c.id);
+
     let pendingInvoices = await prisma.invoice.findMany({
-      where: { clientId: client.id, status: 'PENDING' },
+      where: { clientId: { in: clientIds }, status: 'PENDING' },
       orderBy: { id: 'asc' },
       include: { client: { include: { plan: true } }, payments: true }
     });
 
     let invoiceForPDF = null;
     let formatted_message = '';
-    const valCents = (client.id % 1000);
-    const centsOffset = valCents / 100;
 
     if (pendingInvoices.length > 0) {
       let totalDebtBase = 0;
@@ -3201,7 +3213,8 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         
         totalDebtBase += parseFloat(currentAmount);
         periods.push(`${inv.month}/${inv.year}`);
-        breakdown.push(`- Período ${inv.month}/${inv.year}: $${parseFloat(currentAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}`);
+        const accountLabel = matchingClients.length > 1 ? ` [Servicio: ${inv.client?.name || 'Cliente'} - ${inv.client?.address || 'S/D'}]` : '';
+        breakdown.push(`- Período ${inv.month}/${inv.year}${accountLabel}: $${parseFloat(currentAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}`);
         if (!latestDueDate || currentDueDate > latestDueDate) {
           latestDueDate = currentDueDate;
         }
@@ -3210,16 +3223,16 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       invoiceForPDF = pendingInvoices[pendingInvoices.length - 1]; // Use last pending invoice for PDF
       const currentTotal = totalDebtBase; // Ya incluye los centavos desde la DB
       const aliasAmountEs = currentTotal.toLocaleString('es-AR', {minimumFractionDigits:2});
-      const periodsStr = periods.join(' y ');
+      const periodsStr = Array.from(new Set(periods)).join(' y ');
 
       let paymentLink = null;
       if (clientMP) {
         try {
           const preference = new Preference(clientMP);
           const prefBody = {
-            items: [{ id: `MUL-INV-${client.id}`, title: `Internet TK${String(client.id).padStart(3, '0')} (${periodsStr})`, quantity: 1, unit_price: parseFloat(currentTotal.toFixed(2)) }],
-            payer: { name: client.name, email: client.email || 'test@test.com' },
-            external_reference: invoiceForPDF.id.toString(), // We send the last invoice ID for webhook parsing (might need attention later, but usually handles the latest)
+            items: [{ id: `MUL-INV-${primaryClient.id}`, title: `Internet TK${String(primaryClient.id).padStart(3, '0')} (${periodsStr})`, quantity: 1, unit_price: parseFloat(currentTotal.toFixed(2)) }],
+            payer: { name: primaryClient.name, email: primaryClient.email || 'test@test.com' },
+            external_reference: invoiceForPDF.id.toString(),
             notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
           };
           if (latestDueDate && latestDueDate >= today) {
@@ -3233,36 +3246,39 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         }
       }
       if (!paymentLink) {
-        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${client.id}`;
+        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${primaryClient.id}`;
       }
 
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
       const breakdownStr = breakdown.join('\n');
+      const accountsSummaryText = matchingClients.length > 1 
+        ? ` (IMPORTANTE MULTI-CUENTA: El cliente posee ${matchingClients.length} cuentas/servicios asociadas: ${matchingClients.map(c => `${c.name} - ${c.address || 'S/D'}`).join(' | ')})` 
+        : '';
 
-      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
+      formatted_message = `ESTADO DE CUENTA DE: ${primaryClient.name}${accountsSummaryText} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado entre todas sus cuentas): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
 DETALLE INDIVIDUAL DE LA DEUDA:
 ${breakdownStr}
 
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
-2. Infórmale amablemente al cliente que adeuda el/los período(s) ${periodsStr} por un total acumulado de $${aliasAmountEs}. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle de la factura en PDF: ${pdfUrl}
+2. Infórmale amablemente al cliente que adeuda los períodos indicados arriba por un total acumulado de $${aliasAmountEs} entre todas sus cuentas. Si tiene múltiples servicios (como Los Silos y Balcarce), MENCIONALO CLARAMENTE para que sepa qué está pagando. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle en PDF: ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
-4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES: Si pregunta si puede pagar solo un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de ese mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses están pagos, aclárale que siguen pendientes.
+4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES O UNA SOLA CUENTA: Si pregunta si puede pagar solo una cuenta o un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de esa cuenta/mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses o cuentas están pagos, aclárale que siguen pendientes.
 5. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
 6. SOLO SI EL CLIENTE TE PIDE EXPLÍCITAMENTE EL LINK DE PAGO O PAGAR CON TARJETA en un mensaje posterior, recién ahí entrégale el enlace de Mercado Pago: ${paymentLink}.
 7. REGLA ESTRICTA DE COMPROBANTES Y PAGOS PARCIALES: Si el cliente te envía una imagen de un comprobante de pago, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ. Dile que pasará a revisión administrativa. ADEMÁS: Si en tu análisis de la imagen del comprobante notas que el cliente abonó MENOS plata que el monto total de $${aliasAmountEs}, DEBES ADVERTIRLE EXPLÍCITAMENTE: "He notado que el monto del comprobante es menor al total adeudado. Ten en cuenta que si el sistema detecta un pago parcial, se generará automáticamente una deuda por la diferencia en tu cuenta hasta que la canceles en su totalidad".
 8. REGLA CORTE DE SERVICIO: Los cortes de servicio se realizan los días 22 de cada mes. Si el cliente tiene múltiples facturas pendientes, y pregunta si pagando solo UNA de ellas se le reconecta el servicio, aclárale educadamente que NO, ya que la deuda del mes restante también se encuentra vencida y pasada de fecha de corte, por lo que deberá cancelar el total acumulado para recuperar su conexión.`;
 
     } else {
-      // Cliente al día, buscar la última pagada
+      // Cliente al día, buscar la última pagada de cualquiera de sus cuentas
       invoiceForPDF = await prisma.invoice.findFirst({
-        where: { clientId: client.id },
+        where: { clientId: { in: clientIds } },
         orderBy: { id: 'desc' },
         include: { client: { include: { plan: true } }, payments: true }
       });
 
       if (!invoiceForPDF) {
-        return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${client.name} no tiene ninguna factura generada en el sistema actualmente.` });
+        return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${primaryClient.name} no tiene ninguna factura generada en el sistema actualmente.` });
       }
 
       if (invoiceForPDF.status === 'PAID' && !invoiceForPDF.afipCae && afip) {
@@ -3274,10 +3290,11 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
       const caeText = invoiceForPDF.afipCae ? ` (CAE ARCA: ${invoiceForPDF.afipCae})` : '';
-      
-      formatted_message = `ESTADO DE CUENTA DE: ${client.name} | Período: ${invoiceForPDF.month}/${invoiceForPDF.year} | Estado: PAGADA 🟢${caeText}.
+      const accountsListStr = matchingClients.map(c => `${c.name} (${c.address || 'S/D'})`).join(', ');
+
+      formatted_message = `ESTADO DE CUENTA DE: ${primaryClient.name} | Cuentas asociadas: ${accountsListStr} | Período: ${invoiceForPDF.month}/${invoiceForPDF.year} | Estado: PAGADA 🟢${caeText}.
 INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
-1. Infórmale con alegría y amabilidad al cliente que su servicio de Internet se encuentra PAGADO y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal de su último pago (${invoiceForPDF.month}/${invoiceForPDF.year}) en PDF: ${pdfUrl}
+1. Infórmale con alegría y amabilidad al cliente que todas sus cuentas de Internet (${accountsListStr}) se encuentran PAGADAS y al día. Entrégale este enlace para que pueda descargar su comprobante fiscal de su último pago (${invoiceForPDF.month}/${invoiceForPDF.year}) en PDF: ${pdfUrl}
 2. ADVERTENCIA REVISIÓN COMPROBANTES: Si el cliente envía una imagen o foto de un comprobante de transferencia, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ. Responde amablemente: "¡Hola! He recibido tu comprobante de pago. El mismo pasará a revisión por administración para que impacte en tu cuenta a la brevedad."`;
     }
 
@@ -3285,8 +3302,8 @@ INSTRUCCIÓN OBLIGATORIA PARA LA IA (SOFI):
       success: true,
       found: true,
       hasInvoice: true,
-      clientId: client.id,
-      clientName: client.name,
+      clientId: primaryClient.id,
+      clientName: primaryClient.name,
       invoiceId: invoiceForPDF.id,
       month: invoiceForPDF.month,
       year: invoiceForPDF.year,
