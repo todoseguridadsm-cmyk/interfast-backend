@@ -496,7 +496,7 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
           where: { id: cutoff.clientId },
           data: { status: 'ACTIVE' }
         });
-        await ensureCurrentMonthInvoice(cutoff.clientId);
+        // await ensureCurrentMonthInvoice(cutoff.clientId); // Desactivado por solicitud del usuario (evita deuda mes 8 al rehabilitar)
         await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
         const msg = err.message || JSON.stringify(err);
@@ -1728,7 +1728,7 @@ app.post('/api/cutoffs/restore', async (req, res) => {
             where: { id: cutoff.clientId },
             data: { status: 'ACTIVE' }
           });
-          await ensureCurrentMonthInvoice(cutoff.clientId);
+          // await ensureCurrentMonthInvoice(cutoff.clientId); // Desactivado por solicitud del usuario (evita deuda mes 8 al rehabilitar)
           if (cutoff.client.ipNumber && cutoff.client.mainNode) {
             await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
           }
