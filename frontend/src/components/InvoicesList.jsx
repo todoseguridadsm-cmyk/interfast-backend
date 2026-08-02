@@ -122,31 +122,31 @@ export default function InvoicesList() {
     setLoading(false);
   };
 
-  const startMassiveNotify = async (isSelective = false) => {
+  const startMassReminder = async (isSelective = false) => {
     const idsToSend = isSelective ? selectedInvoices : [];
     const count = isSelective ? idsToSend.length : invoices.filter(i => i.status === 'PENDING').length;
     
     if (count === 0) {
-      alert('No hay facturas pendientes seleccionadas para notificar.');
+      alert('No hay facturas pendientes para notificar.');
       return;
     }
 
     const msg = isSelective 
-      ? `¿Confirmar notificación a los ${count} clientes seleccionados mediante el Robot?`
-      : `¿Confirmar notificación masiva a TODOS los deudores conectados en forma invisible?`;
+      ? `¿Enviar detalle de deuda y links de pago a los ${count} clientes seleccionados?`
+      : `¿Confirmar notificación masiva de DEUDA a TODOS los clientes con facturas pendientes? (Se enviará en segundo plano)`;
 
     if(!window.confirm(msg)) return;
     
     setLoading(true);
     try {
-      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-notify', {
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-reminder', {
         invoiceIds: idsToSend
       });
       alert(res.data.message);
       setSelectedInvoices([]);
     } catch(err) {
       console.error(err);
-      alert('Error en el robot: ' + (err.response?.data?.error || err.message));
+      alert('Error en el envío masivo: ' + (err.response?.data?.error || err.message));
     }
     setLoading(false);
   };
@@ -180,27 +180,7 @@ export default function InvoicesList() {
     setLoading(false);
   };
 
-  const startMassReminder = async () => {
-    if (selectedInvoices.length === 0) {
-      alert('No hay facturas pendientes seleccionadas.');
-      return;
-    }
-    
-    if(!window.confirm(`¿Enviar resumen de deuda y links de pago a los ${selectedInvoices.length} clientes seleccionados? (Incluye recargo 10% para MP)`)) return;
-    
-    setLoading(true);
-    try {
-      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-reminder', {
-        invoiceIds: selectedInvoices
-      });
-      alert(res.data.message);
-      setSelectedInvoices([]);
-    } catch(err) {
-      console.error(err);
-      alert('Error en el envío masivo: ' + (err.response?.data?.error || err.message));
-    }
-    setLoading(false);
-  };
+
 
   const manualWhatsApp = (inv) => {
     if (!inv.client.phone) {
@@ -567,18 +547,11 @@ export default function InvoicesList() {
                 Lote AFIP ({selectedInvoices.length})
               </button>
               <button 
-                onClick={startMassReminder} disabled={loading}
+                onClick={() => startMassReminder(true)} disabled={loading}
                 className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
               >
                 <MessageCircle size={16} />
-                Deuda a WP ({selectedInvoices.length})
-              </button>
-              <button 
-                onClick={() => startMassiveNotify(true)} disabled={loading}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
-              >
-                <MessageCircle size={16} />
-                WhatsApp ({selectedInvoices.length})
+                Notificar Deuda ({selectedInvoices.length})
               </button>
               <button 
                 onClick={() => startMassiveWarning(true)} disabled={loading}
@@ -599,7 +572,7 @@ export default function InvoicesList() {
           {selectedInvoices.length === 0 && (
             <>
               <button 
-                onClick={() => startMassiveNotify(false)} disabled={loading}
+                onClick={() => startMassReminder(false)} disabled={loading}
                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
               >
                 <MessageCircle size={16} />
