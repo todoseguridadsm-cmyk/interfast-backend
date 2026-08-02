@@ -3191,10 +3191,18 @@ function buildBotClientSearchWhere(query) {
   if (isNumeric || cleanQuery.length >= 4) {
     const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
     const cuitWithHyphens = cleanQuery.length === 11 ? `${cleanQuery.slice(0, 2)}-${cleanQuery.slice(2, 10)}-${cleanQuery.slice(10)}` : rawQuery;
+    
+    let dottedQuery = rawQuery;
+    if (cleanQuery.length === 8) {
+      dottedQuery = `${cleanQuery.slice(0, 2)}.${cleanQuery.slice(2, 5)}.${cleanQuery.slice(5)}`;
+    } else if (cleanQuery.length === 7) {
+      dottedQuery = `${cleanQuery.slice(0, 1)}.${cleanQuery.slice(1, 4)}.${cleanQuery.slice(4)}`;
+    }
 
     const orConditions = [
       { dni: { contains: cleanQuery } },
       { dni: { contains: rawQuery } },
+      { dni: { contains: dottedQuery } },
       { cuit: { contains: cleanQuery } },
       { cuit: { contains: rawQuery } },
       { cuit: { contains: cuitWithHyphens } },
