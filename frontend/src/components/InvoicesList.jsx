@@ -431,8 +431,8 @@ export default function InvoicesList() {
     
     const isAnyFilterActive = isSearchingDate || term !== '' || statusFilter !== 'ALL' || paymentFilter !== 'ALL';
 
-    // Ocultar facturas con CAE (emitidas ARCA) solo en la vista por defecto sin filtros activos
-    if (inv.afipCae && !isAnyFilterActive) {
+    // Ocultar facturas Pagadas solo en la vista por defecto sin filtros activos
+    if (inv.status === 'PAID' && !isAnyFilterActive) {
       return false;
     }
 
@@ -469,7 +469,13 @@ export default function InvoicesList() {
     }
     
     // 3. Status Filter
-    if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
+    if (statusFilter !== 'ALL') {
+      if (statusFilter === 'UNBILLED') {
+        if (inv.afipCae) return false;
+      } else {
+        if (inv.status !== statusFilter) return false;
+      }
+    }
 
     return true;
   });
@@ -546,6 +552,7 @@ export default function InvoicesList() {
               <option value="PAID">✅ Pagados</option>
               <option value="PENDING">⏳ Pendientes</option>
               <option value="PARTIAL">⚠️ Parciales</option>
+              <option value="UNBILLED">🧾 Sin Facturar en ARCA</option>
             </select>
           </div>
         </div>
