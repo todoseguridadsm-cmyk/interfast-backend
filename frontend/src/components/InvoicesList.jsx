@@ -603,14 +603,14 @@ export default function InvoicesList() {
                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-green-400"
               >
                 <MessageCircle size={16} />
-                {loading ? 'Trabajando...' : 'Notificar Todos'}
+                {loading ? 'Trabajando...' : 'Notificar Deuda'}
               </button>
               <button 
                 onClick={() => startMassiveWarning(false)} disabled={loading}
                 className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:bg-orange-400"
               >
                 <AlertCircle size={16} />
-                {loading ? 'Trabajando...' : 'Avisar Cortes'}
+                {loading ? 'Trabajando...' : 'Avisar Corte'}
               </button>
             </>
           )}
@@ -737,19 +737,19 @@ export default function InvoicesList() {
                             {!recentlyNotified && (
                               <button 
                                 onClick={() => manualWhatsApp(inv)} 
-                                className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200" 
-                                title="Mensaje Normal WhatsApp"
+                                className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
+                                title="Notificar Deuda"
                               >
-                                <MessageCircle size={16} />
+                                <MessageCircle size={16} /> Notificar Deuda
                               </button>
                             )}
                             {inv.status === 'PENDING' && !recentlyNotified && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
                                 className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
-                                title="Aviso de Corte WhatsApp"
+                                title="Aviso de Corte"
                               >
-                                <AlertCircle size={16} /> Corte
+                                <AlertCircle size={16} /> Avisar Corte
                               </button>
                             )}
                             {inv.status === 'PENDING' && (
