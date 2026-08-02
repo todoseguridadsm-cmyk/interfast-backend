@@ -179,6 +179,26 @@ export default function InvoicesList() {
     }
     setLoading(false);
   };
+// Utility function to determine the active vencimiento
+export const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
+  let activeV = 'V1';
+  let activeAmount = inv.priceV1 || inv.originalAmount;
+  
+  if (inv.dueDate1) {
+    const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+    const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+    const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+
+    if (checkDate > d3 && inv.priceV4) {
+      activeV = 'V4'; activeAmount = inv.priceV4;
+    } else if (checkDate > d2 && inv.priceV3) {
+      activeV = 'V3'; activeAmount = inv.priceV3;
+    } else if (checkDate > d1 && inv.priceV2) {
+      activeV = 'V2'; activeAmount = inv.priceV2;
+    }
+  }
+  return { activeV, activeAmount };
+};
 
 
 
@@ -188,12 +208,31 @@ export default function InvoicesList() {
       return;
     }
     const phone = inv.client.phone.replace(/\D/g, '');
+    const { activeV, activeAmount } = getInvoiceActiveVencimiento(inv);
     const centavos = String(((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1).padStart(2, '0');
-    const totalEs = `${Math.floor(inv.totalAmount)},${centavos}`;
-    const dueDateStr = inv.dueDate1 ? new Date(inv.dueDate1).toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-    const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n¡Muchas gracias!`);
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    
+    // El total activo con los centavos correctos
+    const totalConCentavos = parseFloat(activeAmount).toFixed(2).split('.')[0] + '.' + centavos;
+    const totalEs = parseFloat(totalConCentavos).toLocaleString('es-AR', {minimumFractionDigits: 2});
+    
+    // Future Vencimientos Text
+    const formatD = (d) => { if (!d) return 'N/A'; const dt = new Date(d); return `${dt.getDate().toString().padStart(2, '0')}/${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getFullYear()}`; };
+    
+    let pricesText = '';
+    if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
+      pricesText += `El total a abonar varía según el día de pago:\n`;
+      if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${parseFloat(inv.priceV1).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if ((activeV === 'V1' || activeV === 'V2') && inv.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${parseFloat(inv.priceV2).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && inv.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${parseFloat(inv.priceV3).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if (inv.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${parseFloat(inv.priceV4).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      pricesText += '\n';
+    }
+
+    const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}&v=${activeV}`;
+    const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`;
+    
+    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Monto Original:* $${parseFloat(inv.originalAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n${pricesText}📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💳 *¿Preferís pagar con tarjeta / MercadoPago?*\nPodés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n¡Muchas gracias!`);
+    window.open(`https://wa.me/549${phone}?text=${message}`, '_blank');
   };
 
   const warningWhatsApp = (inv) => {
@@ -632,8 +671,11 @@ export default function InvoicesList() {
               ) : (
                 [...filteredInvoices].sort((a, b) => (a.client?.name || '').localeCompare(b.client?.name || '')).map(inv => {
                   const isPaid = inv.status === 'PAID';
-                  const recentlyNotified = inv.notifiedAt && (new Date() - new Date(inv.notifiedAt)) < 24 * 60 * 60 * 1000;
-                  const isSelectable = (!isPaid && !recentlyNotified) || (isPaid && !inv.afipCae);
+                  const { activeV } = getInvoiceActiveVencimiento(inv);
+                  const notifiedV = inv.lastRemindedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.lastRemindedAt)).activeV : null;
+                  const isUpToDateNotified = notifiedV === activeV;
+                  const isSelectable = (!isPaid && !isUpToDateNotified) || (isPaid && !inv.afipCae);
+
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
                       <td className="px-3 py-3 text-center">
@@ -689,9 +731,9 @@ export default function InvoicesList() {
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
                               <Clock size={14} /> PENDIENTE
                             </span>
-                            {inv.notifiedAt && (
+                            {inv.status === 'PENDING' && isUpToDateNotified && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
-                                <MessageCircle size={10} /> NOTIFICADO
+                                <MessageCircle size={10} /> NOTIFICADO {activeV}
                               </span>
                             )}
                           </div>
@@ -700,23 +742,16 @@ export default function InvoicesList() {
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
                           <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handlePayClick(inv)} 
-                              className="text-emerald-600 hover:text-emerald-700 transition-colors p-2 rounded-lg hover:bg-emerald-50 font-medium text-xs border border-emerald-200 bg-white"
-                              title="Recibir Dinero"
-                            >
-                              Cobrar
-                            </button>
-                            {!recentlyNotified && (
+                            {!isUpToDateNotified && (
                               <button 
                                 onClick={() => manualWhatsApp(inv)} 
                                 className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
-                                title="Notificar Deuda"
+                                title={`Notificar ${activeV}`}
                               >
-                                <MessageCircle size={16} /> Notificar Deuda
+                                <MessageCircle size={16} /> Notificar {activeV}
                               </button>
                             )}
-                            {inv.status === 'PENDING' && !recentlyNotified && (
+                            {inv.status === 'PENDING' && !isUpToDateNotified && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
                                 className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 

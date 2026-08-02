@@ -101,6 +101,8 @@ function drawInvoicePDF(doc, invoice) {
   const clientAddr = invoice.client ? (invoice.client.address || 'Mendoza, Argentina') : 'Mendoza, Argentina';
   // Calcular el monto total a mostrar de forma dinámica según la fecha y centavos
   let finalAmount = invoice.originalAmount || 0;
+  let currentV = 1;
+
   if (invoice.status === 'PENDING') {
     const today = new Date();
     let currentAmount = invoice.priceV1 || invoice.originalAmount || 0;
@@ -112,10 +114,13 @@ function drawInvoicePDF(doc, invoice) {
 
       if (today > d3 && invoice.priceV4) {
         currentAmount = invoice.priceV4;
+        currentV = 4;
       } else if (today > d2 && invoice.priceV3) {
         currentAmount = invoice.priceV3;
+        currentV = 3;
       } else if (today > d1 && invoice.priceV2) {
         currentAmount = invoice.priceV2;
+        currentV = 2;
       }
     }
     const valCents = ((invoice.clientId || invoice.id || 1) % 1000);
@@ -195,10 +200,12 @@ function drawInvoicePDF(doc, invoice) {
   const d2 = invoice.dueDate2 ? new Date(invoice.dueDate2).toLocaleDateString('es-AR') : '15/07/2026';
   const d3 = invoice.dueDate3 ? new Date(invoice.dueDate3).toLocaleDateString('es-AR') : '20/07/2026';
   const d4 = invoice.dueDate4 ? new Date(invoice.dueDate4).toLocaleDateString('es-AR') : '22/07/2026';
-  doc.text(`• Vencimiento 1 (Hasta ${d1}): $${(invoice.priceV1 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 28);
-  doc.text(`• Vencimiento 2 (Hasta ${d2}): $${(invoice.priceV2 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 41);
-  doc.text(`• Vencimiento 3 (Hasta ${d3}): $${(invoice.priceV3 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 54);
-  doc.text(`• Vencimiento 4 (Desde ${d4} / Corte): $${(invoice.priceV4 || invoice.originalAmount || 0).toFixed(2)}`, 60, y + 67);
+  
+  let listY = y + 28;
+  if (currentV <= 1) { doc.text(`• Vencimiento 1 (Hasta ${d1}): $${(invoice.priceV1 || invoice.originalAmount || 0).toFixed(2)}`, 60, listY); listY += 13; }
+  if (currentV <= 2) { doc.text(`• Vencimiento 2 (Hasta ${d2}): $${(invoice.priceV2 || invoice.originalAmount || 0).toFixed(2)}`, 60, listY); listY += 13; }
+  if (currentV <= 3) { doc.text(`• Vencimiento 3 (Hasta ${d3}): $${(invoice.priceV3 || invoice.originalAmount || 0).toFixed(2)}`, 60, listY); listY += 13; }
+  doc.text(`• Vencimiento 4 (Desde ${d4} / Corte): $${(invoice.priceV4 || invoice.originalAmount || 0).toFixed(2)}`, 60, listY);
 
   // Box Totales (Derecha)
   doc.rect(330, y, 220, 90).fillAndStroke('#f8fafc', '#cbd5e1');

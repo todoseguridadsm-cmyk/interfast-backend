@@ -2214,10 +2214,23 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         if (phoneClean.length < 8) continue;
         const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
         
-        const v1 = invoice.priceV1 || invoice.originalAmount;
-        const v2 = invoice.priceV2 || v1;
-        const v3 = invoice.priceV3 || v1;
-        const v4 = invoice.priceV4 || v1;
+        const today = new Date();
+        let activeV = 'V1';
+        let activeAmount = invoice.priceV1 || invoice.originalAmount;
+        
+        if (invoice.dueDate1) {
+          const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+          const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+          const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+
+          if (today > d3 && invoice.priceV4) { activeV = 'V4'; activeAmount = invoice.priceV4; }
+          else if (today > d2 && invoice.priceV3) { activeV = 'V3'; activeAmount = invoice.priceV3; }
+          else if (today > d1 && invoice.priceV2) { activeV = 'V2'; activeAmount = invoice.priceV2; }
+        }
+
+        const centavos = String(((invoice.clientId || invoice.id || 1) % 99) + 1).padStart(2, '0');
+        const totalConCentavos = parseFloat(activeAmount).toFixed(2).split('.')[0] + '.' + centavos;
+        const totalEs = parseFloat(totalConCentavos).toLocaleString('es-AR', {minimumFractionDigits: 2});
 
         const formatD = (d) => {
           if (!d) return 'N/A';
@@ -2225,30 +2238,41 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           return `${dt.getDate().toString().padStart(2, '0')}/${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getFullYear()}`;
         };
 
-        const d1 = formatD(invoice.dueDate1);
-        const d2 = formatD(invoice.dueDate2);
-        const d3 = formatD(invoice.dueDate3);
-        const d4 = formatD(invoice.dueDate4);
+        let pricesText = '';
+        if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
+          pricesText += `El total a abonar varía según el día de pago:\n`;
+          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${parseFloat(invoice.priceV1).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${parseFloat(invoice.priceV2).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${parseFloat(invoice.priceV3).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${parseFloat(invoice.priceV4).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          pricesText += '\n';
+        }
 
+        const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}&v=${activeV}`;
         const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/redirect`;
-        const debitoLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c938084918e19b801918ed1d4fc0008`; // You can ask user to put proper id later
+        const debitoLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c938084918e19b801918ed1d4fc0008`;
 
-        const msg = `Hola ${invoice.client.name}! 👋\n\nTe informamos el estado de tu cuenta de Internet.\n\n` +
-          `*Vencimiento 1:* $${v1.toFixed(2)} (Vto: ${d1})\n` +
-          `*Vencimiento 2:* $${v2.toFixed(2)} (Vto: ${d2})\n` +
-          `*Vencimiento 3:* $${v3.toFixed(2)} (Vto: ${d3})\n` +
-          `*Vencimiento 4:* $${v4.toFixed(2)} (Vto: ${d4})\n\n` +
-          `⚠️ *IMPORTANTE:* No se reciben más pagos a través del Banco Roela.\n\n` +
-          `🏦 *Para transferencias bancarias*, utiliza el siguiente Alias de Mercado Pago:\n` +
-          `Alias: *INTERFASTSM* (SIN COMISIÓN)\n\n` +
-          `💳 *Si prefieres pagar con tarjeta/MercadoPago* (incluye recargo), utiliza este link:\n` +
-          `${mpLink}\n\n` +
-          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n` +
-          `${debitoLink}\n\n` + 
-          `¡Muchas gracias por elegirnos!`;
+        const msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
+          `📅 *Período:* ${String(invoice.month).padStart(2,'0')}/${invoice.year}\n` +
+          `💰 *Monto Original:* $${parseFloat(invoice.originalAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n` +
+          `${pricesText}` +
+          `📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n` +
+          `🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\n` +
+          `Podés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n` +
+          `👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\n` +
+          `Una vez transferido, envíanos la foto del comprobante por aquí.\n\n` +
+          `💳 *¿Preferís pagar con tarjeta / MercadoPago?*\n` +
+          `Podés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n` +
+          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` + 
+          `¡Muchas gracias!`;
 
         try {
           await waSocket.sendMessage(targetPhone, { text: msg });
+          // Update lastRemindedAt
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { lastRemindedAt: new Date() }
+          });
         } catch(err) {
           console.error(`Error enviando WA masivo a ${invoice.client.name}:`, err.message);
         }
@@ -3524,8 +3548,10 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       let latestDueDate = null;
       const today = new Date();
 
+      let globalActiveV = 'V1';
       for (const inv of pendingInvoices) {
         let currentAmount = inv.priceV1 || inv.originalAmount;
+        let activeV = 'V1';
         let currentDueDate = inv.dueDate1 ? new Date(inv.dueDate1) : new Date(inv.dueDate || today);
 
         if (inv.dueDate1) {
@@ -3537,16 +3563,20 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
           if (today > d3 && inv.priceV4) {
             currentAmount = inv.priceV4;
             currentDueDate = d4;
+            activeV = 'V4';
           } else if (today > d2 && inv.priceV3) {
             currentAmount = inv.priceV3;
             currentDueDate = d3;
+            activeV = 'V3';
           } else if (today > d1 && inv.priceV2) {
             currentAmount = inv.priceV2;
             currentDueDate = d2;
+            activeV = 'V2';
           } else {
             currentDueDate = d1;
           }
         }
+        globalActiveV = activeV;
         
         totalDebtBase += parseFloat(currentAmount);
         periods.push(`${inv.month}/${inv.year}`);
@@ -3592,13 +3622,13 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         ? ` (IMPORTANTE MULTI-CUENTA: El cliente posee ${matchingClients.length} cuentas/servicios asociadas: ${matchingClients.map(c => `${c.name} - ${c.address || 'S/D'}`).join(' | ')})` 
         : '';
 
-      formatted_message = `ESTADO DE CUENTA DE: ${primaryClient.name}${accountsSummaryText} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Monto Total a Abonar (Acumulado entre todas sus cuentas): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
+      formatted_message = `ESTADO DE CUENTA DE: ${primaryClient.name}${accountsSummaryText} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Vencimiento Actualizado: ${globalActiveV} | Monto Total a Abonar (Acumulado entre todas sus cuentas actualizado a la fecha de hoy): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
 DETALLE INDIVIDUAL DE LA DEUDA:
 ${breakdownStr}
 
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
-2. Infórmale amablemente al cliente que adeuda los períodos indicados arriba por un total acumulado de $${aliasAmountEs} entre todas sus cuentas. Si tiene múltiples servicios (como Los Silos y Balcarce), MENCIONALO CLARAMENTE para que sepa qué está pagando. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle en PDF: ${pdfUrl}
+2. Infórmale amablemente al cliente que adeuda los períodos indicados arriba por un total acumulado de $${aliasAmountEs} entre todas sus cuentas. Si tiene múltiples servicios (como Los Silos y Balcarce), MENCIONALO CLARAMENTE para que sepa qué está pagando. El sistema ya calculó automáticamente la etapa de vencimiento actual (${globalActiveV}) y los posibles recargos por mora en este importe. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle en PDF (el PDF solo mostrará la tarifa actual): ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
 4. ATENCIÓN SI EL CLIENTE QUIERE PAGAR SOLO UN MES O UNA SOLA CUENTA: Si pregunta si puede pagar solo una cuenta o un mes en vez del total, RESPÓNDELE QUE SÍ PUEDE. Detállale amablemente el importe individual de esa cuenta/mes (sacado del DETALLE INDIVIDUAL DE LA DEUDA) e indícale que transfiera ese monto exacto al alias interfastsm. (Aclárale que el Link de MercadoPago solo permite pagar el total). NO asumas que los otros meses o cuentas están pagos, aclárale que siguen pendientes.
 5. PREGUNTA AL FINAL DEL MENSAJE: "💡 ¿Prefieres abonar con tarjeta de débito/crédito? Pídeme por aquí el Link de Pago. O si gustas, también puedo sumarte al Débito Automático Mensual para despreocuparte de los vencimientos".
