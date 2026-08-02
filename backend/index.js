@@ -672,6 +672,46 @@ app.post('/api/clients', async (req, res) => {
     const client = await prisma.client.create({
       data: dataPayload,
     });
+
+    // -------------------------------------------------------------------------
+    // NOTIFICACIÓN AUTOMÁTICA DE NUEVO CLIENTE (ALTA) AL TÉCNICO
+    // -------------------------------------------------------------------------
+    try {
+      const techPhone = '5492634302101';
+      const techTarget = `${techPhone}@s.whatsapp.net`;
+      const techMessage = `🚀 *NUEVA ALTA DE CLIENTE CREADA* 🚀\n\n` +
+                          `👤 *Cliente:* ${client.name}\n` +
+                          `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
+                          `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
+                          `🆔 *DNI/CUIT:* ${client.dni || client.cuit || 'No registrado'}\n` +
+                          `📡 *IP Asignada:* ${client.ipNumber || 'Sin IP'}\n\n` +
+                          `✅ *N° de Cliente:* TK${client.id}\n` +
+                          `🔗 *Revisalo en el CRM para coordinar la instalación.*`;
+
+      if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
+        console.log(`📱 [Auto-Envío Técnico] Enviando alerta de alta TK${client.id} a ${techPhone} por Baileys...`);
+        waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
+      }
+
+      if (process.env.WAHA_API_URL) {
+        const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
+        const sessionName = process.env.WAHA_SESSION || 'default';
+        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+        fetch(wahaUrl, { method: 'POST', headers, body: JSON.stringify({ chatId: `${techPhone}@c.us`, text: techMessage, session: sessionName }) })
+        .catch(err => console.error('Error WAHA Alta:', err.message));
+      }
+
+      if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+        const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
+        fetch(evoUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': process.env.EVOLUTION_API_KEY }, body: JSON.stringify({ number: techPhone, options: { delay: 1200 }, textMessage: { text: techMessage } }) })
+        .catch(err => console.error('Error EVO Alta:', err.message));
+      }
+    } catch (notifErr) {
+      console.error('Error enviando notificación de alta al técnico:', notifErr.message);
+    }
+    // -------------------------------------------------------------------------
+
     res.json(client);
   } catch (error) {
     console.error(error);
