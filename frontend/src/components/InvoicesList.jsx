@@ -612,7 +612,7 @@ export default function InvoicesList() {
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-indigo-200 transition-colors flex items-center gap-2 disabled:bg-indigo-400"
           >
             <Play size={16} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Procesando...' : 'Generar'}
+            {loading ? 'Procesando...' : 'Generar Deuda'}
           </button>
         </div>
       </header>
