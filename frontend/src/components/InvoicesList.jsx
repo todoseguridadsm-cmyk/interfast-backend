@@ -180,7 +180,7 @@ export default function InvoicesList() {
     setLoading(false);
   };
 // Utility function to determine the active vencimiento
-export const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
+const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
   let activeV = 'V1';
   let activeAmount = inv.priceV1 || inv.originalAmount;
   
