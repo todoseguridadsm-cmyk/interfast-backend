@@ -677,8 +677,7 @@ app.post('/api/clients', async (req, res) => {
     // NOTIFICACIÓN AUTOMÁTICA DE NUEVO CLIENTE (ALTA) AL TÉCNICO
     // -------------------------------------------------------------------------
     try {
-      const techPhone = '5492634302101';
-      const techTarget = `${techPhone}@s.whatsapp.net`;
+      const techPhones = ['5492634302101', '5492634757105'];
       const techMessage = `🚀 *NUEVA ALTA DE CLIENTE CREADA* 🚀\n\n` +
                           `👤 *Cliente:* ${client.name}\n` +
                           `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
@@ -688,24 +687,28 @@ app.post('/api/clients', async (req, res) => {
                           `✅ *N° de Cliente:* TK${client.id}\n` +
                           `🔗 *Revisalo en el CRM para coordinar la instalación.*`;
 
-      if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
-        console.log(`📱 [Auto-Envío Técnico] Enviando alerta de alta TK${client.id} a ${techPhone} por Baileys...`);
-        waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
-      }
+      for (const techPhone of techPhones) {
+        const techTarget = `${techPhone}@s.whatsapp.net`;
+        
+        if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
+          console.log(`📱 [Auto-Envío Técnico] Enviando alerta de alta TK${client.id} a ${techPhone} por Baileys...`);
+          waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
+        }
 
-      if (process.env.WAHA_API_URL) {
-        const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
-        const sessionName = process.env.WAHA_SESSION || 'default';
-        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-        if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
-        fetch(wahaUrl, { method: 'POST', headers, body: JSON.stringify({ chatId: `${techPhone}@c.us`, text: techMessage, session: sessionName }) })
-        .catch(err => console.error('Error WAHA Alta:', err.message));
-      }
+        if (process.env.WAHA_API_URL) {
+          const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
+          const sessionName = process.env.WAHA_SESSION || 'default';
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+          if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+          fetch(wahaUrl, { method: 'POST', headers, body: JSON.stringify({ chatId: `${techPhone}@c.us`, text: techMessage, session: sessionName }) })
+          .catch(err => console.error('Error WAHA Alta:', err.message));
+        }
 
-      if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
-        const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
-        fetch(evoUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': process.env.EVOLUTION_API_KEY }, body: JSON.stringify({ number: techPhone, options: { delay: 1200 }, textMessage: { text: techMessage } }) })
-        .catch(err => console.error('Error EVO Alta:', err.message));
+        if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+          const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
+          fetch(evoUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': process.env.EVOLUTION_API_KEY }, body: JSON.stringify({ number: techPhone, options: { delay: 1200 }, textMessage: { text: techMessage } }) })
+          .catch(err => console.error('Error EVO Alta:', err.message));
+        }
       }
     } catch (notifErr) {
       console.error('Error enviando notificación de alta al técnico:', notifErr.message);
@@ -3402,8 +3405,7 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
     // NOTIFICACIÓN AUTOMÁTICA DE NUEVO TICKET AL TÉCNICO
     // -------------------------------------------------------------------------
     try {
-      const techPhone = '5492634302101';
-      const techTarget = `${techPhone}@s.whatsapp.net`;
+      const techPhones = ['5492634302101', '5492634757105'];
       const techMessage = `🚨 *NUEVO TICKET TÉCNICO GENERADO POR SOFI* 🚨\n\n` +
                           `👤 *Cliente:* ${client.name}\n` +
                           `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
@@ -3413,50 +3415,54 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
                           `🎫 *Ticket N°:* ${ticket.id}\n` +
                           `🔗 *Revisalo en el CRM.*`;
 
-      // Intentar enviar por Baileys interno
-      if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
-        console.log(`📱 [Auto-Envío Técnico] Enviando alerta de ticket #${ticket.id} a ${techPhone} por Baileys...`);
-        await waSocket.sendMessage(techTarget, { text: techMessage });
-      }
+      for (const techPhone of techPhones) {
+        const techTarget = `${techPhone}@s.whatsapp.net`;
 
-      // Intentar enviar por WAHA si está configurado
-      if (process.env.WAHA_API_URL) {
-        const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
-        const sessionName = process.env.WAHA_SESSION || 'default';
-        console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por WAHA a ${techPhone}...`);
-        
-        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-        if (process.env.WAHA_API_KEY) {
-          headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+        // Intentar enviar por Baileys interno
+        if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
+          console.log(`📱 [Auto-Envío Técnico] Enviando alerta de ticket #${ticket.id} a ${techPhone} por Baileys...`);
+          await waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
         }
 
-        fetch(wahaUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            chatId: `${techPhone}@c.us`,
-            text: techMessage,
-            session: sessionName
-          })
-        }).catch(err => console.error('Error enviando alerta técnica por WAHA:', err.message));
-      }
+        // Intentar enviar por WAHA si está configurado
+        if (process.env.WAHA_API_URL) {
+          const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
+          const sessionName = process.env.WAHA_SESSION || 'default';
+          console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por WAHA a ${techPhone}...`);
+          
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+          if (process.env.WAHA_API_KEY) {
+            headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+          }
 
-      // Intentar enviar por Evolution API si está configurado
-      if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
-        const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
-        console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por Evolution API a ${techPhone}...`);
-        fetch(evoUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.EVOLUTION_API_KEY
-          },
-          body: JSON.stringify({
-            number: techPhone,
-            options: { delay: 1200, presence: 'composing' },
-            textMessage: { text: techMessage }
-          })
-        }).catch(err => console.error('Error enviando alerta técnica por Evolution API:', err.message));
+          fetch(wahaUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              chatId: `${techPhone}@c.us`,
+              text: techMessage,
+              session: sessionName
+            })
+          }).catch(err => console.error('Error enviando alerta técnica por WAHA:', err.message));
+        }
+
+        // Intentar enviar por Evolution API si está configurado
+        if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
+          const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
+          console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por Evolution API a ${techPhone}...`);
+          fetch(evoUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.EVOLUTION_API_KEY
+            },
+            body: JSON.stringify({
+              number: techPhone,
+              options: { delay: 1200, presence: 'composing' },
+              textMessage: { text: techMessage }
+            })
+          }).catch(err => console.error('Error enviando alerta técnica por Evolution API:', err.message));
+        }
       }
     } catch (notifErr) {
       console.error('Error enviando notificación al técnico:', notifErr.message);
