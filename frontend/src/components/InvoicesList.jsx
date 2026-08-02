@@ -548,7 +548,7 @@ export default function InvoicesList() {
               </button>
               <button 
                 onClick={() => startMassReminder(true)} disabled={loading}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
+                className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
               >
                 <MessageCircle size={16} />
                 Notificar Deuda ({selectedInvoices.length})
