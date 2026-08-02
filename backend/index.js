@@ -2197,8 +2197,8 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `*Vencimiento 4:* $${v4.toFixed(2)} (Vto: ${d4})\n\n` +
           `⚠️ *IMPORTANTE:* No se reciben más pagos a través del Banco Roela.\n\n` +
           `🏦 *Para transferencias bancarias*, utiliza el siguiente Alias de Mercado Pago:\n` +
-          `Alias: *INTERFASTSM*\n\n` +
-          `💳 *Si prefieres pagar con tarjeta/MercadoPago* (incluye 10% de recargo), utiliza este link:\n` +
+          `Alias: *INTERFASTSM* (SIN COMISIÓN)\n\n` +
+          `💳 *Si prefieres pagar con tarjeta/MercadoPago* (incluye recargo), utiliza este link:\n` +
           `${mpLink}\n\n` +
           `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n` +
           `${debitoLink}\n\n` + 
