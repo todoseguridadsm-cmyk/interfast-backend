@@ -471,7 +471,7 @@ export default function InvoicesList() {
     // 3. Status Filter
     if (statusFilter !== 'ALL') {
       if (statusFilter === 'UNBILLED') {
-        if (inv.afipCae) return false;
+        if (inv.status !== 'PAID' || inv.afipCae) return false;
       } else {
         if (inv.status !== statusFilter) return false;
       }
