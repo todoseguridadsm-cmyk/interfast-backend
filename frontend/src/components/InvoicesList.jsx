@@ -180,6 +180,28 @@ export default function InvoicesList() {
     setLoading(false);
   };
 
+  const startMassReminder = async () => {
+    if (selectedInvoices.length === 0) {
+      alert('No hay facturas pendientes seleccionadas.');
+      return;
+    }
+    
+    if(!window.confirm(`¿Enviar resumen de deuda y links de pago a los ${selectedInvoices.length} clientes seleccionados? (Incluye recargo 10% para MP)`)) return;
+    
+    setLoading(true);
+    try {
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-reminder', {
+        invoiceIds: selectedInvoices
+      });
+      alert(res.data.message);
+      setSelectedInvoices([]);
+    } catch(err) {
+      console.error(err);
+      alert('Error en el envío masivo: ' + (err.response?.data?.error || err.message));
+    }
+    setLoading(false);
+  };
+
   const manualWhatsApp = (inv) => {
     if (!inv.client.phone) {
       alert('Este cliente no tiene teléfono registrado.');
@@ -536,6 +558,13 @@ export default function InvoicesList() {
               >
                 <Landmark size={16} />
                 Lote AFIP ({selectedInvoices.length})
+              </button>
+              <button 
+                onClick={startMassReminder} disabled={loading}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm transition-colors flex items-center gap-1.5 text-xs"
+              >
+                <MessageCircle size={16} />
+                Deuda a WP ({selectedInvoices.length})
               </button>
               <button 
                 onClick={() => startMassiveNotify(true)} disabled={loading}

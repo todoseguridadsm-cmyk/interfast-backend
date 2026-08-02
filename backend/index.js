@@ -656,7 +656,15 @@ app.post('/api/clients', async (req, res) => {
       parsedRegistrationDate = new Date(registrationDate);
     }
 
-    const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate };
+    let variation = 0;
+    while(true) {
+      const cents = Math.floor(Math.random() * 999) + 1; // 1 to 999
+      variation = cents / 100; // 0.01 to 9.99
+      const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation }});
+      if(!exists) break;
+    }
+
+    const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, uniqueVariation: variation };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -977,6 +985,38 @@ app.delete('/api/bajas/:id', async (req, res) => {
   }
 });
 
+app.post('/api/clients/generate-variations', async (req, res) => {
+  try {
+    const clients = await prisma.client.findMany({
+      where: { uniqueVariation: 0.0 }
+    });
+    
+    let updated = 0;
+    for (const client of clients) {
+      let variation = 0;
+      let attempts = 0;
+      while(attempts < 5000) {
+        const cents = Math.floor(Math.random() * 999) + 1; // 1 to 999
+        variation = cents / 100; // 0.01 to 9.99
+        const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation }});
+        if(!exists) break;
+        attempts++;
+      }
+      
+      await prisma.client.update({
+        where: { id: client.id },
+        data: { uniqueVariation: variation }
+      });
+      updated++;
+    }
+    
+    res.json({ message: `Variaciones asignadas a ${updated} clientes.` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al generar variaciones' });
+  }
+});
+
 // 3. Plans CRUD
 app.get('/api/plans', async (req, res) => {
   try {
@@ -1181,7 +1221,7 @@ app.post('/api/invoices/generate', async (req, res) => {
           console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
         }
 
-        const expectedCentsOffset = (client.id % 1000) / 100;
+        const expectedCentsOffset = client.uniqueVariation || 0;
         
         let priceV1Val = Math.max(0, basePrice - discountToApply);
         let priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
@@ -2046,6 +2086,223 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 });
 
 // 5. Mercado Pago Preferences
+app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
+  try {
+    const invoiceId = parseInt(req.params.id);
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { client: true }
+    });
+    if (!invoice) return res.status(404).send('Factura no encontrada');
+
+    const today = new Date();
+    let expirationDate = new Date(invoice.dueDate);
+    expirationDate.setHours(23, 59, 59, 999);
+    let totalAmount = invoice.priceV1 || invoice.originalAmount;
+
+    if (invoice.dueDate1) {
+      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+
+      if (today <= d1) { expirationDate = d1; totalAmount = invoice.priceV1 || invoice.originalAmount; }
+      else if (today <= d2) { expirationDate = d2; totalAmount = invoice.priceV2 || invoice.originalAmount; }
+      else if (today <= d3) { expirationDate = d3; totalAmount = invoice.priceV3 || invoice.originalAmount; }
+      else if (today <= d4) { expirationDate = d4; totalAmount = invoice.priceV4 || invoice.originalAmount; }
+      else { expirationDate = null; totalAmount = invoice.priceV4 || invoice.originalAmount; }
+    }
+
+    if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
+      return res.redirect(`https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${invoice.id}`);
+    }
+
+    const preference = new Preference(clientMP);
+    const prefBody = {
+      items: [
+        {
+          id: `INV-${invoice.id}`,
+          title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
+          quantity: 1,
+          unit_price: Math.round(parseFloat(totalAmount) * 1.10 * 100) / 100
+        }
+      ],
+      payer: {
+        name: invoice.client.name,
+        email: invoice.client.email || 'test@test.com',
+      },
+      external_reference: invoice.id.toString(),
+      notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+    };
+
+    if (expirationDate) {
+      prefBody.expires = true;
+      prefBody.expiration_date_to = expirationDate.toISOString();
+    }
+
+    const prefs = await preference.create({ body: prefBody });
+    res.redirect(prefs.init_point);
+  } catch (error) {
+    console.error('Error MP Redirect:', error);
+    res.status(500).send('Error al generar link de Mercado Pago');
+  }
+});
+
+app.post('/api/invoices/mass-reminder', async (req, res) => {
+  try {
+    const { invoiceIds } = req.body;
+    if (!invoiceIds || !Array.isArray(invoiceIds)) {
+      return res.status(400).json({ error: 'Se requiere un array de invoiceIds' });
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: { id: { in: invoiceIds }, status: 'PENDING' },
+      include: { client: true }
+    });
+
+    res.json({ message: 'Envío masivo iniciado en segundo plano. Se enviarán mensajes progresivamente.' });
+
+    // Proceso asincrono
+    (async () => {
+      for (const invoice of invoices) {
+        if (!waSocket || typeof waStatus === 'undefined' || waStatus !== 'CONNECTED' || !invoice.client?.phone) continue;
+        
+        const phoneClean = invoice.client.phone.replace(/\D/g, '');
+        if (phoneClean.length < 8) continue;
+        const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+        
+        const v1 = invoice.priceV1 || invoice.originalAmount;
+        const v2 = invoice.priceV2 || v1;
+        const v3 = invoice.priceV3 || v1;
+        const v4 = invoice.priceV4 || v1;
+
+        const formatD = (d) => {
+          if (!d) return 'N/A';
+          const dt = new Date(d);
+          return `${dt.getDate().toString().padStart(2, '0')}/${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getFullYear()}`;
+        };
+
+        const d1 = formatD(invoice.dueDate1);
+        const d2 = formatD(invoice.dueDate2);
+        const d3 = formatD(invoice.dueDate3);
+        const d4 = formatD(invoice.dueDate4);
+
+        const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/redirect`;
+        const debitoLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c938084918e19b801918ed1d4fc0008`; // You can ask user to put proper id later
+
+        const msg = `Hola ${invoice.client.name}! 👋\n\nTe informamos el estado de tu cuenta de Internet.\n\n` +
+          `*Vencimiento 1:* $${v1.toFixed(2)} (Vto: ${d1})\n` +
+          `*Vencimiento 2:* $${v2.toFixed(2)} (Vto: ${d2})\n` +
+          `*Vencimiento 3:* $${v3.toFixed(2)} (Vto: ${d3})\n` +
+          `*Vencimiento 4:* $${v4.toFixed(2)} (Vto: ${d4})\n\n` +
+          `⚠️ *IMPORTANTE:* No se reciben más pagos a través del Banco Roela.\n\n` +
+          `🏦 *Para transferencias bancarias*, utiliza el siguiente Alias de Mercado Pago:\n` +
+          `Alias: *INTERFASTSM*\n\n` +
+          `💳 *Si prefieres pagar con tarjeta/MercadoPago* (incluye 10% de recargo), utiliza este link:\n` +
+          `${mpLink}\n\n` +
+          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n` +
+          `${debitoLink}\n\n` + 
+          `¡Muchas gracias por elegirnos!`;
+
+        try {
+          await waSocket.sendMessage(targetPhone, { text: msg });
+        } catch(err) {
+          console.error(`Error enviando WA masivo a ${invoice.client.name}:`, err.message);
+        }
+        
+        // Esperar entre 5 y 10 segundos
+        const delay = Math.floor(Math.random() * 5000) + 5000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    })();
+  } catch (error) {
+    console.error('Error inicio mass reminder:', error);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al iniciar envío masivo' });
+  }
+});
+
+// N8N: Generar factura ARCA a demanda
+app.post('/api/bot/generar-factura-arca', async (req, res) => {
+  try {
+    const { clientId, invoiceId } = req.body;
+    let targetInvoiceId = invoiceId;
+
+    if (!targetInvoiceId && clientId) {
+      const inv = await prisma.invoice.findFirst({
+        where: { clientId: parseInt(clientId), status: 'PAID' },
+        orderBy: { id: 'desc' }
+      });
+      if (inv) targetInvoiceId = inv.id;
+    }
+
+    if (!targetInvoiceId) {
+      return res.status(404).json({ error: 'No se encontró factura pagada para este cliente' });
+    }
+
+    const { emitAfipInvoiceHelper } = require('./afip_helper');
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: parseInt(targetInvoiceId) }
+    });
+
+    if (invoice && invoice.afipCae) {
+      return res.json({ message: 'La factura ya tiene comprobante AFIP', afipCae: invoice.afipCae, afipLink: invoice.afipLink });
+    }
+
+    await emitAfipInvoiceHelper(targetInvoiceId, afip);
+    
+    const updated = await prisma.invoice.findUnique({
+      where: { id: parseInt(targetInvoiceId) }
+    });
+
+    res.json({ message: 'Factura generada con éxito', afipCae: updated.afipCae, afipLink: updated.afipLink });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al generar factura en ARCA' });
+  }
+});
+
+// Pagos No Identificados
+app.get('/api/unidentified-payments', async (req, res) => {
+  try {
+    const payments = await prisma.unidentifiedPayment.findMany({
+      orderBy: { date: 'desc' }
+    });
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener pagos no identificados' });
+  }
+});
+
+app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
+  try {
+    const { invoiceId } = req.body;
+    const paymentId = parseInt(req.params.id);
+
+    const payment = await prisma.unidentifiedPayment.findUnique({ where: { id: paymentId } });
+    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
+
+    const invoice = await prisma.invoice.findUnique({ where: { id: parseInt(invoiceId) }, include: { client: true } });
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    await prisma.invoice.update({
+      where: { id: parseInt(invoiceId) },
+      data: { status: 'PAID', paymentMethod: 'MERCADOPAGO', paymentDate: payment.date }
+    });
+    
+    if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
+      try {
+        await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+      } catch(e) {}
+    }
+
+    await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
+    res.json({ message: 'Pago asignado con éxito' });
+  } catch(error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al asignar pago' });
+  }
+});
+
 app.post('/api/invoices/:id/mercadopago', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
@@ -2089,7 +2346,7 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
           id: `INV-${invoice.id}`,
           title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
           quantity: 1,
-          unit_price: parseFloat(totalAmount)
+          unit_price: Math.round(parseFloat(totalAmount) * 1.10 * 100) / 100
         }
       ],
       payer: {
@@ -2194,7 +2451,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
           id: `INV-MULTI-${clientId}`,
           title: `Abonos de Internet TK${String(clientId).padStart(3, '0')} (${invoices.length} facturas)`,
           quantity: 1,
-          unit_price: parseFloat(combinedTotal)
+          unit_price: Math.round(parseFloat(combinedTotal) * 1.10 * 100) / 100
         }
       ],
       payer: {
@@ -2376,7 +2633,17 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           if (matchedInvoice) {
             invoiceIdsToProcess.push(matchedInvoice.id);
           } else {
-            console.error(`❌ Webhook MP: Pago rechazado localmente. Referencia inválida o vacía (${ref}) y no se halló factura coincidente para el monto $${transactionAmount}.`);
+            console.error(`❌ Webhook MP: Pago rechazado localmente. Guardando en Pagos No Identificados. Monto $${transactionAmount}.`);
+            await prisma.unidentifiedPayment.create({
+              data: {
+                amount: transactionAmount,
+                date: new Date(),
+                mpPaymentId: String(paymentId),
+                payerName: `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.trim(),
+                payerEmail: mpPayment.payer?.email || '',
+                payerDni: String(mpPayment.payer?.identification?.number || '')
+              }
+            });
             return;
           }
         }

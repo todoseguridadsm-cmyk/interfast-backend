@@ -20,7 +20,8 @@ import NodesList from './components/NodesList';
 import ActiveConnections from './components/ActiveConnections';
 import AltasWebList from './components/AltasWebList';
 import ContentApproval from './components/ContentApproval';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText } from 'lucide-react';
+import UnidentifiedPaymentsList from './components/UnidentifiedPaymentsList';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -159,10 +160,16 @@ function AppContent() {
           )}
 
           {isAllowed('FACTURACION') && (
-            <Link onClick={handleLinkClick} to="/invoices" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/invoices' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <CreditCard size={20} />
-              <span>Facturación</span>
-            </Link>
+            <>
+              <Link onClick={handleLinkClick} to="/invoices" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/invoices' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <CreditCard size={20} />
+                <span>Facturación</span>
+              </Link>
+              <Link onClick={handleLinkClick} to="/unidentified" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/unidentified' ? 'bg-orange-600/20 text-orange-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <AlertTriangle size={20} />
+                <span>Pagos Huérfanos</span>
+              </Link>
+            </>
           )}
           
           {isAllowed('CORTES') && (
@@ -258,6 +265,7 @@ function AppContent() {
             <Route path="/plans" element={isAllowed('PLANES') ? <PlansList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/ventas" element={isAllowed('PLANES') ? <ServiceCatalog /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/invoices" element={isAllowed('FACTURACION') ? <InvoicesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/unidentified" element={isAllowed('FACTURACION') ? <UnidentifiedPaymentsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cutoff" element={isAllowed('CORTES') ? <CutoffList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/bajas" element={isAllowed('BAJAS') ? <BajasList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/pos" element={isAllowed('CAJA') ? <POSCaja /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
