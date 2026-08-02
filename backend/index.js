@@ -2577,7 +2577,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               const clientEmail = (inv.client?.email || '').toLowerCase();
               const clientDni = String(inv.client?.dni || '');
 
-              if (clientDni && clientDni.length > 5 && payerDni.includes(clientDni)) return inv;
+              if (clientDni && clientDni.length >= 7 && payerDni && payerDni.length >= 7 && (payerDni.includes(clientDni) || clientDni.includes(payerDni))) return inv;
               if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
               
               const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
