@@ -3162,8 +3162,21 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.status(400).json({ error: 'Falta parámetro query con DNI, teléfono, CUIT o ID' });
 
-    const whereClause = buildBotClientSearchWhere(query);
-    const matchingClients = await prisma.client.findMany({ where: whereClause });
+    let matchingClients = [];
+    const parsedId = !isNaN(parseInt(query)) && query.toString().trim().length <= 8 ? parseInt(query) : null;
+    
+    if (parsedId && parsedId <= 2147483647) {
+      const exactClient = await prisma.client.findUnique({ where: { id: parsedId } });
+      if (exactClient) {
+        matchingClients = [exactClient];
+      }
+    }
+
+    if (matchingClients.length === 0) {
+      const whereClause = buildBotClientSearchWhere(query);
+      matchingClients = await prisma.client.findMany({ where: whereClause });
+    }
+
     if (!matchingClients || matchingClients.length === 0) {
       return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${query}".` });
     }
@@ -3332,11 +3345,23 @@ app.get('/api/bot/debito-automatico', async (req, res) => {
       return res.status(400).json({ error: `Falta parámetro query válido. Recibido por el servidor: ${JSON.stringify(req.query)}` });
     }
 
-    const whereClause = buildBotClientSearchWhere(searchTerm);
-    const client = await prisma.client.findFirst({
-      where: whereClause,
-      include: { plan: true }
-    });
+    let client = null;
+    const parsedId = !isNaN(parseInt(searchTerm)) && searchTerm.toString().trim().length <= 8 ? parseInt(searchTerm) : null;
+
+    if (parsedId && parsedId <= 2147483647) {
+      client = await prisma.client.findUnique({
+        where: { id: parsedId },
+        include: { plan: true }
+      });
+    }
+
+    if (!client) {
+      const whereClause = buildBotClientSearchWhere(searchTerm);
+      client = await prisma.client.findFirst({
+        where: whereClause,
+        include: { plan: true }
+      });
+    }
 
     if (!client) {
       return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${searchTerm}".` });
