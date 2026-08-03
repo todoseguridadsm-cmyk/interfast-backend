@@ -2641,7 +2641,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           
           const pendingInvoices = await prisma.invoice.findMany({
             where: { status: 'PENDING' },
-            include: { client: true },
+            include: { client: { select: { id: true, name: true, email: true, dni: true, phone: true, observation: true } } },
             orderBy: [{ year: 'asc' }, { month: 'asc' }]
           });
           
@@ -2665,7 +2665,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           }
 
           const disambiguate = (candidates) => {
-            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.toLowerCase();
+            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.toLowerCase().trim();
             const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
             const payerDni = String(mpPayment.payer?.identification?.number || '');
             const payerPhone = String(mpPayment.payer?.phone?.number || '').replace(/\D/g, '');
@@ -2675,14 +2675,34 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               const clientEmail = (inv.client?.email || '').toLowerCase();
               const clientDni = String(inv.client?.dni || '');
               const clientPhone = String(inv.client?.phone || '').replace(/\D/g, '');
+              const clientObservation = (inv.client?.observation || '');
 
               const cleanPayerDni = payerDni.replace(/\D/g, '');
               const cleanClientDni = clientDni.replace(/\D/g, '');
 
+              // ── PRIORIDAD 1: Alias MP en observaciones ─────────────────────
+              // Formato: "MP: JUAN PEREZ | MP: MARIA GARCIA" o "MP: JUAN PEREZ, MARIA GARCIA"
+              const mpAliasMatches = [...clientObservation.matchAll(/MP:\s*([^|,\n]+)/gi)];
+              const mpAliases = mpAliasMatches.map(m => m[1].trim().toLowerCase()).filter(Boolean);
+              for (const alias of mpAliases) {
+                const aliasWords = alias.split(/\s+/).filter(w => w.length > 2);
+                const matchedAliasWords = aliasWords.filter(w => payerName.includes(w)).length;
+                if (aliasWords.length > 0 && (matchedAliasWords >= aliasWords.length || (aliasWords.length <= 2 && matchedAliasWords >= 1 && payerName.includes(alias)))) {
+                  console.log(`🏷️ Webhook MP: Match por ALIAS MP en observaciones — alias "${alias}" → cliente ${inv.client.name}`);
+                  return inv;
+                }
+              }
+
+              // ── PRIORIDAD 2: DNI ───────────────────────────────────────────
               if (cleanClientDni && cleanClientDni.length >= 7 && cleanPayerDni && cleanPayerDni.length >= 7 && (cleanPayerDni.includes(cleanClientDni) || cleanClientDni.includes(cleanPayerDni))) return inv;
+
+              // ── PRIORIDAD 3: Email ─────────────────────────────────────────
               if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
+
+              // ── PRIORIDAD 4: Teléfono ──────────────────────────────────────
               if (clientPhone && clientPhone.length >= 8 && payerPhone && payerPhone.length >= 8 && (payerPhone.includes(clientPhone) || clientPhone.includes(payerPhone))) return inv;
               
+              // ── PRIORIDAD 5: Nombre genérico ──────────────────────────────
               const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
               const matchedWordsCount = nameWords.filter(word => payerName.includes(word)).length;
               if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
@@ -2691,6 +2711,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             }
             return candidates.length === 1 ? candidates[0] : null;
           };
+
 
           if (exactCentsMatches.length === 1) {
             matchedInvoice = exactCentsMatches[0];
