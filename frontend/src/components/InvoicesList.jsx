@@ -192,6 +192,12 @@ export default function InvoicesList() {
     }
     setLoading(false);
   };
+  
+  const getCentsVal = (inv) => {
+    const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
+    return centsInt / 100;
+  };
+
 // Utility function to determine the active vencimiento
 const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
   let activeV = 'V1';
@@ -222,11 +228,12 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     }
     const phone = inv.client.phone.replace(/\D/g, '');
     const { activeV, activeAmount } = getInvoiceActiveVencimiento(inv);
-    const centavos = String(((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1).padStart(2, '0');
+    const centsVal = getCentsVal(inv);
     
     // El total activo con los centavos correctos
-    const totalConCentavos = parseFloat(activeAmount).toFixed(2).split('.')[0] + '.' + centavos;
-    const totalEs = parseFloat(totalConCentavos).toLocaleString('es-AR', {minimumFractionDigits: 2});
+    const totalConCentavos = parseFloat(activeAmount) + centsVal;
+    const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
+    const originalConCentavos = parseFloat(inv.originalAmount) + centsVal;
     
     // Future Vencimientos Text
     const formatD = (d) => { if (!d) return 'N/A'; const dt = new Date(d); return `${dt.getDate().toString().padStart(2, '0')}/${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getFullYear()}`; };
@@ -234,17 +241,17 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     let pricesText = '';
     if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
       pricesText += `El total a abonar varía según el día de pago:\n`;
-      if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${parseFloat(inv.priceV1).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-      if ((activeV === 'V1' || activeV === 'V2') && inv.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${parseFloat(inv.priceV2).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-      if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && inv.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${parseFloat(inv.priceV3).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-      if (inv.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${parseFloat(inv.priceV4).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(inv.priceV1) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if ((activeV === 'V1' || activeV === 'V2') && inv.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(inv.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && inv.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(inv.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if (inv.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(inv.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
       pricesText += '\n';
     }
 
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}&v=${activeV}`;
     const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`;
     
-    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Monto Original:* $${parseFloat(inv.originalAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n${pricesText}📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💳 *¿Preferís pagar con tarjeta / MercadoPago?*\nPodés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n¡Muchas gracias!`);
+    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n${pricesText}📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💳 *¿Preferís pagar con tarjeta / MercadoPago?*\nPodés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n¡Muchas gracias!`);
     window.open(`https://wa.me/549${phone}?text=${message}`, '_blank');
   };
 
@@ -690,6 +697,9 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   const notifiedV = inv.lastRemindedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.lastRemindedAt)).activeV : null;
                   const isUpToDateNotified = notifiedV === activeV;
                   const isSelectable = (!isPaid && !isUpToDateNotified && !isDebito) || (isPaid && !inv.afipCae);
+                  const centsVal = getCentsVal(inv);
+                  const displayOriginal = parseFloat(inv.originalAmount) + centsVal;
+                  const displayTotal = parseFloat(inv.totalAmount) + centsVal;
 
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
@@ -716,7 +726,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                         {new Date(inv.dueDate).toLocaleDateString('es-AR')}
                       </td>
                       <td className="px-3 py-3 text-right text-slate-600">
-                        ${inv.originalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        ${displayOriginal.toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
                       <td className="px-3 py-3 text-right">
                         {inv.calculatedLateFee > 0 ? (
@@ -729,7 +739,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                       </td>
                       <td className="px-3 py-3 text-right">
                         <span className={`font-bold ${isPaid ? 'text-slate-500 line-through' : 'text-slate-900 text-base'}`}>
-                          ${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          ${displayTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-center">
@@ -846,7 +856,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
               
               <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
                 <span className="font-semibold text-sm">Cobro Ideal:</span>
-                <span className="font-black text-lg">${payModal.inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                <span className="font-black text-lg">${(parseFloat(payModal.inv.totalAmount) + getCentsVal(payModal.inv)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
               </div>
 
               <div>
@@ -859,7 +869,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   onChange={e => setPayModal({...payModal, amount: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xl font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-center"
                 />
-                {parseFloat(payModal.amount) < payModal.inv.totalAmount && (
+                {parseFloat(payModal.amount) < parseFloat(payModal.inv.totalAmount) && (
                   <p className="text-orange-600 text-xs font-bold mt-2 flex items-center gap-1">
                     <AlertCircle size={14}/> La factura quedará en estado PARCIAL.
                   </p>

@@ -1366,10 +1366,10 @@ app.post('/api/invoices/generate', async (req, res) => {
         const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
         try {
-          const valCents = ((inv.clientId || inv.id || 1) % 1000);
-          const centsOffset = valCents / 100;
-          const totalWithCents = inv.priceV1 + centsOffset;
-          const totalEs = `${Math.floor(totalWithCents)},${String(valCents % 100).padStart(2, '0')}`;
+          const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
+          const centsVal = centsInt / 100;
+          const totalWithCents = inv.priceV1 + centsVal;
+          const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
 
           const messageBody = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos la factura de tu servicio de Internet para el período ${inv.month}/${inv.year}.\n\n💰 *Monto a Abonar (Vencimiento 1):* *$${totalEs}*\n👉 *Alias Mercado Pago:* *interfastsm* (respetar centavos para acreditación automática).\n\n💡 *¿Querés pagar con tarjeta (Link de Pago) o sumarte al Débito Automático Mensual?* Respondeme este mensaje pidiéndomelo.\n\n*Te adjuntamos la factura en formato PDF con el detalle de los 4 vencimientos y tarifas.*\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*`;
 
@@ -1633,10 +1633,10 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       }
 
       const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-      const valCents = ((inv.clientId || inv.id || 1) % 1000);
-      const centsOffset = valCents / 100;
-      const totalWithCents = totalAmountWithFee + centsOffset;
-      const totalEs = `${Math.floor(totalWithCents)},${String(valCents % 100).padStart(2, '0')}`;
+      const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
+      const centsVal = centsInt / 100;
+      const totalWithCents = totalAmountWithFee + centsVal;
+      const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
       const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
 
@@ -1734,10 +1734,10 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       }
 
       const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-      const valCents = ((inv.clientId || inv.id || 1) % 1000);
-      const centsOffset = valCents / 100;
-      const totalWithCents = totalAmountWithFee + centsOffset;
-      const totalEs = `${Math.floor(totalWithCents)},${String(valCents % 100).padStart(2, '0')}`;
+      const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
+      const centsVal = centsInt / 100;
+      const totalWithCents = totalAmountWithFee + centsVal;
+      const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
       const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
 
@@ -2272,9 +2272,11 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           else if (today > d1 && invoice.priceV2) { activeV = 'V2'; activeAmount = invoice.priceV2; }
         }
 
-        const centavos = String(((invoice.clientId || invoice.id || 1) % 99) + 1).padStart(2, '0');
-        const totalConCentavos = parseFloat(activeAmount).toFixed(2).split('.')[0] + '.' + centavos;
-        const totalEs = parseFloat(totalConCentavos).toLocaleString('es-AR', {minimumFractionDigits: 2});
+        const centsInt = ((invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1) % 99) + 1;
+        const centsVal = centsInt / 100;
+        const totalConCentavos = parseFloat(activeAmount) + centsVal;
+        const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
+        const originalConCentavos = parseFloat(invoice.originalAmount) + centsVal;
 
         const formatD = (d) => {
           if (!d) return 'N/A';
@@ -2285,10 +2287,10 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         let pricesText = '';
         if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
           pricesText += `El total a abonar varía según el día de pago:\n`;
-          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${parseFloat(invoice.priceV1).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${parseFloat(invoice.priceV2).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${parseFloat(invoice.priceV3).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${parseFloat(invoice.priceV4).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(invoice.priceV1) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(invoice.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(invoice.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(invoice.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
           pricesText += '\n';
         }
 
@@ -2298,7 +2300,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
 
         const msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
           `📅 *Período:* ${String(invoice.month).padStart(2,'0')}/${invoice.year}\n` +
-          `💰 *Monto Original:* $${parseFloat(invoice.originalAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n` +
+          `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n` +
           `${pricesText}` +
           `📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n` +
           `🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\n` +
