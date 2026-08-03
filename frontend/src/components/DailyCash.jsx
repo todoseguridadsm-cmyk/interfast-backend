@@ -354,6 +354,67 @@ export default function DailyCash() {
         </div>
       </div>
 
+      {/* ── LISTADO DE MOVIMIENTOS EN PANTALLA ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-6">
+        <div className="bg-slate-50 border-b border-slate-100 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">📋 Detalle de Movimientos</h3>
+          <span className="text-xs font-bold text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-200">
+            {filteredItems.length} registros
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                <th className="px-6 py-4">Fecha</th>
+                <th className="px-6 py-4">Tipo</th>
+                <th className="px-6 py-4">Concepto / Cliente</th>
+                <th className="px-6 py-4">Operador</th>
+                <th className="px-6 py-4 text-right">Monto ($)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-slate-400 font-medium text-sm">
+                    No hay movimientos para los filtros seleccionados.
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-slate-700">{item.date.toLocaleDateString('es-AR')}</div>
+                      <div className="text-xs text-slate-400 font-medium">{item.date.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' })}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                        item.type === 'IN' 
+                          ? (item.source === 'MERCADOPAGO' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700')
+                          : 'bg-red-50 text-red-700'
+                      }`}>
+                        {item.type === 'IN' ? 'INGRESO' : 'EGRESO'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-slate-800">{item.title}</div>
+                      <div className="text-xs font-medium text-slate-400 uppercase mt-0.5">{item.category.replace('_', ' ')}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded inline-block">
+                        {item.user}
+                      </div>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-black ${item.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {item.type === 'IN' ? '+' : '-'}${fmt(item.amount)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* ── MODAL ── */}
       {showModal && (
