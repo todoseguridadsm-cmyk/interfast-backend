@@ -2235,6 +2235,60 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
   }
 });
 
+app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
+  try {
+    const invoiceId = parseInt(req.params.id);
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { client: true }
+    });
+    if (!invoice || !invoice.client) return res.status(404).send('Factura o cliente no encontrado');
+
+    const planAmount = invoice.originalAmount || 22990;
+    let subscriptionLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=INTERFAST-SUB-${invoice.client.id}`;
+    
+    if (clientMP) {
+      try {
+        const { PreApprovalPlan, Preference } = require('mercadopago');
+        const preapprovalPlan = new PreApprovalPlan(clientMP);
+        const sub = await preapprovalPlan.create({
+          body: {
+            reason: `Debito Automatico Internet - TK${String(invoice.clientId).padStart(3, '0')} (${invoice.client.name})`,
+            external_reference: `SUB-${invoice.clientId}`,
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook",
+            auto_recurring: {
+              frequency: 1,
+              frequency_type: 'months',
+              transaction_amount: parseFloat(planAmount),
+              currency_id: 'ARS'
+            },
+            back_url: 'https://interfast.com.ar'
+          }
+        });
+        subscriptionLink = sub.init_point;
+      } catch (err) {
+        console.error('Error generando PreApprovalPlan MP en redirect:', err?.message || err);
+        try {
+          const { Preference } = require('mercadopago');
+          const preference = new Preference(clientMP);
+          const prefBody = {
+            items: [{ id: `SUB-${invoice.clientId}`, title: `Adhesión Débito Automático Internet - TK${String(invoice.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(planAmount) }],
+            payer: { name: invoice.client.name, email: invoice.client.email || 'cliente@interfast.com.ar' },
+            external_reference: `SUB-${invoice.clientId}`,
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+          };
+          const prefs = await preference.create({ body: prefBody });
+          subscriptionLink = prefs.init_point;
+        } catch (prefErr) {}
+      }
+    }
+    res.redirect(subscriptionLink);
+  } catch (error) {
+    console.error('Error MP Debito Redirect:', error);
+    res.status(500).send('Error al generar link de débito automático');
+  }
+});
+
 app.post('/api/invoices/mass-reminder', async (req, res) => {
   try {
     const { invoiceIds } = req.body;
@@ -2296,7 +2350,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
 
         const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}&v=${activeV}`;
         const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/redirect`;
-        const debitoLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=2c938084918e19b801918ed1d4fc0008`;
+        const debitoLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/debito`;
 
         const msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
           `📅 *Período:* ${String(invoice.month).padStart(2,'0')}/${invoice.year}\n` +
