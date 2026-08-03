@@ -2612,7 +2612,8 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           
           const pendingInvoices = await prisma.invoice.findMany({
             where: { status: 'PENDING' },
-            include: { client: true }
+            include: { client: true },
+            orderBy: [{ year: 'asc' }, { month: 'asc' }]
           });
           
           let matchedInvoice = null;
@@ -2638,17 +2639,20 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.toLowerCase();
             const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
             const payerDni = String(mpPayment.payer?.identification?.number || '');
+            const payerPhone = String(mpPayment.payer?.phone?.number || '').replace(/\D/g, '');
 
             for (const inv of candidates) {
               const clientName = (inv.client?.name || '').toLowerCase();
               const clientEmail = (inv.client?.email || '').toLowerCase();
               const clientDni = String(inv.client?.dni || '');
+              const clientPhone = String(inv.client?.phone || '').replace(/\D/g, '');
 
               const cleanPayerDni = payerDni.replace(/\D/g, '');
               const cleanClientDni = clientDni.replace(/\D/g, '');
 
               if (cleanClientDni && cleanClientDni.length >= 7 && cleanPayerDni && cleanPayerDni.length >= 7 && (cleanPayerDni.includes(cleanClientDni) || cleanClientDni.includes(cleanPayerDni))) return inv;
               if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
+              if (clientPhone && clientPhone.length >= 8 && payerPhone && payerPhone.length >= 8 && (payerPhone.includes(clientPhone) || clientPhone.includes(payerPhone))) return inv;
               
               const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
               const matchedWordsCount = nameWords.filter(word => payerName.includes(word)).length;
@@ -2673,7 +2677,43 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           }
 
           if (!matchedInvoice) {
-            console.log(`ℹ️ Webhook MP: Sin coincidencia por centavos. Buscando por aproximación de monto y nombre/DNI/email...`);
+            // Intentar conciliación por suma total agrupada por cliente
+            const today = new Date();
+            const getActiveAmount = (inv) => {
+              let expected = inv.priceV1 || inv.originalAmount;
+              if (inv.dueDate1) {
+                const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+                const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+                const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+                const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
+                if (today > d3 && inv.priceV4) expected = inv.priceV4;
+                else if (today > d2 && inv.priceV3) expected = inv.priceV3;
+                else if (today > d1 && inv.priceV2) expected = inv.priceV2;
+              }
+              return expected;
+            };
+
+            const invoicesByClient = {};
+            for (const inv of pendingInvoices) {
+              if (!invoicesByClient[inv.clientId]) invoicesByClient[inv.clientId] = [];
+              invoicesByClient[inv.clientId].push(inv);
+            }
+
+            for (const clientId in invoicesByClient) {
+              const clientInvs = invoicesByClient[clientId];
+              if (clientInvs.length > 1) {
+                const totalActive = clientInvs.reduce((acc, inv) => acc + getActiveAmount(inv), 0);
+                if (Math.round(transactionAmount * 100) === Math.round(totalActive * 100)) {
+                  console.log(`🎯 Webhook MP: ¡ÉXITO MULTIPLE! El cliente #${clientId} pagó la suma exacta de sus ${clientInvs.length} facturas ($${transactionAmount}).`);
+                  invoiceIdsToProcess = clientInvs.map(inv => inv.id);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!matchedInvoice && invoiceIdsToProcess.length === 0) {
+            console.log(`ℹ️ Webhook MP: Sin coincidencia por centavos ni suma. Buscando por aproximación de monto y nombre/DNI/email/teléfono...`);
             let nameAndAmountMatches = [];
             for (const inv of pendingInvoices) {
               const possibleBaseAmounts = [
