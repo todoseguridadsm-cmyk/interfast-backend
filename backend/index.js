@@ -590,9 +590,20 @@ app.get('/api/test-ptosventa', async (req, res) => {
 app.get('/api/dashboard', async (req, res) => {
   try {
     const clientsCount = await prisma.client.count();
-    const invoices = await prisma.invoice.findMany({ where: { status: 'PENDING' } });
 
+    // Solo facturas PENDIENTES del MES Y AÑO ACTUAL
     const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        status: 'PENDING',
+        month: currentMonth,
+        year: currentYear
+      }
+    });
+
     let pendingTotal = 0;
     let pendingTotalWithInterests = 0;
 
@@ -615,9 +626,9 @@ app.get('/api/dashboard', async (req, res) => {
 
     res.json({
       activeClients: clientsCount,
-      pendingTotal: pendingTotalWithInterests, // <-- El frontend lee pendingTotal. Lo sobreescribimos con los intereses actuales para que coincida.
-      pendingTotalBase: pendingTotal, 
-      pendingTotalWithInterests, 
+      pendingTotal: pendingTotalWithInterests,
+      pendingTotalBase: pendingTotal,
+      pendingTotalWithInterests,
       pendingInvoicesCount: invoices.length
     });
   } catch (error) {
