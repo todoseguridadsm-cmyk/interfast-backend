@@ -141,10 +141,8 @@ export default function DailyCash() {
   }
 
   // ─── Cálculos de caja con lógica real ────────────────────────────────────
-  // Fecha de corte: todo dato anterior a esta fecha se ignora en los cálculos.
-  // El sistema arranca desde cero el 03/08/2026 — datos del 02/08 en adelante son históricos previos.
-  const CUTOFF_DATE = new Date('2026-08-03T00:00:00');
-  const all = baseItems.filter(i => i.date >= CUTOFF_DATE);
+  // En lugar de una fecha de corte dura, calculamos los totales basándonos en lo que el usuario está viendo (filteredItems)
+  const all = filteredItems;
 
 
   // Ingresos
