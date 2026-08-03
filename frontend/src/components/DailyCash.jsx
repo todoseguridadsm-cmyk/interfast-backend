@@ -273,50 +273,7 @@ export default function DailyCash() {
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
-        {loading ? (
-            <div className="p-16 text-center text-slate-400 animate-pulse flex flex-col items-center">
-                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                Revisando bóveda electrónica...
-            </div>
-        ) : filteredItems.length === 0 ? (
-            <div className="p-16 text-center text-slate-400 flex flex-col items-center">
-                <Wallet size={48} className="opacity-20 mb-4"/>
-                <p className="font-medium text-lg">No hay operaciones que coincidan con estos filtros.</p>
-            </div>
-        ) : (
-            <div className="divide-y divide-slate-100">
-                {filteredItems.map(item => (
-                    <div key={item.id} className="p-4 px-6 flex items-center justify-between hover:bg-slate-50 transition-colors animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-5">
-                            <div className={`p-3 rounded-2xl shadow-sm ${item.type === 'IN' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                {item.type === 'IN' ? <ArrowUpCircle size={28}/> : <ArrowDownCircle size={28} />}
-                            </div>
-                            <div>
-                                <h4 className={`font-black text-base tracking-tight ${item.type === 'IN' ? 'text-slate-800' : 'text-red-700'}`}>{item.title}</h4>
-                                <div className="text-xs text-slate-500 font-medium flex items-center gap-2 mt-1">
-                                    <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black tracking-wider ${item.vault === 'MP' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                                        {item.vault === 'MP' ? '💳 Mercado Pago' : '💵 Efectivo Físico'}
-                                    </span>
-                                    <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider">
-                                        <MonitorCheck size={10}/> {item.source} {item.category && item.category !== 'INGRESO' && `(${item.category.replace('_', ' ')})`}
-                                    </span>
-                                    <span>•</span>
-                                    <span>Resp: <strong className="text-slate-700 uppercase tracking-widest">{item.user}</strong></span>
-                                    <span>•</span>
-                                    <span>{item.date.toLocaleDateString('es-AR')} {item.date.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className={`text-xl font-black tracking-tight ${item.type === 'IN' ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {item.type === 'IN' ? '+' : '-'}${item.amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        )}
-      </div>
+
 
       {/* Modal Egreso */}
       {showModal && (
