@@ -3839,7 +3839,16 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         totalDebtBase += currentConCentavos;
         periods.push(`${inv.month}/${inv.year}`);
         const accountLabel = matchingClients.length > 1 ? ` [Servicio: ${inv.client?.name || 'Cliente'} - ${inv.client?.address || 'S/D'}]` : '';
-        breakdown.push(`- Período ${inv.month}/${inv.year}${accountLabel}: $${currentConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}`);
+        
+        let invDetail = `- Período ${inv.month}/${inv.year}${accountLabel}: Monto actual a abonar hoy: $${currentConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+        if (inv.dueDate1 && inv.priceV2) {
+          const pV1 = (parseFloat(inv.priceV1 || inv.originalAmount) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2});
+          const pV2 = (parseFloat(inv.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2});
+          const pV3 = inv.priceV3 ? (parseFloat(inv.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
+          const pV4 = inv.priceV4 ? (parseFloat(inv.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
+          invDetail += `\n  (Desglose de valores según fecha: V1: $${pV1} | V2: $${pV2}${pV3 ? ` | V3: $${pV3}` : ''}${pV4 ? ` | V4: $${pV4}` : ''})`;
+        }
+        breakdown.push(invDetail);
         if (!latestDueDate || currentDueDate > latestDueDate) {
           latestDueDate = currentDueDate;
         }
