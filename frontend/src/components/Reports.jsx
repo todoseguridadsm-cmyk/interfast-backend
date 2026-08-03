@@ -77,15 +77,12 @@ export default function Reports() {
   };
 
   const originalM = data.metrics || {};
+  // Caja Bruta = todos los ingresos - egresos manuales (comisiones MP van a sección Conciliación MP)
+  // Caja Neta Histórica = totalNeto calculado en el backend (incluye todo)
   const m = {
-    ...originalM,
-    totalBruto: 0,
-    totalNeto: 0,
-    totalCollected: 0,
-    paymentsCount: 0,
-    totalLateFees: 0,
-    activeClients: 0
+    ...originalM
   };
+
 
   return (
     <div className="space-y-6">
