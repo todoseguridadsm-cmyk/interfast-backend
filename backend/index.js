@@ -109,6 +109,11 @@ app.use('/api', (req, res, next) => {
 let waStatus = 'DISCONNECTED';
 let waQrCode = null;
 let waSocket = null;
+global.recentReceipts = []; // Store { phone, timestamp }
+setInterval(() => {
+  const now = Date.now();
+  global.recentReceipts = global.recentReceipts.filter(r => now - r.timestamp < 24 * 60 * 60 * 1000);
+}, 60 * 60 * 1000);
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -2737,23 +2742,71 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 console.log(`🎯 Webhook MP [Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} sin coincidencia estricta de centavos.`);
               }
             }
+            
+            // NEW: Fallback a comprobantes de WhatsApp recientes
+            if (!matchedInvoice && invoiceIdsToProcess.length === 0 && global.recentReceipts && global.recentReceipts.length > 0) {
+               console.log(`ℹ️ Webhook MP: Buscando coincidencias con comprobantes recientes enviados por WhatsApp...`);
+               for (const receipt of global.recentReceipts) {
+                 const client = await prisma.client.findFirst({ where: { phone: { contains: receipt.phone } } });
+                 if (client) {
+                   const cInvs = pendingInvoices.filter(i => i.clientId === client.id);
+                   if (cInvs.length > 0) {
+                     const getActiveAmountLocal = (inv) => {
+                       const today = new Date();
+                       let expected = inv.priceV1 || inv.originalAmount;
+                       if (inv.dueDate1) {
+                         const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+                         const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+                         const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+                         const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
+                         if (today > d3 && inv.priceV4) expected = inv.priceV4;
+                         else if (today > d2 && inv.priceV3) expected = inv.priceV3;
+                         else if (today > d1 && inv.priceV2) expected = inv.priceV2;
+                       }
+                       return expected;
+                     };
+                     
+                     const totalActive = cInvs.reduce((acc, inv) => acc + getActiveAmountLocal(inv), 0);
+                     if (cInvs.some(inv => Math.abs(getActiveAmountLocal(inv) - transactionAmount) < 5) || Math.abs(totalActive - transactionAmount) < 5) {
+                        matchedInvoice = cInvs[0];
+                        console.log(`🎯 Webhook MP: ¡ÉXITO COMPROBANTE! Pago asociado al cliente ${client.name} porque envió un comprobante recientemente desde su WhatsApp.`);
+                        break;
+                     }
+                   }
+                 }
+               }
+            }
           }
 
+          const existingUnidentified = await prisma.unidentifiedPayment.findFirst({
+            where: { mpPaymentId: String(paymentId) }
+          });
 
           if (matchedInvoice) {
-            invoiceIdsToProcess.push(matchedInvoice.id);
+            if (invoiceIdsToProcess.length === 0) invoiceIdsToProcess.push(matchedInvoice.id);
+            if (existingUnidentified) {
+               await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
+               console.log(`🗑️ Webhook MP: Pago no identificado #${existingUnidentified.id} eliminado tras ser asociado exitosamente.`);
+            }
+          } else if (invoiceIdsToProcess.length > 0) {
+            if (existingUnidentified) {
+               await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
+               console.log(`🗑️ Webhook MP: Pago no identificado #${existingUnidentified.id} eliminado tras ser asociado a facturas múltiples.`);
+            }
           } else {
             console.error(`❌ Webhook MP: Pago rechazado localmente. Guardando en Pagos No Identificados. Monto $${transactionAmount}.`);
-            await prisma.unidentifiedPayment.create({
-              data: {
-                amount: transactionAmount,
-                date: new Date(),
-                mpPaymentId: String(paymentId),
-                payerName: `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.trim(),
-                payerEmail: mpPayment.payer?.email || '',
-                payerDni: String(mpPayment.payer?.identification?.number || '')
-              }
-            });
+            if (!existingUnidentified) {
+              await prisma.unidentifiedPayment.create({
+                data: {
+                  amount: transactionAmount,
+                  date: new Date(),
+                  mpPaymentId: String(paymentId),
+                  payerName: `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.trim(),
+                  payerEmail: mpPayment.payer?.email || '',
+                  payerDni: String(mpPayment.payer?.identification?.number || '')
+                }
+              });
+            }
             return;
           }
         }
@@ -3545,6 +3598,44 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
 });
 
 // Endpoint de consulta de factura para el bot de N8N
+app.post('/api/bot/registrar-comprobante', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Falta el número de teléfono' });
+
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    global.recentReceipts.push({ phone: cleanPhone, timestamp: Date.now() });
+    
+    // Si entró un webhook de pago hace un ratito (menos de 24hs) que quedó como No Identificado
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const unidentified = await prisma.unidentifiedPayment.findMany({
+      where: { date: { gte: twentyFourHoursAgo } },
+      orderBy: { date: 'desc' }
+    });
+    
+    for (const payment of unidentified) {
+      if (payment.mpPaymentId) {
+        // Disparar el webhook localmente para que intente procesarlo de nuevo, 
+        // ahora sabiendo que este cliente mandó un comprobante.
+        try {
+          const axios = require('axios');
+          await axios.post(`http://localhost:${port}/api/mercadopago/webhook`, {
+            type: 'payment.created',
+            data: { id: payment.mpPaymentId }
+          });
+        } catch (e) {
+          console.error('Error reintentando pago no identificado:', e.message);
+        }
+      }
+    }
+    
+    res.json({ message: 'Comprobante registrado. Sistema buscando pagos huérfanos...', phone: cleanPhone });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error registrando comprobante' });
+  }
+});
+
 app.get('/api/bot/obtener-factura', async (req, res) => {
   try {
     const { query } = req.query;
