@@ -513,6 +513,15 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
         if (inv.status !== 'PAID' || inv.afipCae) return false;
       } else {
         if (inv.status !== statusFilter) return false;
+        
+        // Si se filtran Pagados y no hay filtro de fecha activo, mostrar solo los del mes actual
+        if (statusFilter === 'PAID' && !isSearchingDate) {
+          const currentMonth = new Date().getMonth() + 1;
+          const currentYear = new Date().getFullYear();
+          if (inv.month !== currentMonth || inv.year !== currentYear) {
+            return false;
+          }
+        }
       }
     }
 
