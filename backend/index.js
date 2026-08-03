@@ -2680,15 +2680,22 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               const cleanPayerDni = payerDni.replace(/\D/g, '');
               const cleanClientDni = clientDni.replace(/\D/g, '');
 
-              // ── PRIORIDAD 1: Alias MP en observaciones ─────────────────────
-              // Formato: "MP: JUAN PEREZ | MP: MARIA GARCIA" o "MP: JUAN PEREZ, MARIA GARCIA"
-              const mpAliasMatches = [...clientObservation.matchAll(/MP:\s*([^|,\n]+)/gi)];
-              const mpAliases = mpAliasMatches.map(m => m[1].trim().toLowerCase()).filter(Boolean);
-              for (const alias of mpAliases) {
-                const aliasWords = alias.split(/\s+/).filter(w => w.length > 2);
+              // ── PRIORIDAD 1: Alias en observaciones (con o sin prefijo "MP:") ──
+              // Formatos aceptados: "MP: JUAN PEREZ", "JUAN PEREZ", separados por | o nueva línea
+              const rawAliases = clientObservation
+                .split(/[|\n]/)                        // separar por | o salto de línea
+                .map(s => s.replace(/^MP:\s*/i, '').trim()) // quitar prefijo MP: si existe
+                .filter(s => s.length > 2);            // ignorar entradas vacías
+              for (const alias of rawAliases) {
+                const aliasLower = alias.toLowerCase();
+                const aliasWords = aliasLower.split(/\s+/).filter(w => w.length > 2);
                 const matchedAliasWords = aliasWords.filter(w => payerName.includes(w)).length;
-                if (aliasWords.length > 0 && (matchedAliasWords >= aliasWords.length || (aliasWords.length <= 2 && matchedAliasWords >= 1 && payerName.includes(alias)))) {
-                  console.log(`🏷️ Webhook MP: Match por ALIAS MP en observaciones — alias "${alias}" → cliente ${inv.client.name}`);
+                if (aliasWords.length > 0 && (
+                  payerName.includes(aliasLower) ||               // coincidencia exacta de frase
+                  matchedAliasWords >= aliasWords.length ||        // todas las palabras coinciden
+                  (aliasWords.length <= 2 && matchedAliasWords >= 1 && payerName.includes(aliasWords[0]))
+                )) {
+                  console.log(`🏷️ Webhook MP: Match por alias en observaciones — "${alias}" → cliente ${inv.client.name}`);
                   return inv;
                 }
               }
