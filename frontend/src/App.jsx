@@ -127,39 +127,21 @@ function AppContent() {
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar pb-6">
+          {/* 1. Dashboard */}
           <Link onClick={handleLinkClick} to="/" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
             <LayoutDashboard size={20} />
             <span>Dashboard</span>
           </Link>
-          
-          {isAllowed('CLIENTES') && (
-            <>
-              <Link onClick={handleLinkClick} to="/clients" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/clients' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Users size={20} />
-                <span>Clientes</span>
-              </Link>
-              <Link onClick={handleLinkClick} to="/altas-web" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/altas-web' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Globe size={20} />
-                <span>Altas Web/Agente</span>
-              </Link>
-              <Link onClick={handleLinkClick} to="/content-approval" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/content-approval' ? 'bg-indigo-600/20 text-indigo-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <FileText size={20} />
-                <span>Contenidos</span>
-              </Link>
-              <Link onClick={handleLinkClick} to="/active-connections" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/active-connections' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Radio size={20} />
-                <span>Conexiones en Vivo</span>
-              </Link>
-            </>
-          )}
 
-          {isAllowed('ALTAS') && (
-            <Link onClick={handleLinkClick} to="/new-install" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/new-install' ? 'bg-emerald-600/20 text-emerald-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <UserPlus size={20} />
-              <span>Alta Rápida</span>
+          {/* 2. Clientes */}
+          {isAllowed('CLIENTES') && (
+            <Link onClick={handleLinkClick} to="/clients" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/clients' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Users size={20} />
+              <span>Clientes</span>
             </Link>
           )}
 
+          {/* 3. Facturación + 4. Pagos Huérfanos */}
           {isAllowed('FACTURACION') && (
             <>
               <Link onClick={handleLinkClick} to="/invoices" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/invoices' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
@@ -172,7 +154,8 @@ function AppContent() {
               </Link>
             </>
           )}
-          
+
+          {/* 5. Cortes de Servicio */}
           {isAllowed('CORTES') && (
             <Link onClick={handleLinkClick} to="/cutoff" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/cutoff' ? 'bg-red-600/20 text-red-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Scissors size={20} />
@@ -180,53 +163,37 @@ function AppContent() {
             </Link>
           )}
 
-          {isAllowed('BAJAS') && (
-            <Link onClick={handleLinkClick} to="/bajas" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/bajas' ? 'bg-red-600/20 text-red-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <UserMinus size={20} />
-              <span>Solicitudes de Baja</span>
-            </Link>
-          )}
-
-          {isAllowed('PLANES') && (
-            <Link onClick={handleLinkClick} to="/plans" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/plans' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <Wifi size={20} />
-              <span>Planes</span>
-            </Link>
-          )}
-
-          {isAllowed('PLANES') && (
-            <Link onClick={handleLinkClick} to="/ventas" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/ventas' ? 'bg-emerald-600/20 text-emerald-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <ShoppingBag size={20} />
-              <span>Venta y Cobertura</span>
-            </Link>
-          )}
-
+          {/* 6. Reportes y Ventas */}
           {isAllowed('REPORTES') && (
-            <>
-              <Link onClick={handleLinkClick} to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <BarChart3 size={20} />
-                <span>Reportes y Ventas</span>
-              </Link>
-              <Link onClick={handleLinkClick} to="/mp-reconciliation" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/mp-reconciliation' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <RefreshCw size={20} />
-                <span>Conciliación MP</span>
-              </Link>
-            </>
+            <Link onClick={handleLinkClick} to="/reports" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/reports' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <BarChart3 size={20} />
+              <span>Reportes y Ventas</span>
+            </Link>
           )}
 
+          {/* 7. Cierre y Arqueo Diario + 8. POS/Caja */}
           {isAllowed('CAJA') && (
             <>
-              <Link onClick={handleLinkClick} to="/pos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/pos' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Store size={20} />
-                <span>Punto de Venta / Caja</span>
-              </Link>
               <Link onClick={handleLinkClick} to="/cash" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/cash' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <Wallet size={20} />
                 <span>Cierre y Arqueo Diario</span>
               </Link>
+              <Link onClick={handleLinkClick} to="/pos" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/pos' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Store size={20} />
+                <span>Punto de Venta / Caja</span>
+              </Link>
             </>
           )}
 
+          {/* 9. Conciliación MP */}
+          {isAllowed('REPORTES') && (
+            <Link onClick={handleLinkClick} to="/mp-reconciliation" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/mp-reconciliation' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <RefreshCw size={20} />
+              <span>Conciliación MP</span>
+            </Link>
+          )}
+
+          {/* 10. Soporte Técnico */}
           {isAllowed('SOPORTE') && (
             <Link onClick={handleLinkClick} to="/tickets" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/tickets' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <Ticket size={20} />
@@ -234,6 +201,62 @@ function AppContent() {
             </Link>
           )}
 
+          {/* 11. Altas Web/Agente + 12. Alta Rápida */}
+          {isAllowed('CLIENTES') && (
+            <Link onClick={handleLinkClick} to="/altas-web" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/altas-web' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Globe size={20} />
+              <span>Altas Web / Agente</span>
+            </Link>
+          )}
+
+          {isAllowed('ALTAS') && (
+            <Link onClick={handleLinkClick} to="/new-install" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/new-install' ? 'bg-emerald-600/20 text-emerald-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <UserPlus size={20} />
+              <span>Alta Rápida</span>
+            </Link>
+          )}
+
+          {/* 13. Contenido */}
+          {isAllowed('CLIENTES') && (
+            <Link onClick={handleLinkClick} to="/content-approval" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/content-approval' ? 'bg-indigo-600/20 text-indigo-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <FileText size={20} />
+              <span>Contenido</span>
+            </Link>
+          )}
+
+          {/* 14. Conexiones en Vivo */}
+          {isAllowed('CLIENTES') && (
+            <Link onClick={handleLinkClick} to="/active-connections" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/active-connections' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Radio size={20} />
+              <span>Conexiones en Vivo</span>
+            </Link>
+          )}
+
+          {/* 15. Solicitudes de Baja */}
+          {isAllowed('BAJAS') && (
+            <Link onClick={handleLinkClick} to="/bajas" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/bajas' ? 'bg-red-600/20 text-red-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <UserMinus size={20} />
+              <span>Solicitudes de Baja</span>
+            </Link>
+          )}
+
+          {/* 16. Venta y Cobertura */}
+          {isAllowed('PLANES') && (
+            <Link onClick={handleLinkClick} to="/ventas" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/ventas' ? 'bg-emerald-600/20 text-emerald-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <ShoppingBag size={20} />
+              <span>Venta y Cobertura</span>
+            </Link>
+          )}
+
+          {/* Planes (Admin) */}
+          {isAllowed('PLANES') && (
+            <Link onClick={handleLinkClick} to="/plans" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/plans' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Wifi size={20} />
+              <span>Planes</span>
+            </Link>
+          )}
+
+          {/* Admin: Empleados, WhatsApp, Nodos */}
           {user.role === 'ADMIN' && (
             <>
               <Link onClick={handleLinkClick} to="/users" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/users' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
@@ -251,6 +274,7 @@ function AppContent() {
             </>
           )}
         </nav>
+
 
         <div className="p-4 border-t border-slate-800">
           <button onClick={handleLogout} className="flex items-center gap-2 justify-center w-full py-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-400 rounded-lg transition-colors text-sm font-medium">
