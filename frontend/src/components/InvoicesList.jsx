@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark, RotateCcw } from 'lucide-react';
+import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark, RotateCcw, CreditCard } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -517,7 +517,8 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
       const now = new Date();
       const allSelectableIds = filteredInvoices.filter(inv => {
         const recentlyNotified = inv.notifiedAt && (now - new Date(inv.notifiedAt)) < 24 * 60 * 60 * 1000;
-        return (inv.status === 'PENDING' && !recentlyNotified) || (inv.status === 'PAID' && !inv.afipCae);
+        const isDebito = inv.client?.debitoAutomatico;
+        return (!isDebito && inv.status === 'PENDING' && !recentlyNotified) || (inv.status === 'PAID' && !inv.afipCae);
       }).map(inv => inv.id);
       setSelectedInvoices(allSelectableIds);
     } else {
@@ -684,10 +685,11 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
               ) : (
                 [...filteredInvoices].sort((a, b) => (a.client?.name || '').localeCompare(b.client?.name || '')).map(inv => {
                   const isPaid = inv.status === 'PAID';
+                  const isDebito = inv.client?.debitoAutomatico;
                   const { activeV } = getInvoiceActiveVencimiento(inv);
                   const notifiedV = inv.lastRemindedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.lastRemindedAt)).activeV : null;
                   const isUpToDateNotified = notifiedV === activeV;
-                  const isSelectable = (!isPaid && !isUpToDateNotified) || (isPaid && !inv.afipCae);
+                  const isSelectable = (!isPaid && !isUpToDateNotified && !isDebito) || (isPaid && !inv.afipCae);
 
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
@@ -744,7 +746,12 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
                               <Clock size={14} /> PENDIENTE
                             </span>
-                            {inv.status === 'PENDING' && isUpToDateNotified && (
+                            {isDebito && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                                <CreditCard size={10} /> DÉBITO AUT.
+                              </span>
+                            )}
+                            {!isDebito && inv.status === 'PENDING' && isUpToDateNotified && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
                                 <MessageCircle size={10} /> NOTIFICADO {activeV}
                               </span>
@@ -755,7 +762,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
                           <div className="flex items-center justify-center gap-2">
-                            {!isUpToDateNotified && (
+                            {!isDebito && !isUpToDateNotified && (
                               <button 
                                 onClick={() => manualWhatsApp(inv)} 
                                 className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
@@ -764,7 +771,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 <MessageCircle size={16} /> Notificar {activeV}
                               </button>
                             )}
-                            {inv.status === 'PENDING' && !isUpToDateNotified && (
+                            {!isDebito && inv.status === 'PENDING' && !isUpToDateNotified && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
                                 className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 

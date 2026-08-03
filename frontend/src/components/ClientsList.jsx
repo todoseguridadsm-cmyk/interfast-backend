@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -211,6 +211,22 @@ export default function ClientsList() {
     }
   };
 
+  const handleToggleDebitoAutomatico = async (client) => {
+    const newValue = !client.debitoAutomatico;
+    const label = newValue ? 'activar el Débito Automático' : 'desactivar el Débito Automático';
+    if (!window.confirm(`¿Confirmar ${label} para ${client.name}?`)) return;
+    try {
+      await axios.put(`https://interfast-backend-95ww.onrender.com/api/clients/${client.id}/debito-automatico`, {
+        debitoAutomatico: newValue
+      });
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      alert('Error al cambiar el débito automático');
+    }
+  };
+
+
   const exportToExcel = () => {
     if (clients.length === 0) return alert("No hay clientes para exportar.");
     
@@ -410,6 +426,7 @@ export default function ClientsList() {
                     <div className="flex gap-1 mt-1">
                       {client.hasRouter && <span className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded font-bold">RTR</span>}
                       {client.hasMast && <span className="text-[9px] bg-sky-100 text-sky-700 px-1 rounded font-bold">MST</span>}
+                      {client.debitoAutomatico && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"><CreditCard size={8} /> DÉB.AUT.</span>}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -448,6 +465,19 @@ export default function ClientsList() {
                     {canManageClients && (
                       <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
                         {diagnosingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Stethoscope size={18} />}
+                      </button>
+                    )}
+                    {canManageClients && (
+                      <button
+                        onClick={() => handleToggleDebitoAutomatico(client)}
+                        className={`transition-colors inline-flex items-center justify-center p-2 rounded-lg ${
+                          client.debitoAutomatico
+                            ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 bg-indigo-50'
+                            : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                        }`}
+                        title={client.debitoAutomatico ? 'Débito Automático ACTIVO — clic para desactivar' : 'Activar Débito Automático'}
+                      >
+                        <CreditCard size={18} />
                       </button>
                     )}
                     <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">

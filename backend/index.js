@@ -813,6 +813,21 @@ app.put('/api/clients/:id/status', async (req, res) => {
   }
 });
 
+app.put('/api/clients/:id/debito-automatico', async (req, res) => {
+  try {
+    const { debitoAutomatico } = req.body;
+    const client = await prisma.client.update({
+      where: { id: parseInt(req.params.id) },
+      data: { debitoAutomatico: Boolean(debitoAutomatico) },
+    });
+    res.json(client);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar débito automático' });
+  }
+});
+
+
 app.get('/api/clients/:id/ping', async (req, res) => {
   try {
     const client = await prisma.client.findUnique({

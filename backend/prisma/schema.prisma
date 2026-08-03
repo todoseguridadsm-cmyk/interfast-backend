@@ -35,6 +35,7 @@ model Client {
   zipCode              String?
   observation          String?
   phone2               String?
+  debitoAutomatico     Boolean               @default(false)
   cancellationRequests CancellationRequest[]
   plan                 Plan?                 @relation(fields: [planId], references: [id])
   cutoffLists          CutoffList[]
