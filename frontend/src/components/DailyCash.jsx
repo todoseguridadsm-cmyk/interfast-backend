@@ -140,35 +140,23 @@ export default function DailyCash() {
     filteredItems = filteredItems.filter(i => i.user === filterOperador);
   }
 
-  // ─── Cálculos de caja (sobre baseItems completo, no filtrado) ─────────────
+  // ─── Cálculos de caja — $0 hasta nuevo aviso ─────────────────────────────
+  const totalCashIn   = 0;
+  const totalMpIn     = 0;
+  const totalManualIn = 0;
+  const totalSueldo   = 0;
+  const totalRetiro   = 0;
+  const totalAbono    = 0;
+  const totalGastos   = 0;
+  const totalIngreso  = 0;
+  const totalEgresos  = 0;
+  const cajaGeneral   = 0;
+
+  const cajaMATIAS   = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
+  const cajaVICTOR   = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
+  const cajaHUMBERTO = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
+
   const all = baseItems;
-
-  const totalCashIn   = all.filter(i => i.source === 'CASH_POS').reduce((s, i) => s + i.amount, 0);
-  const totalMpIn     = all.filter(i => i.source === 'MERCADOPAGO').reduce((s, i) => s + i.amount, 0);
-  const totalManualIn = all.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
-
-  const totalSueldo  = all.filter(i => i.category === 'SUELDO').reduce((s, i) => s + i.amount, 0);
-  const totalRetiro  = all.filter(i => i.category === 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
-  const totalAbono   = all.filter(i => i.category === 'ABONO_INTERNET').reduce((s, i) => s + i.amount, 0);
-  const totalGastos  = all.filter(i => i.category === 'GASTOS_VARIOS').reduce((s, i) => s + i.amount, 0);
-
-  const totalIngreso  = totalCashIn + totalMpIn + totalManualIn;
-  const totalEgresos  = totalSueldo + totalRetiro + totalAbono + totalGastos;
-  const cajaGeneral   = totalIngreso - totalEgresos;
-
-  // Caja por socio: cobros físicos propios + retiros - sueldo
-  const getSocioCaja = (socioName) => {
-    const sn = socioName.toUpperCase();
-    const cashIn  = all.filter(i => i.source === 'CASH_POS' && i.user === sn).reduce((s, i) => s + i.amount, 0);
-    const retiro  = all.filter(i => i.category === 'RETIRO_SOCIO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
-    const sueldo  = all.filter(i => i.category === 'SUELDO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
-    return { cashIn, retiro, sueldo, net: cashIn + retiro - sueldo };
-  };
-
-  const cajaMATIAS   = getSocioCaja('MATIAS');
-  const cajaVICTOR   = getSocioCaja('VICTOR');
-  const cajaHUMBERTO = getSocioCaja('HUMBERTO');
-
   const uniqueOperators = ['TODOS', ...Array.from(new Set(all.map(i => i.user))).filter(Boolean).sort()];
 
   const exportToExcel = () => {
