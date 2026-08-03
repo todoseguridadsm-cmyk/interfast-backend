@@ -3832,10 +3832,14 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         }
         globalActiveV = activeV;
         
-        totalDebtBase += parseFloat(currentAmount);
+        const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
+        const centsVal = centsInt / 100;
+        const currentConCentavos = parseFloat(currentAmount) + centsVal;
+        
+        totalDebtBase += currentConCentavos;
         periods.push(`${inv.month}/${inv.year}`);
         const accountLabel = matchingClients.length > 1 ? ` [Servicio: ${inv.client?.name || 'Cliente'} - ${inv.client?.address || 'S/D'}]` : '';
-        breakdown.push(`- Período ${inv.month}/${inv.year}${accountLabel}: $${parseFloat(currentAmount).toLocaleString('es-AR', {minimumFractionDigits:2})}`);
+        breakdown.push(`- Período ${inv.month}/${inv.year}${accountLabel}: $${currentConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}`);
         if (!latestDueDate || currentDueDate > latestDueDate) {
           latestDueDate = currentDueDate;
         }
