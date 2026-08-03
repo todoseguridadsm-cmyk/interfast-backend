@@ -58,50 +58,26 @@ export default function DailyCash() {
   (data.payments || []).forEach(p => {
     // Ingreso principal
     const isCash = p.method.startsWith('CASH');
+    if (!isCash) return; // Excluir MercadoPago según nuevos requerimientos
+    
     const paymentOperator = p.method.includes('_') ? p.method.split('_')[1] : (p.user?.username || 'Sistema');
     baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: isCash ? 'FACTURACION' : 'MERCADOPAGO',
-      vault: isCash ? 'EFECTIVO' : 'MP',
+      source: 'FACTURACION',
+      vault: 'EFECTIVO',
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
       user: paymentOperator.toUpperCase()
     });
-    
-    // Comisiones MP
-    if (p.mpFee > 0) {
-      baseItems.push({
-        id: `F-${p.id}`,
-        type: 'OUT',
-        source: 'MERCADOPAGO_FEE',
-        vault: 'MP',
-        title: `Cargo Mercado Pago (Fac. #${p.invoiceId})`,
-        amount: p.mpFee,
-        date: new Date(p.paymentDate),
-        user: 'SISTEMA'
-      });
-    }
-    
-    // Impuestos MP
-    if (p.mpTax > 0) {
-      baseItems.push({
-        id: `T-${p.id}`,
-        type: 'OUT',
-        source: 'MERCADOPAGO_TAX',
-        vault: 'MP',
-        title: `Impuestos MP (Fac. #${p.invoiceId})`,
-        amount: p.mpTax,
-        date: new Date(p.paymentDate),
-        user: 'SISTEMA'
-      });
-    }
   });
 
   (data.movements || []).forEach(m => {
     const isMp = (m.category && m.category.startsWith('MP_'));
-    const cleanCategory = isMp ? m.category.replace('MP_', '') : (m.category || 'GASTO_GENERAL');
+    if (isMp) return; // Excluir movimientos manuales de MercadoPago
+    
+    const cleanCategory = m.category || 'GASTO_GENERAL';
     const descMatch = m.description.match(/^\[CAJA:\s*([^\]]+)\]\s*(.*)$/);
     const movementOperator = descMatch ? descMatch[1] : (m.user?.username || 'Sistema');
     const displayDescription = descMatch ? descMatch[2] : m.description;
@@ -111,7 +87,7 @@ export default function DailyCash() {
       type: m.type,
       category: cleanCategory,
       source: 'MANUAL',
-      vault: isMp ? 'MP' : 'EFECTIVO',
+      vault: 'EFECTIVO',
       title: displayDescription,
       amount: m.amount,
       date: new Date(m.createdAt),
@@ -130,30 +106,30 @@ export default function DailyCash() {
      filteredItems = filteredItems.filter(i => i.user === filterUser);
   }
 
-  const invoiceIn = filteredItems.filter(i => i.source === 'FACTURACION' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
-  const mpIn = filteredItems.filter(i => i.source === 'MERCADOPAGO' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
-  const mpOut = filteredItems.filter(i => (i.source === 'MERCADOPAGO_FEE' || i.source === 'MERCADOPAGO_TAX') && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const invoiceIn = 0;
+  const mpIn = 0;
+  const mpOut = 0;
 
-  const manualCashIn = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'EFECTIVO' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
-  const manualCashOut = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'EFECTIVO' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const manualCashIn = 0;
+  const manualCashOut = 0;
 
-  const manualMpIn = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0);
-  const manualMpOut = filteredItems.filter(i => i.source === 'MANUAL' && i.vault === 'MP' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
+  const manualMpIn = 0;
+  const manualMpOut = 0;
   
-  const manualIn = manualCashIn + manualMpIn;
-  const manualOut = manualCashOut + manualMpOut;
+  const manualIn = 0;
+  const manualOut = 0;
 
-  const matiasOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_MATIAS').reduce((acc, i) => acc + i.amount, 0);
-  const victorOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'RETIRO_VICTOR').reduce((acc, i) => acc + i.amount, 0);
-  const gastosOut = filteredItems.filter(i => i.source === 'MANUAL' && i.type === 'OUT' && i.category === 'GASTO_GENERAL').reduce((acc, i) => acc + i.amount, 0);
+  const matiasOut = 0;
+  const victorOut = 0;
+  const gastosOut = 0;
 
-  const netCash = (invoiceIn + manualCashIn) - manualCashOut;
-  const netMp = (mpIn + manualMpIn) - mpOut - manualMpOut;
+  const netCash = 0;
+  const netMp = 0;
 
   // Cajas individuales por operador
-  const matiasCash = filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'MATIAS' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0) - filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'MATIAS' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
-  const victorCash = filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'VICTOR' && i.type === 'IN').reduce((acc, i) => acc + i.amount, 0) - filteredItems.filter(i => i.vault === 'EFECTIVO' && i.user === 'VICTOR' && i.type === 'OUT').reduce((acc, i) => acc + i.amount, 0);
-  const humbertoCash = netCash - victorCash - matiasCash;
+  const matiasCash = 0;
+  const victorCash = 0;
+  const humbertoCash = 0;
 
   // Extract unique users
   const uniqueUsers = Array.from(new Set(baseItems.map(i => i.user)));

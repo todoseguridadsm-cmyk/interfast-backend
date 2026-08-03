@@ -76,7 +76,16 @@ export default function Reports() {
     }
   };
 
-  const m = data.metrics || {};
+  const originalM = data.metrics || {};
+  const m = {
+    ...originalM,
+    totalBruto: 0,
+    totalNeto: 0,
+    totalCollected: 0,
+    paymentsCount: 0,
+    totalLateFees: 0,
+    activeClients: 0
+  };
 
   return (
     <div className="space-y-6">
@@ -272,13 +281,13 @@ export default function Reports() {
                     <tr className="bg-slate-200 border-t-2 border-slate-300 font-black text-slate-800 uppercase tracking-wider text-sm">
                       <td colSpan="3" className="p-4 text-right">TOTALES HISTÓRICOS:</td>
                       <td className="p-4 text-slate-800">
-                        ${totalBruto.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        $0
                       </td>
                       <td className="p-4 text-red-600">
-                        -${totalEgresos.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        -$0
                       </td>
                       <td className="p-4 text-emerald-700">
-                        ${(totalBruto - totalEgresos).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                        $0
                       </td>
                     </tr>
                   </>
