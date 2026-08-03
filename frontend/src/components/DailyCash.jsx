@@ -140,23 +140,41 @@ export default function DailyCash() {
     filteredItems = filteredItems.filter(i => i.user === filterOperador);
   }
 
-  // ─── Cálculos de caja — $0 hasta nuevo aviso ─────────────────────────────
-  const totalCashIn   = 0;
-  const totalMpIn     = 0;
-  const totalManualIn = 0;
-  const totalSueldo   = 0;
-  const totalRetiro   = 0;
-  const totalAbono    = 0;
-  const totalGastos   = 0;
-  const totalIngreso  = 0;
-  const totalEgresos  = 0;
-  const cajaGeneral   = 0;
-
-  const cajaMATIAS   = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
-  const cajaVICTOR   = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
-  const cajaHUMBERTO = { cashIn: 0, retiro: 0, sueldo: 0, net: 0 };
-
+  // ─── Cálculos de caja con lógica real ────────────────────────────────────
   const all = baseItems;
+
+  // Ingresos
+  const totalCashIn   = all.filter(i => i.source === 'CASH_POS').reduce((s, i) => s + i.amount, 0);
+  const totalMpIn     = all.filter(i => i.source === 'MERCADOPAGO').reduce((s, i) => s + i.amount, 0);
+  const totalManualIn = all.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
+
+  // Egresos que SÍ tocan Caja General
+  const totalRetiro  = all.filter(i => i.category === 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
+  const totalAbono   = all.filter(i => i.category === 'ABONO_INTERNET').reduce((s, i) => s + i.amount, 0);
+  const totalGastos  = all.filter(i => i.category === 'GASTOS_VARIOS').reduce((s, i) => s + i.amount, 0);
+
+  // Sueldo NO toca Caja General — solo afecta la caja personal del socio
+  const totalSueldo  = all.filter(i => i.category === 'SUELDO').reduce((s, i) => s + i.amount, 0);
+
+  const totalIngreso  = totalCashIn + totalMpIn + totalManualIn;
+  // Caja General: ingresos - retiros - abono - gastos (SUELDO excluido)
+  const cajaGeneral   = totalIngreso - totalRetiro - totalAbono - totalGastos;
+
+  // Caja por socio: cobros físicos propios + retiros del socio (positivo) - sueldo (negativo)
+  const getSocioCaja = (socioName) => {
+    const sn = socioName.toUpperCase();
+    const cashIn = all.filter(i => i.source === 'CASH_POS' && i.user === sn).reduce((s, i) => s + i.amount, 0);
+    const retiro = all.filter(i => i.category === 'RETIRO_SOCIO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
+    const sueldo = all.filter(i => i.category === 'SUELDO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
+    // Balance = cobros físicos + retiros - sueldo
+    return { cashIn, retiro, sueldo, balance: cashIn + retiro - sueldo };
+  };
+
+  const cajaMATIAS   = getSocioCaja('MATIAS');
+  const cajaVICTOR   = getSocioCaja('VICTOR');
+  const cajaHUMBERTO = getSocioCaja('HUMBERTO');
+
+
   const uniqueOperators = ['TODOS', ...Array.from(new Set(all.map(i => i.user))).filter(Boolean).sort()];
 
   const exportToExcel = () => {
@@ -276,29 +294,62 @@ export default function DailyCash() {
         <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">👤 Caja Fuerte por Socio</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { name: 'MATÍAS', data: cajaMATIAS, color: 'blue' },
-            { name: 'VÍCTOR', data: cajaVICTOR, color: 'indigo' },
-            { name: 'HUMBERTO', data: cajaHUMBERTO, color: 'violet' }
+            { name: 'MATÍAS', key: 'MATIAS', data: cajaMATIAS, color: 'blue' },
+            { name: 'VÍCTOR', key: 'VICTOR', data: cajaVICTOR, color: 'indigo' },
+            { name: 'HUMBERTO', key: 'HUMBERTO', data: cajaHUMBERTO, color: 'violet' }
           ].map(socio => (
-            <div key={socio.name} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-              <div className="flex justify-between items-start mb-4">
+            <div key={socio.name} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+              {/* Header del socio */}
+              <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center">
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Socio</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Caja Personal</p>
                   <h4 className="text-lg font-black text-slate-800">{socio.name}</h4>
                 </div>
-                <span className={`bg-${socio.color}-100 text-${socio.color}-700 text-2xl font-black px-3 py-1 rounded-xl`}>
-                  ${fmt(socio.data.net)}
+                <span className="text-xs font-bold text-slate-400 uppercase">Período activo</span>
+              </div>
+
+              {/* Detalle */}
+              <div className="p-5 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-medium flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    Cobros Físicos
+                  </span>
+                  <span className="font-black text-emerald-600">+${fmt(socio.data.cashIn)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-medium flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                    Retiros
+                  </span>
+                  <span className="font-black text-blue-600">+${fmt(socio.data.retiro)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-medium flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                    Sueldo
+                  </span>
+                  <span className="font-black text-red-500">-${fmt(socio.data.sueldo)}</span>
+                </div>
+              </div>
+
+              {/* Balance */}
+              <div className={`mx-4 mb-4 rounded-xl p-3 flex justify-between items-center ${socio.data.balance >= 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+                <span className={`text-xs font-black uppercase tracking-wider ${socio.data.balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  Balance del período
+                </span>
+                <span className={`text-xl font-black ${socio.data.balance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {socio.data.balance >= 0 ? '+' : '-'}${fmt(Math.abs(socio.data.balance))}
                 </span>
               </div>
-              <div className="border-t border-slate-100 pt-3 space-y-1 text-xs font-bold text-slate-500">
-                <div className="flex justify-between"><span>Cobros Físicos:</span> <span className="text-emerald-600">+${fmt(socio.data.cashIn)}</span></div>
-                <div className="flex justify-between"><span>Retiros:</span> <span className="text-blue-600">+${fmt(socio.data.retiro)}</span></div>
-                <div className="flex justify-between"><span>Sueldo:</span> <span className="text-red-500">-${fmt(socio.data.sueldo)}</span></div>
-              </div>
+              <p className="text-center text-[10px] text-slate-400 pb-3 px-4">
+                Resetear a $0 mes a mes pagando el sueldo pendiente
+              </p>
             </div>
           ))}
         </div>
       </div>
+
 
       {/* ── MODAL ── */}
       {showModal && (
