@@ -97,22 +97,8 @@ export default function Reports() {
       </header>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl shadow-lg shadow-emerald-200 text-white hover:scale-105 transition-transform cursor-default">
-          <div className="flex items-start justify-between">
-            <div className="w-full">
-              <p className="text-emerald-100 font-medium mb-1 flex justify-between items-center w-full pr-4">
-                <span>Caja Neta Histórica Total</span>
-                <span className="text-xs bg-emerald-700/50 px-2 py-1 rounded-full border border-emerald-400/30">Bruta: ${m.totalBruto?.toLocaleString('es-AR', {minimumFractionDigits: 0}) || '0'}</span>
-              </p>
-              <h3 className="text-4xl font-black">${(m.totalNeto || m.totalCollected)?.toLocaleString('es-AR', {minimumFractionDigits: 2}) || '0'}</h3>
-              <p className="text-sm text-emerald-100 mt-2 flex items-center gap-1"><TrendingUp size={14}/> {m.paymentsCount || 0} Pagos procesados (Global)</p>
-            </div>
-            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><Download size={24} /></div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-2xl shadow-lg shadow-red-200 text-white hover:scale-105 transition-transform cursor-default">
+      <div className="flex justify-center">
+        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-8 rounded-2xl shadow-lg shadow-red-200 text-white hover:scale-105 transition-transform cursor-default w-full max-w-md">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-red-100 font-medium mb-1">Deuda Total Pendiente</p>
@@ -120,17 +106,6 @@ export default function Reports() {
               <p className="text-sm text-red-100 mt-2 flex items-center gap-1"><AlertTriangle size={14}/> {m.pendingCount || 0} Deudores actuales</p>
             </div>
             <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><AlertTriangle size={24} /></div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-lg shadow-blue-200 text-white hover:scale-105 transition-transform cursor-default">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-blue-100 font-medium mb-1">Mora Histórica Recolectada</p>
-              <h3 className="text-4xl font-black">${m.totalLateFees?.toLocaleString('es-AR') || '0'}</h3>
-              <p className="text-sm text-blue-100 mt-2 flex items-center gap-1"><Users size={14}/> Base Activa: {m.activeClients || 0}</p>
-            </div>
-            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm"><Users size={24} /></div>
           </div>
         </div>
       </div>
