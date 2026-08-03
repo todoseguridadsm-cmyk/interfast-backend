@@ -141,7 +141,10 @@ export default function DailyCash() {
   }
 
   // ─── Cálculos de caja con lógica real ────────────────────────────────────
-  const all = baseItems;
+  // Fecha de corte: todo dato anterior a esta fecha se ignora en los cálculos.
+  // El sistema arranca desde cero el 02/08/2026.
+  const CUTOFF_DATE = new Date('2026-08-02T00:00:00');
+  const all = baseItems.filter(i => i.date >= CUTOFF_DATE);
 
   // Ingresos
   const totalCashIn   = all.filter(i => i.source === 'CASH_POS').reduce((s, i) => s + i.amount, 0);
