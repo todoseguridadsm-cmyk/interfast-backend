@@ -25,6 +25,19 @@ export default function InvoicesList() {
     }
   };
 
+  const handleSendWhatsAppReceipt = async (id) => {
+    if (!window.confirm('¿Enviar comprobante por WhatsApp al cliente manualmente?')) return;
+    setLoading(true);
+    try {
+      const res = await axios.post(`https://interfast-backend-95ww.onrender.com/api/invoices/${id}/send-receipt`);
+      alert(res.data.message);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error enviando WhatsApp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchInvoices();
   }, []);
@@ -789,8 +802,17 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 <Landmark size={14} /> Emitir ARCA
                               </button>
                             )}
+                            {inv.status === 'PAID' && (
+                              <button 
+                                onClick={() => handleSendWhatsAppReceipt(inv.id)}
+                                className="bg-green-600 hover:bg-green-700 text-white transition-colors px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 w-full text-xs font-bold shadow-sm"
+                                title="Enviar Factura manualmente por WhatsApp (En caso de que Sofi falle)"
+                              >
+                                <MessageCircle size={14} /> Enviar WhatsApp
+                              </button>
+                            )}
                             {inv.afipCae && (
-                              <div className="bg-emerald-50 text-emerald-800 px-3 py-2 rounded-lg flex flex-col items-center justify-center border border-emerald-200">
+                              <div className="bg-emerald-50 text-emerald-800 px-3 py-2 rounded-lg flex flex-col items-center justify-center border border-emerald-200 mt-1">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">CAE APROBADO</span>
                                 <span className="font-mono text-xs font-bold">{inv.afipCae}</span>
                               </div>

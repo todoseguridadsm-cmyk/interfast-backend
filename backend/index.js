@@ -1471,6 +1471,17 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
   res.json({ message: result.alreadyEmitted ? 'La factura ya contaba con CAE en ARCA.' : 'Comprobante emitido en ARCA con éxito y enviado por WhatsApp.', cae: result.cae });
 });
 
+app.post('/api/invoices/:id/send-receipt', async (req, res) => {
+  try {
+    // Reutilizamos la función que envía el PDF + CAE por WhatsApp
+    await sendAutomaticPaidInvoiceNotification(req.params.id);
+    res.json({ message: 'Factura enviada por WhatsApp al cliente.' });
+  } catch (error) {
+    console.error('Error enviando factura por WhatsApp:', error);
+    res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
+  }
+});
+
 app.post('/api/invoices/mass-afip', async (req, res) => {
   if (!afip) return res.status(400).json({ error: 'Módulo ARCA/AFIP no está configurado (faltan los archivos cert/key).' });
   try {
