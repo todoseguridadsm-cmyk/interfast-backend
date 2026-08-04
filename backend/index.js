@@ -1366,8 +1366,7 @@ app.post('/api/invoices/generate', async (req, res) => {
         const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
         try {
-          const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
-          const centsVal = centsInt / 100;
+          const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
           const totalWithCents = inv.priceV1 + centsVal;
           const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
 
@@ -1633,8 +1632,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       }
 
       const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-      const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
-      const centsVal = centsInt / 100;
+      const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
       const totalWithCents = totalAmountWithFee + centsVal;
       const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
@@ -1734,8 +1732,7 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       }
 
       const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-      const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
-      const centsVal = centsInt / 100;
+      const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
       const totalWithCents = totalAmountWithFee + centsVal;
       const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
@@ -2326,8 +2323,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           else if (today > d1 && invoice.priceV2) { activeV = 'V2'; activeAmount = invoice.priceV2; }
         }
 
-        const centsInt = ((invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1) % 99) + 1;
-        const centsVal = centsInt / 100;
+        const centsVal = ((invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1) % 1000) / 100;
         const totalConCentavos = parseFloat(activeAmount) + centsVal;
         const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
         const originalConCentavos = parseFloat(invoice.originalAmount) + centsVal;
@@ -2720,15 +2716,22 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           let exactCentsMatches = [];
 
           for (const inv of pendingInvoices) {
+            const oldCentsOffset = ((inv.clientId || inv.id || 1) % 99 + 1) / 100;
+            const newCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
             const possibleAmounts = [
-              inv.originalAmount,
-              inv.priceV1,
-              inv.priceV2 ? inv.priceV2 : null,
-              inv.priceV3 ? inv.priceV3 : null,
-              inv.priceV4 ? inv.priceV4 : null
+              inv.originalAmount + oldCentsOffset,
+              inv.priceV1 + oldCentsOffset,
+              inv.priceV2 ? inv.priceV2 + oldCentsOffset : null,
+              inv.priceV3 ? inv.priceV3 + oldCentsOffset : null,
+              inv.priceV4 ? inv.priceV4 + oldCentsOffset : null,
+              inv.originalAmount + newCentsOffset,
+              inv.priceV1 + newCentsOffset,
+              inv.priceV2 ? inv.priceV2 + newCentsOffset : null,
+              inv.priceV3 ? inv.priceV3 + newCentsOffset : null,
+              inv.priceV4 ? inv.priceV4 + newCentsOffset : null
             ].filter(a => a !== null && a > 0);
 
-            const matchesCentsAndAmount = possibleAmounts.some(amt => Math.round(transactionAmount * 100) === Math.round(amt * 100));
+            const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
 
             if (matchesCentsAndAmount) {
               exactCentsMatches.push(inv);
@@ -3832,8 +3835,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         }
         globalActiveV = activeV;
         
-        const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
-        const centsVal = centsInt / 100;
+        const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
         const currentConCentavos = parseFloat(currentAmount) + centsVal;
         
         totalDebtBase += currentConCentavos;
@@ -4219,13 +4221,19 @@ cron.schedule('*/10 * * * *', async () => {
         let exactCentsMatches = [];
 
         for (const inv of pendingInvoices) {
-          const expectedCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
+          const oldCentsOffset = ((inv.clientId || inv.id || 1) % 99 + 1) / 100;
+          const newCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
           const possibleAmounts = [
-            inv.originalAmount + expectedCentsOffset,
-            inv.priceV1 + expectedCentsOffset,
-            inv.priceV2 ? inv.priceV2 + expectedCentsOffset : null,
-            inv.priceV3 ? inv.priceV3 + expectedCentsOffset : null,
-            inv.priceV4 ? inv.priceV4 + expectedCentsOffset : null
+            inv.originalAmount + oldCentsOffset,
+            inv.priceV1 + oldCentsOffset,
+            inv.priceV2 ? inv.priceV2 + oldCentsOffset : null,
+            inv.priceV3 ? inv.priceV3 + oldCentsOffset : null,
+            inv.priceV4 ? inv.priceV4 + oldCentsOffset : null,
+            inv.originalAmount + newCentsOffset,
+            inv.priceV1 + newCentsOffset,
+            inv.priceV2 ? inv.priceV2 + newCentsOffset : null,
+            inv.priceV3 ? inv.priceV3 + newCentsOffset : null,
+            inv.priceV4 ? inv.priceV4 + newCentsOffset : null
           ].filter(a => a !== null && a > 0);
 
           const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);

@@ -194,8 +194,7 @@ export default function InvoicesList() {
   };
   
   const getCentsVal = (inv) => {
-    const centsInt = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 99) + 1;
-    return centsInt / 100;
+    return ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
   };
 
 // Utility function to determine the active vencimiento
