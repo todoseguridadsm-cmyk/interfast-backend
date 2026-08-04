@@ -703,7 +703,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   const isPaid = inv.status === 'PAID';
                   const isDebito = inv.client?.debitoAutomatico;
                   const { activeV } = getInvoiceActiveVencimiento(inv);
-                  const notifiedV = inv.lastRemindedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.lastRemindedAt)).activeV : null;
+                  const notifiedV = inv.notifiedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.notifiedAt)).activeV : null;
                   const isUpToDateNotified = notifiedV === activeV;
                   const isSelectable = (!isPaid && !isUpToDateNotified && !isDebito) || (isPaid && !inv.afipCae);
                   const centsVal = getCentsVal(inv);

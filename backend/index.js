@@ -2368,10 +2368,10 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
 
         try {
           await waSocket.sendMessage(targetPhone, { text: msg });
-          // Update lastRemindedAt
+          // Update notifiedAt
           await prisma.invoice.update({
             where: { id: invoice.id },
-            data: { lastRemindedAt: new Date() }
+            data: { notifiedAt: new Date() }
           });
         } catch(err) {
           console.error(`Error enviando WA masivo a ${invoice.client.name}:`, err.message);
