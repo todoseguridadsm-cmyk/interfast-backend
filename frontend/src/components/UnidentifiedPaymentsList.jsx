@@ -1,11 +1,36 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, CheckCircle, AlertTriangle, User, FileText } from 'lucide-react';
 
 export default function UnidentifiedPaymentsList() {
   const [payments, setPayments] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [assignModal, setAssignModal] = useState({ show: false, payment: null, invoiceId: '' });
+  
+  const [assignModal, setAssignModal] = useState({ show: false, payment: null });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+
+  const fetchData = async () => {
+    try {
+      const [payRes, cliRes, invRes] = await Promise.all([
+        axios.get('https://interfast-backend-95ww.onrender.com/api/unidentified-payments'),
+        axios.get('https://interfast-backend-95ww.onrender.com/api/clients'),
+        axios.get('https://interfast-backend-95ww.onrender.com/api/invoices')
+      ]);
+      setPayments(payRes.data);
+      setClients(cliRes.data);
+      setInvoices(invRes.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const fetchPayments = async () => {
     try {
@@ -16,20 +41,19 @@ export default function UnidentifiedPaymentsList() {
     }
   };
 
-  useEffect(() => {
-    fetchPayments();
-  }, []);
-
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!assignModal.invoiceId) return alert('Debes ingresar el ID de la factura (solo el número, ej: 1234)');
+    if (!selectedInvoiceId) return alert('Debes seleccionar una factura');
     setLoading(true);
     try {
       await axios.post(`https://interfast-backend-95ww.onrender.com/api/unidentified-payments/${assignModal.payment.id}/assign`, {
-        invoiceId: parseInt(assignModal.invoiceId)
+        invoiceId: parseInt(selectedInvoiceId)
       });
       alert('Pago asignado exitosamente.');
-      setAssignModal({ show: false, payment: null, invoiceId: '' });
+      setAssignModal({ show: false, payment: null });
+      setSearchTerm('');
+      setSelectedClient(null);
+      setSelectedInvoiceId('');
       fetchPayments();
     } catch (error) {
       console.error(error);
@@ -37,6 +61,31 @@ export default function UnidentifiedPaymentsList() {
     }
     setLoading(false);
   };
+
+  const openModal = (payment) => {
+    setAssignModal({ show: true, payment });
+    setSearchTerm(payment.payerName || '');
+    setSelectedClient(null);
+    setSelectedInvoiceId('');
+  };
+
+  const closeModal = () => {
+    setAssignModal({ show: false, payment: null });
+    setSearchTerm('');
+    setSelectedClient(null);
+    setSelectedInvoiceId('');
+  };
+
+  const filteredClients = searchTerm.length > 2 
+    ? clients.filter(c => {
+        const term = searchTerm.toLowerCase();
+        return c.name.toLowerCase().includes(term) || c.dni.includes(term);
+      })
+    : [];
+
+  const clientInvoices = selectedClient 
+    ? invoices.filter(i => i.clientId === selectedClient.id && i.status !== 'PAID')
+    : [];
 
   return (
     <div className="space-y-6 relative">
@@ -84,10 +133,10 @@ export default function UnidentifiedPaymentsList() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button 
-                        onClick={() => setAssignModal({ show: true, payment: p, invoiceId: '' })}
+                        onClick={() => openModal(p)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-colors"
                       >
-                        Asignar a Factura
+                        Asignar a Cliente
                       </button>
                     </td>
                   </tr>
@@ -100,32 +149,131 @@ export default function UnidentifiedPaymentsList() {
 
       {assignModal.show && assignModal.payment && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="bg-slate-50 p-6 border-b border-slate-100">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="bg-slate-50 p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-xl font-bold text-slate-800">Asignar Pago Manualmente</h3>
-              <p className="text-sm text-slate-500 mt-1">Ingresa el ID de la factura (Nro) a la que corresponde este pago de <b>${assignModal.payment.amount}</b>.</p>
+              <p className="text-sm text-slate-500 mt-1">
+                Pago de <b>${assignModal.payment.amount}</b> a nombre de <b>{assignModal.payment.payerName || 'Desconocido'}</b>.
+              </p>
             </div>
-            <form onSubmit={handleAssign} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">ID de Factura</label>
-                <input 
-                  type="number" 
-                  required
-                  value={assignModal.invoiceId} 
-                  onChange={e => setAssignModal({...assignModal, invoiceId: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xl font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-center"
-                  placeholder="Ej: 4521"
-                />
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setAssignModal({show:false, payment:null, invoiceId:''})} className="flex-1 bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={loading} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-indigo-200 transition-colors">
-                  {loading ? 'Asignando...' : 'Confirmar'}
-                </button>
-              </div>
-            </form>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              {!selectedClient ? (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">1. Buscar Cliente</label>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input 
+                      type="text" 
+                      autoFocus
+                      placeholder="Buscar por Nombre o DNI..." 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-800"
+                    />
+                  </div>
+                  
+                  {filteredClients.length > 0 && (
+                    <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                      {filteredClients.slice(0, 5).map(client => (
+                        <button 
+                          key={client.id}
+                          onClick={() => setSelectedClient(client)}
+                          className="w-full flex items-center justify-between p-4 bg-white hover:bg-indigo-50 transition-colors text-left"
+                        >
+                          <div>
+                            <div className="font-bold text-slate-900">{client.name}</div>
+                            <div className="text-xs text-slate-500 font-mono mt-0.5">DNI: {client.dni} • TK{String(client.id).padStart(3, '0')}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {filteredClients.length === 0 && searchTerm.length > 2 && (
+                    <div className="mt-4 p-4 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                      No se encontraron clientes que coincidan.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <div>
+                      <div className="font-bold text-indigo-900 flex items-center gap-2">
+                        <User size={18} /> {selectedClient.name}
+                      </div>
+                      <div className="text-sm text-indigo-700 mt-1">DNI: {selectedClient.dni}</div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setSelectedClient(null);
+                        setSelectedInvoiceId('');
+                      }}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">2. Seleccionar Factura</label>
+                    {clientInvoices.length === 0 ? (
+                      <div className="p-4 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                        El cliente no tiene facturas pendientes.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientInvoices.map(inv => (
+                          <label 
+                            key={inv.id}
+                            className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                              selectedInvoiceId === inv.id 
+                                ? 'border-indigo-600 bg-indigo-50/50' 
+                                : 'border-slate-200 hover:border-indigo-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input 
+                                type="radio" 
+                                name="invoice" 
+                                value={inv.id}
+                                checked={selectedInvoiceId === inv.id}
+                                onChange={() => setSelectedInvoiceId(inv.id)}
+                                className="w-5 h-5 text-indigo-600"
+                              />
+                              <div>
+                                <div className="font-bold text-slate-900 flex items-center gap-2">
+                                  <FileText size={16} className="text-slate-400" />
+                                  Abono Mensual {String(inv.month).padStart(2,'0')}/{inv.year}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">Vto: {new Date(inv.dueDate).toLocaleDateString('es-AR')}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-black text-slate-900">${inv.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+              <button type="button" onClick={closeModal} className="flex-1 bg-white border border-slate-200 text-slate-600 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={handleAssign}
+                disabled={loading || !selectedInvoiceId} 
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Asignando...' : 'Confirmar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

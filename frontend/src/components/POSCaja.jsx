@@ -12,7 +12,22 @@ export default function POSCaja() {
   const [clientInvoices, setClientInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
-  const [operator, setOperator] = useState('HUMBERTO');
+  const getLoggedInOperator = () => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        const un = (user.username || '').toUpperCase();
+        if (un.includes('VICTOR') || un.includes('VÍCTOR')) return 'VICTOR';
+        if (un.includes('MATIAS') || un.includes('MATÍAS')) return 'MATIAS';
+        if (un.includes('HUMBERTO')) return 'HUMBERTO';
+        return un;
+      } catch (e) {}
+    }
+    return 'HUMBERTO';
+  };
+
+  const [operator, setOperator] = useState(getLoggedInOperator);
 
   // Initial Fetch to have clients & invoices array cached
   const fetchData = async () => {
@@ -48,6 +63,7 @@ export default function POSCaja() {
   };
 
   const handlePayClick = (inv) => {
+    setOperator(getLoggedInOperator());
     setPayModal({ show: true, inv, amount: inv.totalAmount });
   };
 
