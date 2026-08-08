@@ -18,12 +18,12 @@ export default function POSCaja() {
       try {
         const user = JSON.parse(userStr);
         const un = (user.username || '').toUpperCase();
-        if (un.includes('VICTOR') || un.includes('VÍCTOR') || un === 'TKIP' || un === 'ADMIN') return 'VICTOR';
-        if (un.includes('MATIAS') || un.includes('MATÍAS')) return 'MATIAS';
+        if (un === 'TKIP' || un.includes('MATIAS') || un.includes('MATÍAS')) return 'MATIAS';
+        if (un.includes('VICTOR') || un.includes('VÍCTOR')) return 'VICTOR';
         if (un.includes('HUMBERTO')) return 'HUMBERTO';
       } catch (e) {}
     }
-    return 'VICTOR';
+    return 'HUMBERTO';
   };
 
   const [operator, setOperator] = useState(getLoggedInOperator);

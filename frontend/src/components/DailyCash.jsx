@@ -28,7 +28,10 @@ export default function DailyCash() {
   // Obtener usuario logueado
   const userStr = localStorage.getItem('user');
   const loggedUser = userStr ? JSON.parse(userStr) : { username: 'sistema' };
-  const operatorName = loggedUser.username.toUpperCase();
+  const rawUser = (loggedUser.username || '').toUpperCase();
+  const operatorName = (rawUser === 'TKIP' || rawUser.includes('MATIAS') || rawUser.includes('MATÍAS'))
+    ? 'MATIAS'
+    : (rawUser.includes('VICTOR') || rawUser.includes('VÍCTOR') ? 'VICTOR' : (rawUser.includes('HUMBERTO') ? 'HUMBERTO' : rawUser));
 
   const fetchCash = async () => {
     setLoading(true);
@@ -70,9 +73,10 @@ export default function DailyCash() {
 
   (data.payments || []).forEach(p => {
     const isCash = p.method.startsWith('CASH');
-    const paymentOperator = isCash
+    let paymentOperator = isCash
       ? (p.method.includes('_') ? p.method.split('_')[1] : (p.user?.username || 'SISTEMA')).toUpperCase()
       : 'MERCADOPAGO';
+    if (paymentOperator === 'TKIP') paymentOperator = 'MATIAS';
 
     baseItems.push({
       id: `P-${p.id}`,
@@ -89,9 +93,10 @@ export default function DailyCash() {
 
   (data.movements || []).forEach(m => {
     const descMatch = m.description.match(/^\[CAJA:\s*([^\]]+)\]\s*(.*)$/);
-    const movementOperator = descMatch
+    let movementOperator = descMatch
       ? descMatch[1].trim().toUpperCase()
       : (m.user?.username || 'SISTEMA').toUpperCase();
+    if (movementOperator === 'TKIP') movementOperator = 'MATIAS';
     const displayDescription = descMatch ? descMatch[2].trim() : m.description;
 
     baseItems.push({
