@@ -3529,10 +3529,10 @@ app.post('/api/bot/pausar-chat', (req, res) => {
   const { phone, hours } = req.body;
   if (!phone) return res.status(400).json({ error: 'Falta parámetro phone' });
   const cleanPhone = phone.toString().replace(/\D/g, '');
-  const durationHours = parseFloat(hours) || 24;
+  const durationHours = parseFloat(hours) || 1; // Pausa de 1 HORA por defecto al escribir manualmente
   const expireAt = Date.now() + durationHours * 3600 * 1000;
   pausedChatsMap.set(cleanPhone, expireAt);
-  console.log(`[Bot Control] Chat ${cleanPhone} PAUSADO por ${durationHours} horas.`);
+  console.log(`[Bot Control] Chat ${cleanPhone} PAUSADO por ${durationHours} hora(s).`);
   res.json({ success: true, message: `Chat ${cleanPhone} pausado para Sofi por ${durationHours}h`, expireAt: new Date(expireAt).toISOString() });
 });
 
