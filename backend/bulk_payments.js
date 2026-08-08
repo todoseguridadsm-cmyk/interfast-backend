@@ -6,12 +6,8 @@ async function main() {
   const userId = adminUser ? adminUser.id : 1;
 
   console.log("=== PROCESANDO PAGO INDIVIDUAL ===");
-  const paymentsText = `GONZALEZ LEONARDO SANTIAGO 22992.33
-GALACHO LAURA 22990.30
-PERALTA GERARDO 22991.88
-NALON PABLO 22992.27
-FERNANDO SEBASTIAN GONZALEZ 22993
-ANITORI MIRTA BEATRIZ ANA 22990.57`;
+  const paymentsText = `GLADYS ANA PEREIRA 22990.16
+FUNES MARIO 22990.29`;
 
   const lines = paymentsText.split('\n').filter(l => l.trim() !== '');
 
