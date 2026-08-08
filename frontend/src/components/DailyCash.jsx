@@ -310,38 +310,39 @@ export default function DailyCash() {
       {/* ── CAJA GENERAL ── */}
       <div>
         <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">💼 Caja General del Negocio</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cobros Físicos</p>
-            <p className="text-lg font-black text-emerald-600">+${fmt(totalCashIn)}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cobros Físicos</p>
+            <p className="text-xl lg:text-2xl font-black text-emerald-600 truncate">+${fmt(totalCashIn)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Mercado Pago</p>
-            <p className="text-lg font-black text-blue-600">${fmt(saldoMp)}</p>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mercado Pago</p>
+            <p className="text-xl lg:text-2xl font-black text-blue-600 truncate">${fmt(saldoMp)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Banco Roela</p>
-            <p className="text-lg font-black text-indigo-600">${fmt(saldoRoela)}</p>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Banco Roela</p>
+            <p className="text-xl lg:text-2xl font-black text-indigo-600 truncate">${fmt(saldoRoela)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Sueldos</p>
-            <p className="text-lg font-black text-red-500">-${fmt(totalSueldo)}</p>
+          <div className={`rounded-2xl p-4 shadow-lg text-white flex flex-col justify-between transform hover:-translate-y-0.5 transition-transform ${cajaGeneral >= 0 ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-emerald-200' : 'bg-gradient-to-br from-red-500 to-red-700 shadow-red-200'}`}>
+            <p className="text-[10px] font-bold opacity-80 uppercase tracking-wider mb-1">CAJA GENERAL</p>
+            <p className="text-2xl lg:text-3xl font-black truncate">${fmt(cajaGeneral)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Retiros Socios</p>
-            <p className="text-lg font-black text-red-500">-${fmt(totalRetiro)}</p>
+
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sueldos</p>
+            <p className="text-lg lg:text-xl font-black text-red-500 truncate">-${fmt(totalSueldo)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Abono Internet</p>
-            <p className="text-lg font-black text-red-500">-${fmt(totalAbono)}</p>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Retiros Socios</p>
+            <p className="text-lg lg:text-xl font-black text-red-500 truncate">-${fmt(totalRetiro)}</p>
           </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Gastos Varios</p>
-            <p className="text-lg font-black text-red-500">-${fmt(totalGastos)}</p>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Abono Internet</p>
+            <p className="text-lg lg:text-xl font-black text-red-500 truncate">-${fmt(totalAbono)}</p>
           </div>
-          <div className={`rounded-2xl p-4 shadow-lg text-white flex flex-col justify-center transform hover:-translate-y-1 transition-transform col-span-2 md:col-span-1 ${cajaGeneral >= 0 ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-emerald-200' : 'bg-gradient-to-br from-red-500 to-red-700 shadow-red-200'}`}>
-            <p className="text-[10px] font-bold opacity-80 uppercase mb-1">CAJA GENERAL</p>
-            <p className="text-2xl font-black">${fmt(cajaGeneral)}</p>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gastos Varios</p>
+            <p className="text-lg lg:text-xl font-black text-red-500 truncate">-${fmt(totalGastos)}</p>
           </div>
         </div>
       </div>
