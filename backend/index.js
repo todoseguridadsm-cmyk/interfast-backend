@@ -3500,10 +3500,6 @@ function buildBotClientSearchWhere(query) {
       { name: { contains: rawQuery, mode: 'insensitive' } }
     ];
 
-    if (!isNaN(cleanQuery) && cleanQuery.length <= 8) {
-      orConditions.unshift({ id: parseInt(cleanQuery) });
-    }
-
     return { OR: orConditions };
   } else {
     return {
@@ -3585,22 +3581,15 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
       return res.status(400).json({ error: 'Falta parámetro clientId o identificador numérico/teléfono/DNI del cliente para crear el ticket.' });
     }
 
-    let parsedId = !isNaN(parseInt(rawId)) && rawId.toString().trim().length <= 8 ? parseInt(rawId) : null;
     let client = null;
-
-    if (parsedId && parsedId <= 2147483647) {
-      client = await prisma.client.findUnique({ where: { id: parsedId } });
-    }
-
-    // Si no se encontró por ID numérico primario (por ejemplo, si la IA o N8N envió por error el DNI, CUIT o Teléfono como clientId)
-    if (!client) {
-      const strVal = rawId.toString().trim();
-      const whereClause = buildBotClientSearchWhere(strVal);
-      client = await prisma.client.findFirst({ where: whereClause });
-      if (client) {
-        parsedId = client.id;
-        console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: la IA envió '${rawId}', se resolvió al cliente ID ${client.id} (${client.name}).`);
-      }
+    let parsedId = null;
+    const strVal = rawId.toString().trim();
+    const whereClause = buildBotClientSearchWhere(strVal);
+    client = await prisma.client.findFirst({ where: whereClause });
+    
+    if (client) {
+      parsedId = client.id;
+      console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: la IA envió '${rawId}', se resolvió al cliente ID ${client.id} (${client.name}).`);
     }
 
     if (!client) {
