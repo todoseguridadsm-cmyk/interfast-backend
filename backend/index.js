@@ -3548,6 +3548,24 @@ app.post('/api/bot/reanudar-chat', (req, res) => {
 app.all(['/api/bot/verificar-atencion', '/api/bot/check-status'], (req, res) => {
   const phone = req.query.phone || req.body.phone;
   const timestamp = req.query.timestamp || req.body.timestamp || req.query.msgDate || req.body.msgDate;
+  const fromMe = req.query.fromMe === 'true' || req.body.fromMe === 'true' || req.query.fromMe === true || req.body.fromMe === true;
+
+  // 0. AUTO-PAUSA AL DETECTAR MENSAJE SALIENTE DESDE EL CELULAR DE UN OPERADOR (fromMe = true)
+  if (fromMe && phone) {
+    const cleanPhone = phone.toString().replace(/\D/g, '');
+    if (cleanPhone && cleanPhone !== 'error_no_number') {
+      const durationHours = 1; // 1 HORA DE PAUSA
+      const expireAt = Date.now() + durationHours * 3600 * 1000;
+      pausedChatsMap.set(cleanPhone, expireAt);
+      console.log(`[Bot Control] MENSAJE HUMANO SALIENTE -> Chat ${cleanPhone} PAUSADO automáticamente por ${durationHours} hora.`);
+      return res.json({
+        canRespond: false,
+        shouldIgnore: true,
+        reason: `Intervención humana detectada desde el celular. Sofi pausada por 1 hora para ${cleanPhone}.`,
+        code: 'HUMAN_OUTGOING_MESSAGE'
+      });
+    }
+  }
 
   // 1. CONTROL DE MENSAJES VIEJOS ENCOLEADOS (UNPUBLISH -> PUBLISH EN N8N)
   if (timestamp) {
