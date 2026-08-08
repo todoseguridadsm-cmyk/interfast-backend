@@ -118,24 +118,20 @@ export default function DailyCash() {
   (data.movements || []).forEach(m => {
     const descMatch = m.description.match(/^\[CAJA:\s*([^\]]+)\]\s*(.*)$/);
     const opUpper = (m.operator || '').toUpperCase();
+    const boxFromDesc = descMatch ? descMatch[1].trim().toUpperCase() : '';
 
     let source = 'MANUAL';
-    let movementOperator = 'SISTEMA';
+    let movementOperator = opUpper || 'SISTEMA';
 
-    if (opUpper === 'BANCO_ROELA') {
-      source = 'BANCO_ROELA';
-      movementOperator = 'BANCO_ROELA';
-    } else if (opUpper === 'MERCADOPAGO') {
+    if (boxFromDesc === 'MERCADOPAGO' || opUpper === 'MERCADOPAGO') {
       source = 'MERCADOPAGO';
-      movementOperator = 'MERCADOPAGO';
-    } else if (descMatch) {
-      movementOperator = descMatch[1].trim().toUpperCase();
-      source = (movementOperator === 'VICTOR' || movementOperator === 'HUMBERTO' || movementOperator === 'MATIAS') ? 'CASH_POS' : (movementOperator === 'BANCO_ROELA' ? 'BANCO_ROELA' : (movementOperator === 'MERCADOPAGO' ? 'MERCADOPAGO' : 'MANUAL'));
-    } else if (opUpper === 'VICTOR' || opUpper === 'HUMBERTO' || opUpper === 'MATIAS') {
-      movementOperator = opUpper;
+      if (!opUpper) movementOperator = 'MERCADOPAGO';
+    } else if (boxFromDesc === 'BANCO_ROELA' || opUpper === 'BANCO_ROELA') {
+      source = 'BANCO_ROELA';
+      if (!opUpper) movementOperator = 'BANCO_ROELA';
+    } else if (boxFromDesc === 'VICTOR' || boxFromDesc === 'HUMBERTO' || boxFromDesc === 'MATIAS' || opUpper === 'VICTOR' || opUpper === 'HUMBERTO' || opUpper === 'MATIAS') {
       source = 'CASH_POS';
-    } else {
-      movementOperator = (m.user?.username || 'SISTEMA').toUpperCase();
+      if (boxFromDesc) movementOperator = boxFromDesc;
     }
 
     if (movementOperator === 'TKIP') movementOperator = 'MATIAS';
@@ -198,8 +194,8 @@ export default function DailyCash() {
   const totalManualIn = all.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
 
   // Egresos por origen específico
-  const egresoMp     = all.filter(i => (i.source === 'MERCADOPAGO' || i.user === 'MERCADOPAGO') && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
-  const egresoRoela  = all.filter(i => (i.source === 'BANCO_ROELA' || i.user === 'BANCO_ROELA') && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
+  const egresoMp     = all.filter(i => i.source === 'MERCADOPAGO' && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
+  const egresoRoela  = all.filter(i => i.source === 'BANCO_ROELA' && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
 
   // Egresos generales
   const totalRetiro  = all.filter(i => i.category === 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
