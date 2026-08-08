@@ -3753,12 +3753,14 @@ app.post('/api/bot/registrar-comprobante', async (req, res) => {
 
 app.get('/api/bot/obtener-factura', async (req, res) => {
   try {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ error: 'Falta parámetro query con DNI, teléfono, CUIT o ID' });
+    const { query, clientId } = req.query;
+    const searchTarget = clientId || query;
+    if (!searchTarget) return res.status(400).json({ error: 'Falta parámetro query o clientId' });
 
     let matchingClients = [];
-    const parsedId = !isNaN(parseInt(query)) && query.toString().trim().length <= 8 ? parseInt(query) : null;
+    const parsedId = !isNaN(parseInt(searchTarget)) && searchTarget.toString().trim().length <= 8 ? parseInt(searchTarget) : null;
     
+    // 1. Si se pasó clientId o un ID numérico corto de cliente, buscar cliente directo
     if (parsedId && parsedId <= 2147483647) {
       const exactClient = await prisma.client.findUnique({ where: { id: parsedId } });
       if (exactClient) {
@@ -3766,13 +3768,14 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       }
     }
 
+    // 2. Si no se encontró por ID directo de cliente, buscar por DNI, Teléfono o CUIT
     if (matchingClients.length === 0) {
-      const whereClause = buildBotClientSearchWhere(query);
+      const whereClause = buildBotClientSearchWhere(searchTarget);
       matchingClients = await prisma.client.findMany({ where: whereClause });
     }
 
     if (!matchingClients || matchingClients.length === 0) {
-      return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${query}".` });
+      return res.json({ success: false, found: false, message: `No se encontró ningún cliente en el CRM con el dato: "${searchTarget}".` });
     }
 
     const primaryClient = matchingClients[0];
@@ -3885,6 +3888,7 @@ DETALLE INDIVIDUAL DE LA DEUDA:
 ${breakdownStr}
 
 INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
+0. VERIFICACIÓN OBLIGATORIA DE IDENTIDAD: Esta información de deuda pertenece EXCLUSIVAMENTE al cliente "${primaryClient.name}". Tienes PROHIBIDO entregar estos montos o este PDF si la persona con la que estás hablando no coincide con este titular.
 1. PROHIBIDO Y CENSURADO: NO menciones números de factura, NO menciones CAE de ARCA, y NO entregues el link de Mercado Pago (paymentLink) en tu respuesta inicial.
 2. Infórmale amablemente al cliente que adeuda los períodos indicados arriba por un total de $${aliasAmountEs}. ${matchingClients.length > 1 ? 'MENCIONALO CLARAMENTE que este importe es la SUMA de todas sus cuentas/servicios para que sepa qué está pagando.' : ''} El sistema ya calculó automáticamente la etapa de vencimiento actual (${globalActiveV}) y los posibles recargos por mora en este importe. OBLIGATORIO: Entrégale este enlace para que pueda descargar su detalle en PDF (el PDF solo mostrará la tarifa actual): ${pdfUrl}
 3. OFRECE COMO ÚNICO MÉTODO PRINCIPAL LA TRANSFERENCIA SIN RECARGOS: Dale el Alias Mercado Pago 'interfastsm' y dile explícitamente: "Para abonar por transferencia (0% de comisión), transfiere el monto exacto con centavos: $${aliasAmountEs} al Alias interfastsm. Es fundamental respetar los centavos para que el sistema impute y reconozca tu pago en segundos. Luego, envíame la captura del comprobante por aquí".
