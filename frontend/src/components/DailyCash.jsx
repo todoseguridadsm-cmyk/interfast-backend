@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Wallet, ArrowDownCircle, ArrowUpCircle, PlusCircle, Filter, Calendar, Download, TrendingDown, User } from 'lucide-react';
+import { Wallet, ArrowDownCircle, ArrowUpCircle, PlusCircle, Filter, Calendar, Download, TrendingDown, User, Landmark } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const API = 'https://interfast-backend-95ww.onrender.com';
@@ -9,9 +9,9 @@ export default function DailyCash() {
   const [data, setData] = useState({ payments: [], movements: [] });
   const [loading, setLoading] = useState(true);
 
-  // Fecha inicio fija: 02/08/2026 según requerimiento
+  // Fecha inicio predeterminada al 31/07/2026 para incluir saldos iniciales de Roela y MP
   const todayDateStr = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState('2026-08-02');
+  const [startDate, setStartDate] = useState('2026-07-31');
   const [endDate, setEndDate] = useState(todayDateStr);
 
   const [filterFlujo, setFilterFlujo] = useState('TODOS');
@@ -24,6 +24,7 @@ export default function DailyCash() {
   const [amount, setAmount] = useState('');
   const [desc, setDesc] = useState('');
   const [targetSocio, setTargetSocio] = useState('MATIAS');
+  const [sourceBox, setSourceBox] = useState('BANCO_ROELA');
 
   // Obtener usuario logueado
   const userStr = localStorage.getItem('user');
@@ -51,14 +52,18 @@ export default function DailyCash() {
     if(!amount || !desc) return alert('Por favor completa todos los campos.');
     try {
       const needsSocio = category === 'SUELDO' || category === 'RETIRO_SOCIO';
-      const prefixedDesc = `[CAJA: ${operatorName}] ${desc}`;
+      const selectedOperator = type === 'OUT' 
+        ? sourceBox 
+        : (needsSocio ? targetSocio : operatorName);
+
+      const prefixedDesc = `[CAJA: ${selectedOperator}] ${desc}`;
 
       await axios.post(`${API}/api/cash/movement`, {
         type,
         amount,
         category,
         description: prefixedDesc,
-        operator: needsSocio ? targetSocio : operatorName
+        operator: selectedOperator
       });
       setShowModal(false);
       setAmount(''); setDesc(''); setCategory('GASTOS_VARIOS');
@@ -72,17 +77,36 @@ export default function DailyCash() {
   const baseItems = [];
 
   (data.payments || []).forEach(p => {
-    const isCash = p.method.startsWith('CASH');
-    let paymentOperator = isCash
-      ? (p.method.includes('_') ? p.method.split('_')[1] : (p.user?.username || 'SISTEMA')).toUpperCase()
-      : 'MERCADOPAGO';
+    const methodUpper = (p.method || '').toUpperCase();
+    const isCash = methodUpper.startsWith('CASH');
+    const isRoela = methodUpper === 'BANCO_ROELA' || methodUpper === 'ROELA';
+    const isMp = methodUpper === 'MERCADOPAGO' || methodUpper.startsWith('MERCADO');
+
+    let source = 'MANUAL';
+    let paymentOperator = 'SISTEMA';
+    let category = 'INGRESO_MANUAL';
+
+    if (isCash) {
+      source = 'CASH_POS';
+      category = 'INGRESO_EFECTIVO';
+      paymentOperator = methodUpper.includes('_') ? methodUpper.split('_')[1] : (p.user?.username || 'SISTEMA').toUpperCase();
+    } else if (isRoela) {
+      source = 'BANCO_ROELA';
+      category = 'INGRESO_ROELA';
+      paymentOperator = 'BANCO_ROELA';
+    } else if (isMp) {
+      source = 'MERCADOPAGO';
+      category = 'INGRESO_MP';
+      paymentOperator = 'MERCADOPAGO';
+    }
+
     if (paymentOperator === 'TKIP') paymentOperator = 'MATIAS';
 
     baseItems.push({
       id: `P-${p.id}`,
       type: 'IN',
-      source: isCash ? 'CASH_POS' : 'MERCADOPAGO',
-      category: isCash ? 'INGRESO_EFECTIVO' : 'INGRESO_MP',
+      source,
+      category,
       title: `Abono Internet: ${p.invoice?.client?.name || 'Cliente'}`,
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
@@ -93,17 +117,36 @@ export default function DailyCash() {
 
   (data.movements || []).forEach(m => {
     const descMatch = m.description.match(/^\[CAJA:\s*([^\]]+)\]\s*(.*)$/);
-    let movementOperator = descMatch
-      ? descMatch[1].trim().toUpperCase()
-      : (m.user?.username || 'SISTEMA').toUpperCase();
+    const opUpper = (m.operator || '').toUpperCase();
+
+    let source = 'MANUAL';
+    let movementOperator = 'SISTEMA';
+
+    if (opUpper === 'BANCO_ROELA') {
+      source = 'BANCO_ROELA';
+      movementOperator = 'BANCO_ROELA';
+    } else if (opUpper === 'MERCADOPAGO') {
+      source = 'MERCADOPAGO';
+      movementOperator = 'MERCADOPAGO';
+    } else if (descMatch) {
+      movementOperator = descMatch[1].trim().toUpperCase();
+      source = (movementOperator === 'VICTOR' || movementOperator === 'HUMBERTO' || movementOperator === 'MATIAS') ? 'CASH_POS' : (movementOperator === 'BANCO_ROELA' ? 'BANCO_ROELA' : (movementOperator === 'MERCADOPAGO' ? 'MERCADOPAGO' : 'MANUAL'));
+    } else if (opUpper === 'VICTOR' || opUpper === 'HUMBERTO' || opUpper === 'MATIAS') {
+      movementOperator = opUpper;
+      source = 'CASH_POS';
+    } else {
+      movementOperator = (m.user?.username || 'SISTEMA').toUpperCase();
+    }
+
     if (movementOperator === 'TKIP') movementOperator = 'MATIAS';
     const displayDescription = descMatch ? descMatch[2].trim() : m.description;
+    const normalizedType = (m.type === 'INGRESO' || m.type === 'IN') ? 'IN' : 'OUT';
 
     baseItems.push({
       id: `M-${m.id}`,
-      type: m.type,
+      type: normalizedType,
       category: m.category || 'GASTOS_VARIOS',
-      source: 'MANUAL',
+      source,
       title: displayDescription,
       amount: m.amount,
       date: new Date(m.createdAt),
@@ -146,43 +189,47 @@ export default function DailyCash() {
   }
 
   // ─── Cálculos de caja con lógica real ────────────────────────────────────
-  // En lugar de una fecha de corte dura, calculamos los totales basándonos en lo que el usuario está viendo (filteredItems)
   const all = filteredItems;
 
-
-  // Ingresos
-  const totalCashIn   = all.filter(i => i.source === 'CASH_POS').reduce((s, i) => s + i.amount, 0);
-  const totalMpIn     = all.filter(i => i.source === 'MERCADOPAGO').reduce((s, i) => s + i.amount, 0);
+  // Ingresos por canal
+  const totalCashIn   = all.filter(i => i.source === 'CASH_POS' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
+  const totalMpIn     = all.filter(i => i.source === 'MERCADOPAGO' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
+  const totalRoelaIn  = all.filter(i => i.source === 'BANCO_ROELA' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
   const totalManualIn = all.filter(i => i.source === 'MANUAL' && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
 
-  // Egresos que SÍ tocan Caja General
+  // Egresos por origen específico
+  const egresoMp     = all.filter(i => (i.source === 'MERCADOPAGO' || i.user === 'MERCADOPAGO') && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
+  const egresoRoela  = all.filter(i => (i.source === 'BANCO_ROELA' || i.user === 'BANCO_ROELA') && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
+
+  // Egresos generales
   const totalRetiro  = all.filter(i => i.category === 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
   const totalAbono   = all.filter(i => i.category === 'ABONO_INTERNET').reduce((s, i) => s + i.amount, 0);
   const totalGastos  = all.filter(i => i.category === 'GASTOS_VARIOS').reduce((s, i) => s + i.amount, 0);
-
-  // Sueldo NO toca Caja General — solo afecta la caja personal del socio
   const totalSueldo  = all.filter(i => i.category === 'SUELDO').reduce((s, i) => s + i.amount, 0);
 
-  const totalIngreso  = totalCashIn + totalMpIn + totalManualIn;
-  // Caja General: ingresos - retiros - abono - gastos (SUELDO excluido)
+  const saldoMp = totalMpIn - egresoMp;
+  const saldoRoela = totalRoelaIn - egresoRoela;
+
+  const totalIngreso  = totalCashIn + totalMpIn + totalRoelaIn + totalManualIn;
   const cajaGeneral   = totalIngreso - totalRetiro - totalAbono - totalGastos;
 
   // Caja por socio: cobros físicos propios + retiros del socio (positivo) - sueldo (negativo)
   const getSocioCaja = (socioName) => {
     const sn = socioName.toUpperCase();
-    const cashIn = all.filter(i => i.source === 'CASH_POS' && i.user === sn).reduce((s, i) => s + i.amount, 0);
+    const cashIn = all.filter(i => i.source === 'CASH_POS' && i.user === sn && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
+    const egresoFisico = all.filter(i => i.user === sn && i.type === 'OUT' && i.category !== 'SUELDO' && i.category !== 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
     const retiro = all.filter(i => i.category === 'RETIRO_SOCIO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
     const sueldo = all.filter(i => i.category === 'SUELDO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
-    // Balance = cobros físicos + retiros - sueldo
-    return { cashIn, retiro, sueldo, balance: cashIn + retiro - sueldo };
+    
+    // Balance = cobros físicos - egresos físicos + retiros - sueldo
+    return { cashIn, egresoFisico, retiro, sueldo, balance: cashIn - egresoFisico + retiro - sueldo };
   };
 
   const cajaMATIAS   = getSocioCaja('MATIAS');
   const cajaVICTOR   = getSocioCaja('VICTOR');
   const cajaHUMBERTO = getSocioCaja('HUMBERTO');
 
-
-  const uniqueOperators = ['TODOS', ...Array.from(new Set(all.map(i => i.user))).filter(Boolean).sort()];
+  const uniqueOperators = ['TODOS', 'MERCADOPAGO', 'BANCO_ROELA', ...Array.from(new Set(all.map(i => i.user))).filter(u => u && u !== 'MERCADOPAGO' && u !== 'BANCO_ROELA').sort()];
 
   const exportToExcel = () => {
     if (filteredItems.length === 0) return alert('No hay datos para exportar.');
@@ -192,8 +239,7 @@ export default function DailyCash() {
       'Tipo':     item.type === 'IN' ? 'INGRESO' : 'EGRESO',
       'Categoría': item.category,
       'Concepto': item.title,
-      'Operador': item.user,
-      'Socio Afectado': item.operator || '-',
+      'Origen/Operador': item.user,
       'Monto ($)': Number(item.amount.toFixed(2))
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -244,7 +290,7 @@ export default function DailyCash() {
           <select value={filterFlujo} onChange={e => setFilterFlujo(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm">
             <option value="TODOS">Todos los Movimientos</option>
-            <option value="INGRESOS">Ingresos (MP + Efectivo)</option>
+            <option value="INGRESOS">Ingresos (Todos)</option>
             <option value="EGRESOS">Egresos (Todos)</option>
             <option value="SUELDO">Sueldos</option>
             <option value="RETIRO_SOCIO">Retiros de Socios</option>
@@ -253,10 +299,10 @@ export default function DailyCash() {
           </select>
         </div>
         <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><User size={12}/> Operador</label>
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><User size={12}/> Caja / Operador</label>
           <select value={filterOperador} onChange={e => setFilterOperador(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm">
-            {uniqueOperators.map((u, i) => <option key={i} value={u}>{u === 'TODOS' ? 'Cualquier Operador' : u}</option>)}
+            {uniqueOperators.map((u, i) => <option key={i} value={u}>{u === 'TODOS' ? 'Cualquier Caja / Operador' : u}</option>)}
           </select>
         </div>
       </div>
@@ -264,14 +310,18 @@ export default function DailyCash() {
       {/* ── CAJA GENERAL ── */}
       <div>
         <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">💼 Caja General del Negocio</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cobros Físicos</p>
             <p className="text-lg font-black text-emerald-600">+${fmt(totalCashIn)}</p>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Mercado Pago</p>
-            <p className="text-lg font-black text-blue-600">+${fmt(totalMpIn)}</p>
+            <p className="text-lg font-black text-blue-600">${fmt(saldoMp)}</p>
+          </div>
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Banco Roela</p>
+            <p className="text-lg font-black text-indigo-600">${fmt(saldoRoela)}</p>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Sueldos</p>
@@ -298,15 +348,14 @@ export default function DailyCash() {
 
       {/* ── CAJAS POR SOCIO ── */}
       <div>
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">👤 Caja Fuerte por Socio</h3>
+        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">👤 Caja Fuerte por Socio (Cobros Físicos)</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { name: 'MATÍAS', key: 'MATIAS', data: cajaMATIAS, color: 'blue' },
-            { name: 'VÍCTOR', key: 'VICTOR', data: cajaVICTOR, color: 'indigo' },
-            { name: 'HUMBERTO', key: 'HUMBERTO', data: cajaHUMBERTO, color: 'violet' }
+            { name: 'MATÍAS', key: 'MATIAS', data: cajaMATIAS },
+            { name: 'VÍCTOR', key: 'VICTOR', data: cajaVICTOR },
+            { name: 'HUMBERTO', key: 'HUMBERTO', data: cajaHUMBERTO }
           ].map(socio => (
             <div key={socio.name} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              {/* Header del socio */}
               <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center">
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Caja Personal</p>
@@ -315,7 +364,6 @@ export default function DailyCash() {
                 <span className="text-xs font-bold text-slate-400 uppercase">Período activo</span>
               </div>
 
-              {/* Detalle */}
               <div className="p-5 space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 font-medium flex items-center gap-2">
@@ -340,7 +388,6 @@ export default function DailyCash() {
                 </div>
               </div>
 
-              {/* Balance */}
               <div className={`mx-4 mb-4 rounded-xl p-3 flex justify-between items-center ${socio.data.balance >= 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
                 <span className={`text-xs font-black uppercase tracking-wider ${socio.data.balance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                   Balance del período
@@ -349,9 +396,6 @@ export default function DailyCash() {
                   {socio.data.balance >= 0 ? '+' : '-'}${fmt(Math.abs(socio.data.balance))}
                 </span>
               </div>
-              <p className="text-center text-[10px] text-slate-400 pb-3 px-4">
-                Resetear a $0 mes a mes pagando el sueldo pendiente
-              </p>
             </div>
           ))}
         </div>
@@ -372,7 +416,7 @@ export default function DailyCash() {
                 <th className="px-6 py-4">Fecha</th>
                 <th className="px-6 py-4">Tipo</th>
                 <th className="px-6 py-4">Concepto / Cliente</th>
-                <th className="px-6 py-4">Operador</th>
+                <th className="px-6 py-4">Origen / Caja</th>
                 <th className="px-6 py-4 text-right">Monto ($)</th>
               </tr>
             </thead>
@@ -393,7 +437,7 @@ export default function DailyCash() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${
                         item.type === 'IN' 
-                          ? (item.source === 'MERCADOPAGO' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700')
+                          ? (item.source === 'MERCADOPAGO' ? 'bg-blue-50 text-blue-700' : (item.source === 'BANCO_ROELA' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'))
                           : 'bg-red-50 text-red-700'
                       }`}>
                         {item.type === 'IN' ? 'INGRESO' : 'EGRESO'}
@@ -440,6 +484,24 @@ export default function DailyCash() {
                   Ingreso
                 </button>
               </div>
+
+              {/* Selector de Caja de Origen (solo para EGRESOS) */}
+              {type === 'OUT' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">Caja / Cuenta de Origen del Egreso</label>
+                  <select 
+                    value={sourceBox} 
+                    onChange={e => setSourceBox(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-semibold rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all cursor-pointer"
+                  >
+                    <option value="BANCO_ROELA">🏦 Banco Roela</option>
+                    <option value="MERCADOPAGO">💙 Mercado Pago</option>
+                    <option value="VICTOR">💵 Cobro Físico - Víctor</option>
+                    <option value="HUMBERTO">💵 Cobro Físico - Humberto</option>
+                    <option value="MATIAS">💵 Cobro Físico - Matías</option>
+                  </select>
+                </div>
+              )}
 
               {/* Categoría */}
               <div>
@@ -514,3 +576,4 @@ export default function DailyCash() {
     </div>
   );
 }
+

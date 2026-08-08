@@ -61,8 +61,11 @@ export default function POSCaja() {
     setClientInvoices(pending);
   };
 
+  const [paymentChannel, setPaymentChannel] = useState('EFECTIVO');
+
   const handlePayClick = (inv) => {
     setOperator(getLoggedInOperator());
+    setPaymentChannel('EFECTIVO');
     setPayModal({ show: true, inv, amount: inv.totalAmount });
   };
 
@@ -70,11 +73,12 @@ export default function POSCaja() {
     e.preventDefault();
     setLoading(true);
     try {
+      const methodStr = paymentChannel === 'BANCO_ROELA' ? 'BANCO_ROELA' : 'CASH_' + operator;
       await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
         amountPaid: parseFloat(payModal.amount) || 0,
         lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
         totalRequired: parseFloat(payModal.inv.totalAmount) || parseFloat(payModal.amount) || 0,
-        method: 'CASH_' + operator
+        method: methodStr
       });
       // Payment success!
       setPayModal({ show: false, inv: null, amount: '' });
@@ -345,17 +349,39 @@ export default function POSCaja() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Operador que cobra</label>
-                <select 
-                  value={operator}
-                  onChange={(e) => setOperator(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                >
-                  <option value="HUMBERTO">Humberto</option>
-                  <option value="VICTOR">Víctor</option>
-                  <option value="MATIAS">Matías</option>
-                </select>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Medio / Canal de Cobro</label>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentChannel('EFECTIVO')}
+                    className={`py-3 rounded-xl font-bold text-xs uppercase border-2 transition-all ${paymentChannel === 'EFECTIVO' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-400'}`}
+                  >
+                    💵 Efectivo (Caja Física)
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentChannel('BANCO_ROELA')}
+                    className={`py-3 rounded-xl font-bold text-xs uppercase border-2 transition-all ${paymentChannel === 'BANCO_ROELA' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-400'}`}
+                  >
+                    🏦 Banco Roela
+                  </button>
+                </div>
               </div>
+
+              {paymentChannel === 'EFECTIVO' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Operador que cobra</label>
+                  <select 
+                    value={operator}
+                    onChange={(e) => setOperator(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                  >
+                    <option value="HUMBERTO">Humberto</option>
+                    <option value="VICTOR">Víctor</option>
+                    <option value="MATIAS">Matías</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight text-center">BILLETES RECIBIDOS AL MOSTRADOR</label>
