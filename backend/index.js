@@ -3522,7 +3522,73 @@ app.use('/api/bot', (req, res, next) => {
   console.log('[Bot N8N Monitor]', JSON.stringify(logEntry));
   next();
 });
-app.get('/api/bot/logs', (req, res) => res.json(botRequestLogs));
+// --- CONTROL DE ATENCIÓN Y PAUSA INTELIGENTE DEL BOT ---
+const pausedChatsMap = new Map(); // phone -> timestamp expiracion (ms)
+
+app.post('/api/bot/pausar-chat', (req, res) => {
+  const { phone, hours } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Falta parámetro phone' });
+  const cleanPhone = phone.toString().replace(/\D/g, '');
+  const durationHours = parseFloat(hours) || 24;
+  const expireAt = Date.now() + durationHours * 3600 * 1000;
+  pausedChatsMap.set(cleanPhone, expireAt);
+  console.log(`[Bot Control] Chat ${cleanPhone} PAUSADO por ${durationHours} horas.`);
+  res.json({ success: true, message: `Chat ${cleanPhone} pausado para Sofi por ${durationHours}h`, expireAt: new Date(expireAt).toISOString() });
+});
+
+app.post('/api/bot/reanudar-chat', (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Falta parámetro phone' });
+  const cleanPhone = phone.toString().replace(/\D/g, '');
+  pausedChatsMap.delete(cleanPhone);
+  console.log(`[Bot Control] Chat ${cleanPhone} REANUDADO para Sofi.`);
+  res.json({ success: true, message: `Chat ${cleanPhone} reanudado para Sofi` });
+});
+
+app.all(['/api/bot/verificar-atencion', '/api/bot/check-status'], (req, res) => {
+  const phone = req.query.phone || req.body.phone;
+  const timestamp = req.query.timestamp || req.body.timestamp || req.query.msgDate || req.body.msgDate;
+
+  // 1. CONTROL DE MENSAJES VIEJOS ENCOLEADOS (UNPUBLISH -> PUBLISH EN N8N)
+  if (timestamp) {
+    let msgTimeMs = parseInt(timestamp);
+    // Si viene en segundos unix (10 dígitos), convertir a ms
+    if (msgTimeMs < 10000000000) msgTimeMs = msgTimeMs * 1000;
+    
+    const ageSeconds = (Date.now() - msgTimeMs) / 1000;
+    if (ageSeconds > 90) { // Si tiene más de 90 segundos de antigüedad
+      console.log(`[Bot Control] OMITIENDO MENSAJE ANTIGUO (${Math.round(ageSeconds)}s de antigüedad):`, timestamp);
+      return res.json({
+        canRespond: false,
+        shouldIgnore: true,
+        reason: `Mensaje antiguo retenido durante pausa de n8n (${Math.round(ageSeconds)}s de antigüedad). Sofi no responderá.`,
+        code: 'MESSAGE_TOO_OLD'
+      });
+    }
+  }
+
+  // 2. CONTROL DE INTERVENCIÓN MANUAL POR OPERADOR HUMANO
+  if (phone) {
+    const cleanPhone = phone.toString().replace(/\D/g, '');
+    const expireAt = pausedChatsMap.get(cleanPhone);
+    if (expireAt) {
+      if (Date.now() < expireAt) {
+        console.log(`[Bot Control] OMITIENDO MENSAJE - CHAT ATENDIDO MANULMENTE: ${cleanPhone}`);
+        return res.json({
+          canRespond: false,
+          shouldIgnore: true,
+          reason: `El chat ${cleanPhone} fue atendido manualmente por un operador humano. Sofi no responderá.`,
+          code: 'HUMAN_OPERATOR_ACTIVE',
+          pausedUntil: new Date(expireAt).toISOString()
+        });
+      } else {
+        pausedChatsMap.delete(cleanPhone); // Expiró la pausa
+      }
+    }
+  }
+
+  return res.json({ canRespond: true, shouldIgnore: false });
+});
 
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
