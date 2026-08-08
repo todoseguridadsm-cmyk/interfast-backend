@@ -93,18 +93,7 @@ MAURICIO NICOLAS MORALES 22991.57`;
       data: { status: 'PAID' }
     });
 
-    await prisma.cashMovement.create({
-      data: {
-        type: 'INGRESO',
-        amount: amountPaid,
-        description: `Pago Abono - ${client.name} (Factura #${inv.id})`,
-        userId: userId,
-        category: 'COBRO_ABONO',
-        operator: 'MERCADOPAGO'
-      }
-    });
-
-    console.log(`✅ ÉXITO: ${client.name} (ID: ${client.id}) - Factura ${inv.month}/${inv.year} pagada.`);
+    console.log(`✅ ÉXITO: ${client.name} (ID: ${client.id}) - Factura ${inv.month}/${inv.year} pagada por MERCADOPAGO.`);
   }
 
   await prisma.$disconnect();
