@@ -2753,21 +2753,37 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           const disambiguate = (candidates) => {
             const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
             const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            const payerTokens = payerClean.split(/\s+/).filter(w => w.length >= 3);
 
             for (const inv of candidates) {
+              const obs = (inv.client?.observation || '');
+              
+              // 0. PRIORIDAD ABSOLUTA: Alias en Observaciones (ej: "MP: CYNTHIA LORENA RAMON VERON")
+              const rawAliases = obs
+                .split(/[|\n]/)
+                .map(s => s.replace(/^.*MP:\s*/i, '').trim())
+                .filter(s => s.length > 2);
+
+              for (const alias of rawAliases) {
+                const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
+                const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
+                if (aliasTokens.length > 0 && (payerClean.includes(aliasClean) || matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
+                  console.log(`🏷️ Webhook MP: ¡MATCH POR ALIAS EN OBSERVACIONES! ("MP: ${alias}" vs "${payerRaw}") → cliente ${inv.client?.name} (#${inv.clientId})`);
+                  return inv;
+                }
+              }
+
+              // 1. Coincidencia por Nombre del Cliente
               const clientRaw = (inv.client?.name || '');
               const clientClean = clientRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
               const clientTokens = clientClean.split(/\s+/).filter(w => w.length >= 3);
-
-              // 1. Coincidencia por 2 o más palabras clave del nombre
               const matchingTokens = clientTokens.filter(tok => payerClean.includes(tok)).length;
               if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
-                console.log(`🏷️ Webhook MP: Match inteligente por nombre/tokens ("${clientRaw}" vs "${payerRaw}") → cliente #${inv.clientId}`);
+                console.log(`🏷️ Webhook MP: Match por nombre de cliente ("${clientRaw}" vs "${payerRaw}") → cliente #${inv.clientId}`);
                 return inv;
               }
 
-              // 2. Coincidencia por DNI / CUIT
+              // 2. Coincidencia por DNI
               const payerDni = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
               const clientDni = String(inv.client?.dni || '').replace(/\D/g, '');
               if (cleanDni(clientDni) && cleanDni(payerDni) && (payerDni.includes(clientDni) || clientDni.includes(payerDni))) {
@@ -2778,54 +2794,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           };
 
           function cleanDni(d) { return d && d.length >= 7; }
-
-            for (const inv of candidates) {
-              const clientName = (inv.client?.name || '').toLowerCase();
-              const clientEmail = (inv.client?.email || '').toLowerCase();
-              const clientDni = String(inv.client?.dni || '');
-              const clientPhone = String(inv.client?.phone || '').replace(/\D/g, '');
-              const clientObservation = (inv.client?.observation || '');
-
-              const cleanPayerDni = payerDni.replace(/\D/g, '');
-              const cleanClientDni = clientDni.replace(/\D/g, '');
-
-              // ── PRIORIDAD 1: Alias en observaciones (con o sin prefijo "MP:") ──
-              // Formatos aceptados: "MP: JUAN PEREZ", "JUAN PEREZ", separados por | o nueva línea
-              const rawAliases = clientObservation
-                .split(/[|\n]/)                        // separar por | o salto de línea
-                .map(s => s.replace(/^MP:\s*/i, '').trim()) // quitar prefijo MP: si existe
-                .filter(s => s.length > 2);            // ignorar entradas vacías
-              for (const alias of rawAliases) {
-                const aliasLower = alias.toLowerCase();
-                const aliasWords = aliasLower.split(/\s+/).filter(w => w.length > 2);
-                const matchedAliasWords = aliasWords.filter(w => payerName.includes(w)).length;
-                if (aliasWords.length > 0 && (
-                  payerName.includes(aliasLower) ||               // coincidencia exacta de frase
-                  matchedAliasWords >= aliasWords.length ||        // todas las palabras coinciden
-                  (aliasWords.length <= 2 && matchedAliasWords >= 1 && payerName.includes(aliasWords[0]))
-                )) {
-                  console.log(`🏷️ Webhook MP: Match por alias en observaciones — "${alias}" → cliente ${inv.client.name}`);
-                  return inv;
-                }
-              }
-
-              // ── PRIORIDAD 2: DNI ───────────────────────────────────────────
-              if (cleanClientDni && cleanClientDni.length >= 7 && cleanPayerDni && cleanPayerDni.length >= 7 && (cleanPayerDni.includes(cleanClientDni) || cleanClientDni.includes(cleanPayerDni))) return inv;
-
-              // ── PRIORIDAD 3: Email ─────────────────────────────────────────
-              if (clientEmail && clientEmail.length > 5 && payerEmail && payerEmail === clientEmail) return inv;
-
-              // ── PRIORIDAD 4: Teléfono ──────────────────────────────────────
-              if (clientPhone && clientPhone.length >= 8 && payerPhone && payerPhone.length >= 8 && (payerPhone.includes(clientPhone) || clientPhone.includes(payerPhone))) return inv;
-              
-              // ── PRIORIDAD 5: Nombre genérico ──────────────────────────────
-              const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
-              const matchedWordsCount = nameWords.filter(word => payerName.includes(word)).length;
-              if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
-                return inv;
-              }
-            }
-            return candidates.length === 1 ? candidates[0] : null;
           };
 
 
