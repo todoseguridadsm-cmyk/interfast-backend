@@ -3513,16 +3513,19 @@ function buildBotClientSearchWhere(query) {
 
 const botRequestLogs = [];
 app.use('/api/bot', (req, res, next) => {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    method: req.method,
-    url: req.originalUrl,
-    query: req.query,
-    headers: { 'user-agent': req.headers['user-agent'], 'x-api-key': req.headers['x-api-key'] }
-  };
-  botRequestLogs.unshift(logEntry);
-  if (botRequestLogs.length > 50) botRequestLogs.pop();
-  console.log('[Bot N8N Monitor]', JSON.stringify(logEntry));
+  try {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      method: req.method || 'GET',
+      url: req.originalUrl || req.url || '',
+      query: req.query || {},
+      headers: { 'user-agent': (req.headers && req.headers['user-agent']) || '', 'x-api-key': (req.headers && req.headers['x-api-key']) || '' }
+    };
+    botRequestLogs.unshift(logEntry);
+    if (botRequestLogs.length > 50) botRequestLogs.pop();
+  } catch (e) {
+    console.error("Error en middleware bot logging:", e.message);
+  }
   next();
 });
 // --- CONTROL DE ATENCIÓN Y PAUSA INTELIGENTE DEL BOT ---
