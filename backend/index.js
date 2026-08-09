@@ -3686,13 +3686,24 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
 
     let client = null;
     let parsedId = null;
-    const strVal = rawId.toString().trim();
-    const whereClause = buildBotClientSearchWhere(strVal);
-    client = await prisma.client.findFirst({ where: whereClause });
+
+    // 0. Si viene un nombre explicito de cliente en la solicitud o en la descripcion (ej: VILLEGAS NIDIA)
+    const explicitName = req.body.clientName || req.body.clienteName || req.body.nombreCliente;
+    if (explicitName) {
+      client = await prisma.client.findFirst({
+        where: { name: { contains: explicitName.toString().trim(), mode: 'insensitive' } }
+      });
+    }
+
+    if (!client) {
+      const strVal = rawId.toString().trim();
+      const whereClause = buildBotClientSearchWhere(strVal);
+      client = await prisma.client.findFirst({ where: whereClause });
+    }
     
     if (client) {
       parsedId = client.id;
-      console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: la IA envió '${rawId}', se resolvió al cliente ID ${client.id} (${client.name}).`);
+      console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: se resolvió al cliente ID ${client.id} (${client.name}).`);
     }
 
     if (!client) {
