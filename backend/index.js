@@ -2703,8 +2703,10 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
 
+        const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+
         if (invoiceIdsToProcess.length === 0) {
-          console.log(`ℹ️ Webhook MP: Sin referencia válida (${ref}). Intentando conciliación automática para pago de $${transactionAmount}...`);
+          console.log(`ℹ️ Webhook MP: Sin referencia válida (${ref}). Intentando conciliación automática inteligente para pago de $${transactionAmount}...`);
           
           const pendingInvoices = await prisma.invoice.findMany({
             where: { status: 'PENDING' },
@@ -2715,22 +2717,32 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           let matchedInvoice = null;
           let exactCentsMatches = [];
 
-          for (const inv of pendingInvoices) {
-            const oldCentsOffset = ((inv.clientId || inv.id || 1) % 99 + 1) / 100;
-            const newCentsOffset = ((inv.clientId || inv.id || 1) % 1000) / 100;
-            const possibleAmounts = [
-              inv.originalAmount + oldCentsOffset,
-              inv.priceV1 + oldCentsOffset,
-              inv.priceV2 ? inv.priceV2 + oldCentsOffset : null,
-              inv.priceV3 ? inv.priceV3 + oldCentsOffset : null,
-              inv.priceV4 ? inv.priceV4 + oldCentsOffset : null,
-              inv.originalAmount + newCentsOffset,
-              inv.priceV1 + newCentsOffset,
-              inv.priceV2 ? inv.priceV2 + newCentsOffset : null,
-              inv.priceV3 ? inv.priceV3 + newCentsOffset : null,
-              inv.priceV4 ? inv.priceV4 + newCentsOffset : null
-            ].filter(a => a !== null && a > 0);
+          const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
 
+          for (const inv of pendingInvoices) {
+            const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
+            const centsVal = getCents999(cId);
+
+            let possibleAmounts = [];
+            if (inv.month === 8 && inv.year === 2026) {
+              // Agosto 2026: V1 usa el monto cargado en DB, V2/V3/V4 usan centavos unicos
+              possibleAmounts = [
+                inv.priceV1 || inv.originalAmount,
+                inv.priceV2 ? inv.priceV2 + centsVal : null,
+                inv.priceV3 ? inv.priceV3 + centsVal : null,
+                inv.priceV4 ? inv.priceV4 + centsVal : null
+              ];
+            } else {
+              // Septiembre 2026 en adelante: V1 a V4 aplican centavos unicos de 999 combinaciones
+              possibleAmounts = [
+                (inv.priceV1 || inv.originalAmount) + centsVal,
+                inv.priceV2 ? inv.priceV2 + centsVal : null,
+                inv.priceV3 ? inv.priceV3 + centsVal : null,
+                inv.priceV4 ? inv.priceV4 + centsVal : null
+              ];
+            }
+
+            possibleAmounts = possibleAmounts.filter(a => a !== null && a > 0);
             const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
 
             if (matchesCentsAndAmount) {
@@ -2739,10 +2751,33 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           }
 
           const disambiguate = (candidates) => {
-            const payerName = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.toLowerCase().trim();
-            const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
-            const payerDni = String(mpPayment.payer?.identification?.number || '');
-            const payerPhone = String(mpPayment.payer?.phone?.number || '').replace(/\D/g, '');
+            const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
+            const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            const payerTokens = payerClean.split(/\s+/).filter(w => w.length >= 3);
+
+            for (const inv of candidates) {
+              const clientRaw = (inv.client?.name || '');
+              const clientClean = clientRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+              const clientTokens = clientClean.split(/\s+/).filter(w => w.length >= 3);
+
+              // 1. Coincidencia por 2 o más palabras clave del nombre
+              const matchingTokens = clientTokens.filter(tok => payerClean.includes(tok)).length;
+              if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
+                console.log(`🏷️ Webhook MP: Match inteligente por nombre/tokens ("${clientRaw}" vs "${payerRaw}") → cliente #${inv.clientId}`);
+                return inv;
+              }
+
+              // 2. Coincidencia por DNI / CUIT
+              const payerDni = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
+              const clientDni = String(inv.client?.dni || '').replace(/\D/g, '');
+              if (cleanDni(clientDni) && cleanDni(payerDni) && (payerDni.includes(clientDni) || clientDni.includes(payerDni))) {
+                return inv;
+              }
+            }
+            return candidates[0] || null;
+          };
+
+          function cleanDni(d) { return d && d.length >= 7; }
 
             for (const inv of candidates) {
               const clientName = (inv.client?.name || '').toLowerCase();
@@ -3911,19 +3946,40 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         }
         globalActiveV = activeV;
         
-        const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
-        const currentConCentavos = parseFloat(currentAmount) + centsVal;
-        
-        totalDebtBase += currentConCentavos;
+        const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+        const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
+        const centsVal = getCents999(cId);
+
+        let pV1Num, pV2Num, pV3Num, pV4Num;
+        if (inv.month === 8 && inv.year === 2026) {
+          // Agosto 2026: V1 mantiene tarifa cargada, V2 a V4 aplican centavos unicos
+          pV1Num = parseFloat(inv.priceV1 || inv.originalAmount);
+          pV2Num = inv.priceV2 ? parseFloat(inv.priceV2) + centsVal : null;
+          pV3Num = inv.priceV3 ? parseFloat(inv.priceV3) + centsVal : null;
+          pV4Num = inv.priceV4 ? parseFloat(inv.priceV4) + centsVal : null;
+        } else {
+          // Septiembre 2026+: V1 a V4 aplican centavos unicos de 999 combinaciones
+          pV1Num = parseFloat(inv.priceV1 || inv.originalAmount) + centsVal;
+          pV2Num = inv.priceV2 ? parseFloat(inv.priceV2) + centsVal : null;
+          pV3Num = inv.priceV3 ? parseFloat(inv.priceV3) + centsVal : null;
+          pV4Num = inv.priceV4 ? parseFloat(inv.priceV4) + centsVal : null;
+        }
+
+        let currentAmountNum = pV1Num;
+        if (activeV === 'V4' && pV4Num) currentAmountNum = pV4Num;
+        else if (activeV === 'V3' && pV3Num) currentAmountNum = pV3Num;
+        else if (activeV === 'V2' && pV2Num) currentAmountNum = pV2Num;
+
+        totalDebtBase += currentAmountNum;
         periods.push(`${inv.month}/${inv.year}`);
         const accountLabel = matchingClients.length > 1 ? ` [Servicio: ${inv.client?.name || 'Cliente'} - ${inv.client?.address || 'S/D'}]` : '';
         
-        let invDetail = `- Período ${inv.month}/${inv.year}${accountLabel}: Monto actual a abonar hoy: $${currentConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
-        if (inv.dueDate1 && inv.priceV2) {
-          const pV1 = (parseFloat(inv.priceV1 || inv.originalAmount) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2});
-          const pV2 = (parseFloat(inv.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2});
-          const pV3 = inv.priceV3 ? (parseFloat(inv.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
-          const pV4 = inv.priceV4 ? (parseFloat(inv.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
+        let invDetail = `- Período ${inv.month}/${inv.year}${accountLabel}: Monto actual a abonar hoy: $${currentAmountNum.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+        if (inv.dueDate1 && pV2Num) {
+          const pV1 = pV1Num.toLocaleString('es-AR', {minimumFractionDigits:2});
+          const pV2 = pV2Num.toLocaleString('es-AR', {minimumFractionDigits:2});
+          const pV3 = pV3Num ? pV3Num.toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
+          const pV4 = pV4Num ? pV4Num.toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
           invDetail += `\n  (Desglose de valores según fecha: V1: $${pV1} | V2: $${pV2}${pV3 ? ` | V3: $${pV3}` : ''}${pV4 ? ` | V4: $${pV4}` : ''})`;
         }
         breakdown.push(invDetail);
