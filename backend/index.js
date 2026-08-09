@@ -1992,12 +1992,12 @@ app.get('/api/cash/daily', async (req, res) => {
     if (date && endDate) {
       const [year, month, day] = date.split('-');
       const [eyear, emonth, eday] = endDate.split('-');
-      startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-      endOfDay = new Date(eyear, emonth - 1, eday, 23, 59, 59, 999);
+      startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      endOfDay = new Date(Date.UTC(eyear, emonth - 1, eday, 23, 59, 59, 999));
     } else if (date) {
       const [year, month, day] = date.split('-');
-      startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-      endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+      startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     } else {
       startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);

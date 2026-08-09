@@ -79,8 +79,8 @@ export default function DailyCash() {
   (data.payments || []).forEach(p => {
     const methodUpper = (p.method || '').toUpperCase();
     const isCash = methodUpper.startsWith('CASH');
-    const isRoela = methodUpper === 'BANCO_ROELA' || methodUpper === 'ROELA';
-    const isMp = methodUpper === 'MERCADOPAGO' || methodUpper.startsWith('MERCADO');
+    const isRoela = methodUpper.includes('ROELA');
+    const isMp = methodUpper.includes('MERCADO') || methodUpper.includes('MP') || methodUpper.includes('TRANSFER') || methodUpper.includes('DEBITO') || methodUpper.includes('RAPIPAGO');
 
     let source = 'MANUAL';
     let paymentOperator = 'SISTEMA';
