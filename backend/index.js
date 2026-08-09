@@ -3548,19 +3548,20 @@ app.post('/api/bot/reanudar-chat', (req, res) => {
   res.json({ success: true, message: `Chat ${cleanPhone} reanudado para Sofi` });
 });
 
-app.all(['/api/bot/verificar-atencion', '/api/bot/check-status'], (req, res) => {
+function handleVerificarAtencion(req, res) {
   try {
     const q = req.query || {};
     const b = req.body || {};
 
-    const phone = q.phone || b.phone;
-    const timestamp = q.timestamp || b.timestamp || q.msgDate || b.msgDate;
-    const fromMe = q.fromMe === 'true' || b.fromMe === 'true' || q.fromMe === true || b.fromMe === true;
+    const phone = q.phone || b.phone || '';
+    const timestamp = q.timestamp || b.timestamp || q.msgDate || b.msgDate || '';
+    const fromMeRaw = q.fromMe !== undefined ? q.fromMe : b.fromMe;
+    const fromMe = String(fromMeRaw) === 'true';
 
     // 0. AUTO-PAUSA AL DETECTAR MENSAJE SALIENTE DESDE EL CELULAR DE UN OPERADOR (fromMe = true)
-    if (fromMe && phone) {
-      const cleanPhone = phone.toString().replace(/\D/g, '');
-      if (cleanPhone && cleanPhone !== 'error_no_number') {
+    if (fromMe && phone && phone !== 'undefined') {
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      if (cleanPhone && cleanPhone !== 'error_no_number' && cleanPhone.length >= 7) {
         const durationHours = 1; // 1 HORA DE PAUSA
         const expireAt = Date.now() + durationHours * 3600 * 1000;
         pausedChatsMap.set(cleanPhone, expireAt);
@@ -3575,14 +3576,12 @@ app.all(['/api/bot/verificar-atencion', '/api/bot/check-status'], (req, res) => 
     }
 
     // 1. CONTROL DE MENSAJES VIEJOS ENCOLEADOS (UNPUBLISH -> PUBLISH EN N8N)
-    if (timestamp) {
+    if (timestamp && timestamp !== 'undefined') {
       let msgTimeMs = parseInt(timestamp);
-      if (!isNaN(msgTimeMs)) {
-        // Si viene en segundos unix (10 dígitos), convertir a ms
+      if (!isNaN(msgTimeMs) && msgTimeMs > 0) {
         if (msgTimeMs < 10000000000) msgTimeMs = msgTimeMs * 1000;
-        
         const ageSeconds = (Date.now() - msgTimeMs) / 1000;
-        if (ageSeconds > 90) { // Si tiene más de 90 segundos de antigüedad
+        if (ageSeconds > 90) {
           console.log(`[Bot Control] OMITIENDO MENSAJE ANTIGUO (${Math.round(ageSeconds)}s de antigüedad):`, timestamp);
           return res.json({
             canRespond: false,
@@ -3595,32 +3594,38 @@ app.all(['/api/bot/verificar-atencion', '/api/bot/check-status'], (req, res) => 
     }
 
     // 2. CONTROL DE INTERVENCIÓN MANUAL POR OPERADOR HUMANO
-    if (phone) {
-      const cleanPhone = phone.toString().replace(/\D/g, '');
-      const expireAt = pausedChatsMap.get(cleanPhone);
-      if (expireAt) {
-        if (Date.now() < expireAt) {
-          console.log(`[Bot Control] OMITIENDO MENSAJE - CHAT ATENDIDO MANULMENTE: ${cleanPhone}`);
-          return res.json({
-            canRespond: false,
-            shouldIgnore: true,
-            reason: `El chat ${cleanPhone} fue atendido manualmente por un operador humano. Sofi no responderá.`,
-            code: 'HUMAN_OPERATOR_ACTIVE',
-            pausedUntil: new Date(expireAt).toISOString()
-          });
-        } else {
-          pausedChatsMap.delete(cleanPhone); // Expiró la pausa
+    if (phone && phone !== 'undefined') {
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const expireAt = pausedChatsMap.get(cleanPhone);
+        if (expireAt) {
+          if (Date.now() < expireAt) {
+            console.log(`[Bot Control] OMITIENDO MENSAJE - CHAT ATENDIDO MANULMENTE: ${cleanPhone}`);
+            return res.json({
+              canRespond: false,
+              shouldIgnore: true,
+              reason: `El chat ${cleanPhone} fue atendido manualmente por un operador humano. Sofi no responderá.`,
+              code: 'HUMAN_OPERATOR_ACTIVE',
+              pausedUntil: new Date(expireAt).toISOString()
+            });
+          } else {
+            pausedChatsMap.delete(cleanPhone); // Expiró la pausa
+          }
         }
       }
     }
 
     return res.json({ canRespond: true, shouldIgnore: false });
   } catch (err) {
-    console.error("Error en /api/bot/verificar-atencion:", err);
-    // En caso de cualquier error imprevisto, responder siempre 200 para no romper el flujo de n8n
+    console.error("Error en handleVerificarAtencion:", err);
     return res.json({ canRespond: true, shouldIgnore: false, errorFallback: true });
   }
-});
+}
+
+app.get('/api/bot/verificar-atencion', handleVerificarAtencion);
+app.post('/api/bot/verificar-atencion', handleVerificarAtencion);
+app.get('/api/bot/check-status', handleVerificarAtencion);
+app.post('/api/bot/check-status', handleVerificarAtencion);
 
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
