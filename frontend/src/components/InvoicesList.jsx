@@ -193,9 +193,9 @@ export default function InvoicesList() {
     setLoading(false);
   };
   
-  const getCentsVal = (inv) => {
-    return ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
-  };
+   const getCentsVal = (inv) => {
+     return (((parseInt(inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 999) + 1) / 100);
+   };
 
 // Utility function to determine the active vencimiento
 const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
@@ -704,7 +704,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   const { activeV } = getInvoiceActiveVencimiento(inv);
                   const notifiedV = inv.notifiedAt ? getInvoiceActiveVencimiento(inv, new Date(inv.notifiedAt)).activeV : null;
                   const isUpToDateNotified = notifiedV === activeV;
-                  const isSelectable = (!isPaid && !isUpToDateNotified && !isDebito) || (isPaid && !inv.afipCae);
+                  const isSelectable = !isPaid;
                   const centsVal = getCentsVal(inv);
                   const displayOriginal = parseFloat(inv.originalAmount) + centsVal;
                   const displayTotal = parseFloat(inv.totalAmount) + centsVal;
