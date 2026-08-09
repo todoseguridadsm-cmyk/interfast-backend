@@ -2703,8 +2703,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
 
-        const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
-
         if (invoiceIdsToProcess.length === 0) {
           console.log(`ℹ️ Webhook MP: Sin referencia válida (${ref}). Intentando conciliación automática inteligente para pago de $${transactionAmount}...`);
           
@@ -2794,7 +2792,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           };
 
           function cleanDni(d) { return d && d.length >= 7; }
-          };
 
 
           if (exactCentsMatches.length === 1) {
