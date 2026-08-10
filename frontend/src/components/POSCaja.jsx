@@ -73,7 +73,12 @@ export default function POSCaja() {
     e.preventDefault();
     setLoading(true);
     try {
-      const methodStr = paymentChannel === 'BANCO_ROELA' ? 'BANCO_ROELA' : 'CASH_' + operator;
+      const methodStr = paymentChannel === 'BANCO_ROELA' 
+        ? 'BANCO_ROELA' 
+        : paymentChannel === 'MERCADOPAGO' 
+        ? 'MERCADOPAGO' 
+        : 'CASH_' + operator;
+
       await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
         amountPaid: parseFloat(payModal.amount) || 0,
         lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
@@ -85,18 +90,19 @@ export default function POSCaja() {
       await fetchData(); // Refresh data to clear paid invoices
       
       // Receipt Prompt
-      if (window.confirm("¡Cobro en Efectivo Registrado con Éxito!\n\n¿Deseas imprimir el comprobante de pago ahora?")) {
-        generatePDF(payModal.inv, parseFloat(payModal.amount), selectedClient);
+      const channelLabel = paymentChannel === 'MERCADOPAGO' ? 'MercadoPago' : paymentChannel === 'BANCO_ROELA' ? 'Banco Roela' : 'Efectivo';
+      if (window.confirm(`¡Cobro por ${channelLabel} Registrado con Éxito!\n\n¿Deseas imprimir el comprobante de pago ahora?`)) {
+        generatePDF(payModal.inv, parseFloat(payModal.amount), selectedClient, paymentChannel);
       }
       
     } catch (error) {
       console.error(error);
-      alert('Error registrando cobro automático.');
+      alert('Error registrando cobro.');
     }
     setLoading(false);
   };
 
-  const generatePDF = (inv, amountPaid, activeClient) => {
+  const generatePDF = (inv, amountPaid, activeClient, channel = 'EFECTIVO') => {
     const doc = new jsPDF();
     doc.setFont("helvetica");
     
@@ -140,8 +146,9 @@ export default function POSCaja() {
     const userObj = userString ? JSON.parse(userString) : { username: 'Admin' };
     doc.text(`Operador / Cajero: ${userObj.username.toUpperCase()}`, 110, 80);
     
+    const channelLabel = channel === 'MERCADOPAGO' ? 'MERCADOPAGO' : channel === 'BANCO_ROELA' ? 'BANCO ROELA' : 'EFECTIVO';
     const finalStatus = amountPaid >= inv.totalAmount ? 'PAGO TOTAL CONTADO' : 'PAGO PARCIAL A CUENTA';
-    doc.text(`Medio de Pago: EFECTIVO (${finalStatus})`, 110, 86);
+    doc.text(`Medio de Pago: ${channelLabel} (${finalStatus})`, 110, 86);
 
     // Items
     const originalAmountRounded = inv.originalAmount ? inv.originalAmount.toFixed(2) : '0.00';
@@ -181,7 +188,6 @@ export default function POSCaja() {
       
       // Save
       const safeClientName = activeClient.name.replace(/[^a-z0-9]/gi, '_');
-      const today = new Date();
       doc.save(`Ticket_Caja_${safeClientName}_F${inv.id}.pdf`);
     } catch(err) {
       console.error(err);
@@ -338,8 +344,10 @@ export default function POSCaja() {
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
             <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 p-8 text-white relative">
               <div className="absolute top-0 right-0 p-4 opacity-20"><CreditCard size={80}/></div>
-              <h3 className="text-2xl font-black">Caja - Recibir Efectivo</h3>
-              <p className="text-emerald-100 mt-1 font-medium text-sm">Ingrese el importe físico entregado.</p>
+              <h3 className="text-2xl font-black">
+                Caja - {paymentChannel === 'MERCADOPAGO' ? 'Cobro MercadoPago' : paymentChannel === 'BANCO_ROELA' ? 'Cobro Banco Roela' : 'Recibir Efectivo'}
+              </h3>
+              <p className="text-emerald-100 mt-1 font-medium text-sm">Ingrese el importe ingresado.</p>
             </div>
             <form onSubmit={submitPayment} className="p-8 space-y-6">
               
@@ -350,18 +358,25 @@ export default function POSCaja() {
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Medio / Canal de Cobro</label>
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   <button 
                     type="button" 
                     onClick={() => setPaymentChannel('EFECTIVO')}
-                    className={`py-3 rounded-xl font-bold text-xs uppercase border-2 transition-all ${paymentChannel === 'EFECTIVO' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-400'}`}
+                    className={`py-3 px-2 rounded-xl font-bold text-[11px] uppercase border-2 transition-all ${paymentChannel === 'EFECTIVO' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-400'}`}
                   >
-                    💵 Efectivo (Caja Física)
+                    💵 Efectivo
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentChannel('MERCADOPAGO')}
+                    className={`py-3 px-2 rounded-xl font-bold text-[11px] uppercase border-2 transition-all ${paymentChannel === 'MERCADOPAGO' ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-400'}`}
+                  >
+                    📱 MercadoPago
                   </button>
                   <button 
                     type="button" 
                     onClick={() => setPaymentChannel('BANCO_ROELA')}
-                    className={`py-3 rounded-xl font-bold text-xs uppercase border-2 transition-all ${paymentChannel === 'BANCO_ROELA' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-400'}`}
+                    className={`py-3 px-2 rounded-xl font-bold text-[11px] uppercase border-2 transition-all ${paymentChannel === 'BANCO_ROELA' ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-400'}`}
                   >
                     🏦 Banco Roela
                   </button>
@@ -384,7 +399,9 @@ export default function POSCaja() {
               )}
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight text-center">BILLETES RECIBIDOS AL MOSTRADOR</label>
+                <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight text-center">
+                  {paymentChannel === 'EFECTIVO' ? 'BILLETES RECIBIDOS AL MOSTRADOR' : 'MONTO INGRESADO / REGISTRADO'}
+                </label>
                 <div className="relative">
                   <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-400">$</span>
                   <input 
@@ -402,7 +419,7 @@ export default function POSCaja() {
                     <AlertCircle size={18}/> Saldo a Favor. La factura será PARCIAL.
                   </p>
                 )}
-                {parseFloat(payModal.amount) > payModal.inv.totalAmount && (
+                {parseFloat(payModal.amount) > payModal.inv.totalAmount && paymentChannel === 'EFECTIVO' && (
                   <p className="text-blue-600 text-sm font-bold mt-4 flex items-center justify-center gap-1 bg-blue-50 border border-blue-200 py-3 rounded-xl">
                     <CheckCircle size={18}/> Dar vuelto de: ${(parseFloat(payModal.amount) - payModal.inv.totalAmount).toLocaleString(undefined, {minimumFractionDigits: 2})}
                   </p>
@@ -424,3 +441,4 @@ export default function POSCaja() {
     </div>
   );
 }
+

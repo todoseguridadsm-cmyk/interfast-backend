@@ -52,11 +52,13 @@ export default function DailyCash() {
     if(!amount || !desc) return alert('Por favor completa todos los campos.');
     try {
       const needsSocio = category === 'SUELDO' || category === 'RETIRO_SOCIO';
-      const selectedOperator = type === 'OUT' 
-        ? sourceBox 
-        : (needsSocio ? targetSocio : operatorName);
+      const selectedOperator = needsSocio
+        ? targetSocio
+        : (type === 'OUT' ? sourceBox : operatorName);
 
-      const prefixedDesc = `[CAJA: ${selectedOperator}] ${desc}`;
+      const boxTag = type === 'OUT' ? sourceBox : (needsSocio ? targetSocio : operatorName);
+      const socioText = needsSocio ? ` Retiro de socio ${targetSocio} -` : '';
+      const prefixedDesc = `[CAJA: ${boxTag}]${socioText} ${desc}`;
 
       await axios.post(`${API}/api/cash/movement`, {
         type,
@@ -212,10 +214,19 @@ export default function DailyCash() {
   // Caja por socio: cobros físicos propios + retiros del socio (positivo) - sueldo (negativo)
   const getSocioCaja = (socioName) => {
     const sn = socioName.toUpperCase();
-    const cashIn = all.filter(i => i.source === 'CASH_POS' && i.user === sn && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
-    const egresoFisico = all.filter(i => i.user === sn && i.type === 'OUT' && i.category !== 'SUELDO' && i.category !== 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
-    const retiro = all.filter(i => i.category === 'RETIRO_SOCIO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
-    const sueldo = all.filter(i => i.category === 'SUELDO' && (i.operator === sn || i.user === sn)).reduce((s, i) => s + i.amount, 0);
+    const snNorm = sn.replace('Í', 'I');
+    const cashIn = all.filter(i => i.source === 'CASH_POS' && (i.user === sn || i.user === snNorm) && i.type === 'IN').reduce((s, i) => s + i.amount, 0);
+    const egresoFisico = all.filter(i => (i.user === sn || i.user === snNorm) && i.type === 'OUT' && i.category !== 'SUELDO' && i.category !== 'RETIRO_SOCIO').reduce((s, i) => s + i.amount, 0);
+    const retiro = all.filter(i => i.category === 'RETIRO_SOCIO' && (
+      i.operator === sn || i.operator === snNorm ||
+      i.user === sn || i.user === snNorm ||
+      i.title.toUpperCase().includes(sn) || i.title.toUpperCase().includes(snNorm)
+    )).reduce((s, i) => s + i.amount, 0);
+    const sueldo = all.filter(i => i.category === 'SUELDO' && (
+      i.operator === sn || i.operator === snNorm ||
+      i.user === sn || i.user === snNorm ||
+      i.title.toUpperCase().includes(sn) || i.title.toUpperCase().includes(snNorm)
+    )).reduce((s, i) => s + i.amount, 0);
     
     // Balance = cobros físicos - egresos físicos + retiros - sueldo
     return { cashIn, egresoFisico, retiro, sueldo, balance: cashIn - egresoFisico + retiro - sueldo };
@@ -462,13 +473,13 @@ export default function DailyCash() {
 
       {/* ── MODAL ── */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
-            <div className="bg-slate-50 p-6 border-b border-slate-100">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md my-auto max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+            <div className="bg-slate-50 p-6 border-b border-slate-100 shrink-0">
               <h3 className="text-xl font-bold text-slate-800">Cargar Movimiento</h3>
               <p className="text-sm text-slate-500 mt-1">Operador: <strong className="text-blue-600">{operatorName}</strong></p>
             </div>
-            <form onSubmit={submitMovement} className="p-6 space-y-4">
+            <form onSubmit={submitMovement} className="p-6 space-y-4 overflow-y-auto">
 
               {/* Tipo */}
               <div className="grid grid-cols-2 gap-3">
