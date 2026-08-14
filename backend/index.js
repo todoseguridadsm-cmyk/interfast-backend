@@ -2323,7 +2323,8 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           else if (today > d1 && invoice.priceV2) { activeV = 'V2'; activeAmount = invoice.priceV2; }
         }
 
-        const centsVal = ((invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1) % 1000) / 100;
+        const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+        const centsVal = getCents999(invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1);
         const totalConCentavos = parseFloat(activeAmount) + centsVal;
         const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
         const originalConCentavos = parseFloat(invoice.originalAmount) + centsVal;
@@ -2794,10 +2795,51 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           function cleanDni(d) { return d && d.length >= 7; }
 
 
-          if (exactCentsMatches.length === 1) {
-            matchedInvoice = exactCentsMatches[0];
-            console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
-          } else if (exactCentsMatches.length > 1) {
+          // 0. PASO DE ALTA PRIORIDAD: Coincidencia directa por DNI/CUIL o Email del pagador enviado por MercadoPago
+          const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
+          const payerEmailRaw = (mpPayment.payer?.email || '').toLowerCase().trim();
+          
+          function cleanDni(d) { return d && d.length >= 7; }
+          
+          if (cleanDni(payerDniRaw) || (payerEmailRaw && payerEmailRaw.length > 5)) {
+            for (const inv of pendingInvoices) {
+              const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
+              const cEmail = (inv.client?.email || '').toLowerCase().trim();
+
+              const dniMatches = cleanDni(cDni) && cleanDni(payerDniRaw) && (payerDniRaw.includes(cDni) || cDni.includes(payerDniRaw));
+              const emailMatches = cEmail && payerEmailRaw && cEmail === payerEmailRaw;
+
+              if (dniMatches || emailMatches) {
+                // Verificar que el monto abonado corresponda a alguna de las escalas V1, V2, V3 o V4 (con margen de $5.00)
+                const possibleTierAmounts = [
+                  inv.priceV1 || inv.originalAmount,
+                  inv.priceV2,
+                  inv.priceV3,
+                  inv.priceV4
+                ].filter(a => a !== null && a > 0);
+
+                const matchesTier = possibleTierAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
+                if (matchesTier) {
+                  matchedInvoice = inv;
+                  console.log(`🎯 Webhook MP [Paso DNI/CUIL]: ¡ÉXITO POR DATOS DE PAGADOR MP! Factura #${matchedInvoice.id} imputada al cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) por coincidencia directa de ${dniMatches ? `DNI/CUIL (${payerDniRaw})` : `Email (${payerEmailRaw})`}.`);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!matchedInvoice && exactCentsMatches.length === 1) {
+            const candidate = exactCentsMatches[0];
+            const candidateDni = String(candidate.client?.dni || '').replace(/\D/g, '');
+            
+            // Si MP mandó un DNI que contradice al cliente de centavos, no imputar ciegamente
+            if (cleanDni(payerDniRaw) && cleanDni(candidateDni) && !payerDniRaw.includes(candidateDni) && !candidateDni.includes(payerDniRaw)) {
+              console.warn(`⚠️ Webhook MP: Centavos coinciden con ${candidate.client?.name} pero DNI del pagador (${payerDniRaw}) contradice al DNI del cliente (${candidateDni}). Omitiendo auto-imputación por centavos.`);
+            } else {
+              matchedInvoice = candidate;
+              console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
+            }
+          } else if (!matchedInvoice && exactCentsMatches.length > 1) {
             console.log(`⚠️ Webhook MP: Colisión detectada (${exactCentsMatches.length} clientes para centavos de $${transactionAmount}). Desambiguando por nombre/DNI del pagador...`);
             matchedInvoice = disambiguate(exactCentsMatches);
             if (matchedInvoice) {
