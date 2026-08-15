@@ -3590,6 +3590,8 @@ app.post('/api/bot/reanudar-chat', (req, res) => {
   res.json({ success: true, message: `Chat ${cleanPhone} reanudado para Sofi` });
 });
 
+const lastMessageMap = new Map();
+
 function handleVerificarAtencion(req, res) {
   try {
     const q = req.query || {};
@@ -3654,6 +3656,29 @@ function handleVerificarAtencion(req, res) {
             pausedChatsMap.delete(cleanPhone); // Expiró la pausa
           }
         }
+      }
+    }
+
+    // 3. DEBOUNCE ANTI-SPAM (2.5 SEGUNDOS) PARA EVITAR DOBLE RESPUESTA (ej. cuando mandan 2 imágenes juntas)
+    if (phone && phone !== 'undefined') {
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      if (cleanPhone && cleanPhone.length >= 7) {
+        const now = Date.now();
+        const lastMsgTime = lastMessageMap.get(cleanPhone) || 0;
+        
+        if (now - lastMsgTime < 2500) {
+          lastMessageMap.set(cleanPhone, now); // Refrescar el temporizador si siguen llegando
+          console.log(`[Bot Control] DEBOUNCE - Ignorando mensaje múltiple/simultáneo de ${cleanPhone}`);
+          return res.json({
+            canRespond: false,
+            shouldIgnore: true,
+            reason: `Mensaje recibido muy rápido (menos de 2.5s). Ignorado para evitar doble respuesta de Sofi.`,
+            code: 'MESSAGE_DEBOUNCED'
+          });
+        }
+        
+        // Registrar la hora de este mensaje válido
+        lastMessageMap.set(cleanPhone, now);
       }
     }
 
