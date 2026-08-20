@@ -3613,19 +3613,20 @@ function handleVerificarAtencion(req, res) {
     const fromMeRaw = q.fromMe !== undefined ? q.fromMe : b.fromMe;
     const fromMe = String(fromMeRaw) === 'true';
 
-    // 0. AUTO-PAUSA AL DETECTAR MENSAJE SALIENTE DESDE EL CELULAR DE UN OPERADOR (fromMe = true)
+    // 0. IGNORAR MENSAJES SALIENTES (fromMe = true) PARA QUE N8N NO SE RESPONDA A SÍ MISMO
     if (fromMe && phone && phone !== 'undefined') {
       const cleanPhone = String(phone).replace(/\D/g, '');
       if (cleanPhone && cleanPhone !== 'error_no_number' && cleanPhone.length >= 7) {
-        const durationHours = 1; // 1 HORA DE PAUSA
-        const expireAt = Date.now() + durationHours * 3600 * 1000;
-        pausedChatsMap.set(cleanPhone, expireAt);
-        console.log(`[Bot Control] MENSAJE HUMANO SALIENTE -> Chat ${cleanPhone} PAUSADO automáticamente por ${durationHours} hora.`);
+        // NOTA: Se desactiva la auto-pausa de 1 hora porque también se activaba cuando la propia IA (Sofi) 
+        // enviaba un mensaje, lo que provocaba que se silenciara a sí misma indefinidamente.
+        // Si un humano quiere intervenir, debe usar el botón "Pausar" en el CRM.
+        
+        console.log(`[Bot Control] MENSAJE SALIENTE DETECTADO -> Chat ${cleanPhone}. Se ignora para evitar bucle de N8N.`);
         return res.json({
           canRespond: false,
           shouldIgnore: true,
-          reason: `Intervención humana detectada desde el celular. Sofi pausada por 1 hora para ${cleanPhone}.`,
-          code: 'HUMAN_OUTGOING_MESSAGE'
+          reason: `Mensaje saliente. Sofi no debe procesar sus propios mensajes o los del operador.`,
+          code: 'OUTGOING_MESSAGE_IGNORED'
         });
       }
     }
