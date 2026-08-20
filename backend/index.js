@@ -3598,6 +3598,17 @@ function handleVerificarAtencion(req, res) {
     const b = req.body || {};
 
     const phone = q.phone || b.phone || '';
+    
+    // Ignorar estados de WhatsApp (status@broadcast)
+    if (phone.includes('@broadcast') || phone === 'status@broadcast') {
+      return res.json({
+        canRespond: false,
+        shouldIgnore: true,
+        reason: 'Mensaje de Estado de WhatsApp ignorado.',
+        code: 'WHATSAPP_STATUS_IGNORED'
+      });
+    }
+
     const timestamp = q.timestamp || b.timestamp || q.msgDate || b.msgDate || '';
     const fromMeRaw = q.fromMe !== undefined ? q.fromMe : b.fromMe;
     const fromMe = String(fromMeRaw) === 'true';
