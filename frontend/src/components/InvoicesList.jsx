@@ -250,8 +250,14 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}&v=${activeV}`;
     const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`;
     
-    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n${pricesText}📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💳 *¿Preferís pagar con tarjeta / MercadoPago?*\nPodés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n¡Muchas gracias!`);
-    window.open(`https://wa.me/549${phone}?text=${message}`, '_blank');
+    const message = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n${pricesText}📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💳 *¿Preferís pagar con tarjeta / MercadoPago?*\nPodés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n¡Muchas gracias!`;
+    
+    if (!window.confirm('¿Enviar Notificación de Deuda por WhatsApp mediante el Robot?')) return;
+    axios.post('https://interfast-backend-95ww.onrender.com/api/bot/send-custom-message', {
+      phone: phone,
+      message: message
+    }).then(res => alert(res.data.message))
+      .catch(err => alert(err.response?.data?.error || 'Error enviando WhatsApp'));
   };
 
   const warningWhatsApp = (inv) => {
@@ -264,8 +270,14 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     const totalEs = `${Math.floor(inv.totalAmount)},${centavos}`;
     const dueDateStr = inv.dueDate1 ? new Date(inv.dueDate1).toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
     const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-    const message = encodeURIComponent(`Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`);
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+    
+    if (!window.confirm('¿Enviar Aviso de Corte por WhatsApp mediante el Robot?')) return;
+    axios.post('https://interfast-backend-95ww.onrender.com/api/bot/send-custom-message', {
+      phone: phone,
+      message: message
+    }).then(res => alert(res.data.message))
+      .catch(err => alert(err.response?.data?.error || 'Error enviando WhatsApp'));
   };
 
   const mercadoPagoWhatsApp = (inv) => {
@@ -282,8 +294,14 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
 
     const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`;
     
-    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe compartimos el *Link de Pago* para que puedas abonar tu factura de Internet de forma rápida y segura a través de Mercado Pago.\n\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Total a abonar hoy:* *$${totalEs}*\n\n💳 *Aboná desde aquí:*\n${mpLink}\n\n⚠️ *Importante:* Al pagar a través de este link, la acreditación es inmediata.\n\n¡Muchas gracias!`);
-    window.open(`https://wa.me/${phone.startsWith('54') ? phone : '549' + phone}?text=${message}`, '_blank');
+    const message = `Hola ${inv.client.name}! 👋🏻\n\nTe compartimos el *Link de Pago* para que puedas abonar tu factura de Internet de forma rápida y segura a través de Mercado Pago.\n\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Total a abonar hoy:* *$${totalEs}*\n\n💳 *Aboná desde aquí:*\n${mpLink}\n\n⚠️ *Importante:* Al pagar a través de este link, la acreditación es inmediata.\n\n¡Muchas gracias!`;
+    
+    if (!window.confirm('¿Enviar Link de MercadoPago por WhatsApp mediante el Robot?')) return;
+    axios.post('https://interfast-backend-95ww.onrender.com/api/bot/send-custom-message', {
+      phone: phone,
+      message: message
+    }).then(res => alert(res.data.message))
+      .catch(err => alert(err.response?.data?.error || 'Error enviando WhatsApp'));
   };
 
   const generatePDF = (inv) => {

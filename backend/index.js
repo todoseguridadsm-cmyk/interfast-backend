@@ -4741,6 +4741,27 @@ app.get('/api/admin/test-mp', async (req, res) => {
   }
 });
 
+app.post('/api/bot/send-custom-message', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Faltan parámetros phone o message.' });
+    }
+    const phoneClean = phone.replace(/\D/g, '');
+    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+    
+    if (waSocket && waStatus === 'CONNECTED') {
+      await waSocket.sendMessage(targetPhone, { text: message });
+      res.json({ message: 'Mensaje enviado por WhatsApp (Robot).' });
+    } else {
+      res.status(400).json({ error: 'El Robot de WhatsApp no está conectado.' });
+    }
+  } catch (error) {
+    console.error('Error enviando custom message:', error);
+    res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
+  }
+});
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
