@@ -3659,20 +3659,20 @@ function handleVerificarAtencion(req, res) {
       }
     }
 
-    // 3. DEBOUNCE ANTI-SPAM (2.5 SEGUNDOS) PARA EVITAR DOBLE RESPUESTA (ej. cuando mandan 2 imágenes juntas)
+    // 3. DEBOUNCE ANTI-SPAM (7 SEGUNDOS) PARA EVITAR DOBLE RESPUESTA (ej. cuando mandan 2 imágenes juntas o mensajes cortos seguidos)
     if (phone && phone !== 'undefined') {
       const cleanPhone = String(phone).replace(/\D/g, '');
       if (cleanPhone && cleanPhone.length >= 7) {
         const now = Date.now();
         const lastMsgTime = lastMessageMap.get(cleanPhone) || 0;
         
-        if (now - lastMsgTime < 2500) {
+        if (now - lastMsgTime < 7000) {
           lastMessageMap.set(cleanPhone, now); // Refrescar el temporizador si siguen llegando
           console.log(`[Bot Control] DEBOUNCE - Ignorando mensaje múltiple/simultáneo de ${cleanPhone}`);
           return res.json({
             canRespond: false,
             shouldIgnore: true,
-            reason: `Mensaje recibido muy rápido (menos de 2.5s). Ignorado para evitar doble respuesta de Sofi.`,
+            reason: `Mensaje recibido muy rápido (menos de 7s). Ignorado para evitar doble respuesta de Sofi.`,
             code: 'MESSAGE_DEBOUNCED'
           });
         }
