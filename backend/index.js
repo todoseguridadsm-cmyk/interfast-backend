@@ -3945,14 +3945,40 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     if (parsedId && parsedId <= 2147483647) {
       const exactClient = await prisma.client.findUnique({ where: { id: parsedId } });
       if (exactClient) {
-        matchingClients = [exactClient];
+        // Encontrar todas las cuentas asociadas a la misma persona para unificar deuda
+        const samePersonClients = await prisma.client.findMany({
+          where: {
+            OR: [
+              { dni: exactClient.dni },
+              { phone: exactClient.phone }
+            ],
+            NOT: { OR: [{ dni: '' }, { phone: '' }] }
+          }
+        });
+        
+        const allClientsMap = new Map();
+        allClientsMap.set(exactClient.id, exactClient);
+        
+        // Solo asociamos si realmente comparten un DNI o Teléfono válido (evitar asociar por campos vacíos)
+        for (const c of samePersonClients) {
+          if ((c.dni && c.dni.length > 4 && c.dni === exactClient.dni) || 
+              (c.phone && c.phone.length > 4 && c.phone === exactClient.phone)) {
+             allClientsMap.set(c.id, c);
+          }
+        }
+        
+        matchingClients = Array.from(allClientsMap.values());
       }
     }
 
-    // 2. Si no se encontró por ID directo de cliente, buscar por DNI, Teléfono o CUIT
+    // 2. REGLA ESTRICTA DE SEGURIDAD PARA LA IA: Si no se encontró por ID directo, 
+    // prohibir la búsqueda genérica que causa mezcla de clientes (Data Leak).
     if (matchingClients.length === 0) {
-      const whereClause = buildBotClientSearchWhere(searchTarget);
-      matchingClients = await prisma.client.findMany({ where: whereClause });
+      return res.json({ 
+        success: false, 
+        found: false, 
+        message: 'ERROR DE IA: Debes utilizar la herramienta buscar_cliente primero y pasarme estrictamente su ID numérico exacto.' 
+      });
     }
 
     if (!matchingClients || matchingClients.length === 0) {
