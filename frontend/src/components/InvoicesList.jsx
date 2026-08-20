@@ -268,6 +268,24 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
+  const mercadoPagoWhatsApp = (inv) => {
+    if (!inv.client.phone) {
+      alert('Este cliente no tiene teléfono registrado.');
+      return;
+    }
+    const phone = inv.client.phone.replace(/\D/g, '');
+    
+    const { activeV, activeAmount } = getInvoiceActiveVencimiento(inv);
+    const centsVal = getCentsVal(inv);
+    const totalConCentavos = parseFloat(activeAmount) + centsVal;
+    const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
+
+    const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`;
+    
+    const message = encodeURIComponent(`Hola ${inv.client.name}! 👋🏻\n\nTe compartimos el *Link de Pago* para que puedas abonar tu factura de Internet de forma rápida y segura a través de Mercado Pago.\n\n📅 *Período:* ${String(inv.month).padStart(2,'0')}/${inv.year}\n💰 *Total a abonar hoy:* *$${totalEs}*\n\n💳 *Aboná desde aquí:*\n${mpLink}\n\n⚠️ *Importante:* Al pagar a través de este link, la acreditación es inmediata.\n\n¡Muchas gracias!`);
+    window.open(`https://wa.me/${phone.startsWith('54') ? phone : '549' + phone}?text=${message}`, '_blank');
+  };
+
   const generatePDF = (inv) => {
     const doc = new jsPDF();
     
@@ -796,6 +814,15 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 title="Aviso de Corte"
                               >
                                 <AlertCircle size={16} /> Avisar Corte
+                              </button>
+                            )}
+                            {!isDebito && inv.status === 'PENDING' && (
+                              <button 
+                                onClick={() => mercadoPagoWhatsApp(inv)} 
+                                className="text-sky-500 hover:text-sky-700 transition-colors p-2 rounded-lg hover:bg-sky-50 bg-white border border-sky-200 flex items-center gap-1 font-bold text-xs" 
+                                title="Link MercadoPago"
+                              >
+                                <CreditCard size={16} /> Link MP
                               </button>
                             )}
                             {inv.status === 'PENDING' && (
