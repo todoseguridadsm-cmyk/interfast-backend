@@ -3599,12 +3599,12 @@ function handleVerificarAtencion(req, res) {
 
     const phone = q.phone || b.phone || '';
     
-    // Ignorar estados de WhatsApp (status@broadcast)
-    if (phone.includes('@broadcast') || phone === 'status@broadcast') {
+    // Ignorar estados de WhatsApp (status@broadcast) o extracciones fallidas de N8N
+    if (phone.includes('@broadcast') || phone === 'status@broadcast' || phone === 'error_extraccion') {
       return res.json({
         canRespond: false,
         shouldIgnore: true,
-        reason: 'Mensaje de Estado de WhatsApp ignorado.',
+        reason: 'Mensaje de Estado de WhatsApp o remitente ignorado.',
         code: 'WHATSAPP_STATUS_IGNORED'
       });
     }
