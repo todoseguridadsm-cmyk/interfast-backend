@@ -1,0 +1,2329 @@
+{
+  "updatedAt": "2026-08-14T21:47:52.260Z",
+  "createdAt": "2026-06-09T23:08:27.892Z",
+  "id": "lIxhpAYplyjQyOLd",
+  "name": "My workflow",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "interfast-whatsapp",
+        "options": {}
+      },
+      "id": "cbb88c51-f0c8-452e-9ccc-4c0a3537b50e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        -96
+      ],
+      "webhookId": "interfast-evo-final"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e3b866b2-68b7-4f63-9431-71798e263741",
+              "leftValue": "={{ $json.numero_limpio }}",
+              "rightValue": "error_extraccion",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "21e2a40c-acb5-49bc-8f41-12841e4f88c8",
+      "name": "IF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Webhook').first().json.body?.payload?.location ? \"Te envié mi ubicación GPS.\" : ($('Webhook').first().json.body?.payload?.body || ($('Analyze audio').isExecuted ? \"El cliente envió un audio y la transcripción literal de su voz es: \" + $('Analyze audio').first().json?.content?.parts?.[0]?.text : null) || \"El cliente te envió una imagen o archivo adjunto. Como no podés verlo, asume por defecto que es un COMPROBANTE DE PAGO. Respondele agradeciendo y dile: '¡Gracias! Recibí tu comprobante/imagen. Si es el pago de tu factura, pasará a revisión administrativa y se acreditará pronto. (Nota: si me enviaste un sticker u otra foto, recordá que soy un asistente virtual y no tengo ojitos para verlo 👀)'.\") }}",
+        "options": {
+          "systemMessage": "Sos Sofi, el asistente de soporte tecnico de Interfast. Hablas en español argentino con voseo. Sos empatico y amable.\n\nREGLA MAS IMPORTANTE: Envia UN SOLO mensaje por vez. Espera respuesta antes de continuar.\n\nFLUJO OBLIGATORIO:\n\n1. SALUDO: Cuando el cliente dice que no tiene internet, saluda empáticamente y confirma que lo vas a ayudar.\n2. DIAGNÓSTICO (un paso por vez, espera respuesta antes de continuar):\n   - ANTES DE ARRANCAR EL DIAGNÓSTICO MANUAL: Si el cliente te dice que no tiene internet o que le anda mal, primero necesitas su ID numérico (si no lo tenés en la memoria de la charla, buscalo usando la herramienta buscar_cliente con su número, CUIT o DNI). Una vez que tengas el clientId, usá la herramienta \"Tool - Ping Antena\" para verificar el estado de su conexión.\n     * Si el Ping da OFFLINE: No hagas los pasos de reinicio. Decile directamente con empatía: \"Notamos un corte de energía en tu antena...\". Pedile que verifique si el transformador (POE) está bien enchufado a la corriente.\n     * Si el Ping da ONLINE: Decile que la antena responde bien (\"Todo parece funcionar bien en tu conexión inalámbrica...\"), por lo que el problema podría estar en el router o el cableado interno. Ahí sí, procedé con el Paso A.\n\n   - Paso A (Reinicio eléctrico): Pedile que desenchufe de la corriente tanto el router como el transformador de la antena. Decile que los deje desenchufados por 20 segundos cronometrados y los vuelva a conectar. Explicale que debe esperar 2 minutos a que las luces se estabilien y que te avise cuando esté listo para ver si volvió el servicio.\n   - Paso B (Verificación de luces): Si te dice que esperó y sigue sin internet, pedile que verifique si el transformador de la antena y el router quedaron encendidos y con luces.\n   - Paso C: Pedile que verifique si el cable que baja de la antena está bien calzado en el puerto WAN del router.\n   - Paso D (Factor climático): Si los cables y luces están perfectos pero sigue sin servicio, preguntale amablemente si ha corrido mucho viento en la zona últimamente (por si se pudo haber movido o desalineado la antena).\n\n3. Si el cliente soluciona el problema, despedite amablemente.\n\n4. Si no se soluciona tras los 3 pasos, dile que vas a crear un ticket para el tecnico pero primero necesitas verificar sus datos.\n\n5. Pedi el DNI, CUIT o celular. Usa la herramienta buscar_cliente para buscarlo.\n- Si LO ENCUENTRAS: la herramienta te devolverá sus datos y un ID numérico. Confirmá su nombre y dirección. Si te dice que sí es él, pasá al paso 6.\n- Si NO LO ENCUENTRAS: ¡ATENCIÓN! Está PROHIBIDO usar la herramienta crear_ticket, porque no podés inventar un ID. Decile amablemente: \"No logro encontrar tus datos en el sistema. Voy a derivar tu caso a un operador humano para que lo revise personalmente.\" y terminá la conversación ahí.\n6. Solo si encontraste al cliente, usa crear_ticket con estos campos exactos en formato JSON:\n{\n  \"clientId\": EL_ID_NUMERICO_REAL_QUE_ENCONTRASTE,\n  \"title\": \"Resumen corto del problema\",\n  \"description\": \"Detalle completo del diagnostico\",\n  \"status\": \"OPEN\",\n  \"priority\": \"NORMAL\"\n}\n7. REGLA DE PAGO NORMAL DE FACTURAS: Si el cliente consulta su deuda o pide pagar facturas vencidas (¡ATENCIÓN: Si menciona DÉBITO AUTOMÁTICO o SUSCRIPCIÓN MENSUAL, PROHIBIDO usar esta regla 7 y PROHIBIDO decir ACCION_LINK_PAGO!), usa OBLIGATORIAMENTE la herramienta obtener_factura pasándole en "query" el clientId numérico exacto que te devolvió la herramienta buscar_cliente. No busques en tu memoria ni asumas el estado. El estado real lo dicta obtener_factura.\n\n8. REGLA DE BAJAS: Si el cliente manifiesta explícitamente que quiere dar de baja el servicio, indaga brevemente el motivo de manera muy amable (ej. razones económicas, mudanza, disconformidad). Una vez que te dé el motivo, usa la herramienta solicitar_baja enviando el ID numérico del cliente (clientId) y el motivo (reason). Luego, confirmale que la solicitud de baja fue ingresada en el sistema y que será procesada por administración. ¡NUNCA inventes el clientId, búscalo antes con buscar_cliente!\nREGLA 9 (VENTAS Y COBERTURA):\n\nCuando un cliente consulte por planes o instalación, pedile amablemente su Pin de Ubicación por WhatsApp para verificar factibilidad técnica. Al recibirlo, usa consultar_catalogo_y_mapa.\n\nFILTRO OBLIGATORIO DE LÍNEA DE VISTA: Antes de pasar precios, preguntá: \"Como nuestro servicio es inalámbrico, ¿tenés árboles muy altos o construcciones de más de dos pisos que te tapen el techo hacia el frente?\".\n\nSi hay dudas o árboles, usá guardar_prospecto (status \"TECHNICAL_ISSUE\", notas: 'Posible obstrucción visual') y explícale que un técnico pasará a verificar la zona.\n\nSI TIENE COBERTURA Y LÍNEA DE VISTA LIBRE:\n\nDecile: \"¡Excelente, tenemos cobertura en tu zona!\".\n\nPRECIOS (SOLO REFERENCIA, NO SUMAR): Informá por separado: \"El costo de instalación es de $22.990 (incluye el primer mes) y el plan de 30 Megas tiene un valor mensual de $22.990\".\n\nOBTENCIÓN DE DATOS: Si acepta, pedile: \"Para avanzar, ¿me pasarías tu dirección exacta?\".\n\nACCIÓN DE ALTA: Una vez que tengas los datos, usá la herramienta guardar_alta enviando: name, phone, address y notes: \"[AGENTE N8N] Solicitud de alta\". Finalmente decile: \"¡Listo! Ya registré tu pedido y un técnico se pondrá en contacto a la brevedad\".\n\nSI NO TIENE COBERTURA: Decile amablemente que por ahora no llegamos a su zona y usá guardar_prospecto (status \"NO_COVERAGE\").\n\n10. \"REGLA ESTRICTA: Si el usuario envía una imagen de un comprobante, NO confirmes el pago. Dile solamente que pasará a revisión administrativa.\"\n\nIMPORTANTE: \n\"IMPORTANTE: El clientId debe ser estrictamente el numero entero 'id' que devolvio la herramienta buscar_cliente. NUNCA inventes este número.\"\n- La priority siempre debe ser NORMAL (en mayusculas).\n- NUNCA muestres IDs ni errores tecnicos al cliente.\n- NUNCA crees el ticket sin hacer el diagnostico completo de los 3 pasos.\n\"IMPORTANTE SOBRE FACTURAS: Al utilizar la herramienta obtener_factura, obedece estrictamente las instrucciones del campo formatted_message. SI LA FACTURA ESTÁ PENDIENTE DE PAGO (Estado PENDING): ESTÁ TERMINANTEMENTE PROHIBIDO y es una falta grave inventar, construir o entregar enlaces de descarga de PDF o facturas fiscales. PROHIBIDO escribir enlaces que contengan factura-pdf. Únicamente entrégale el Alias interfastsm con sus centavos e invítalo a pedirte el Link de Pago si prefiere abonar con tarjeta o sumarse al Débito Automático. Si en un mensaje posterior el cliente te pide el link para pagar con tarjeta, dale ÚNICA Y EXCLUSIVAMENTE el enlace paymentLink de Mercado Pago. SI LA FACTURA ESTÁ PAGADA (Estado PAID) y el JSON incluye el campo pdfUrl: Respóndele felicitándolo por estar al día y entrégale el enlace oficial de descarga del PDF que vino en ese campo. SI EL JSON NO INCLUYE EL CAMPO pdfUrl, JAMÁS LO INVENTES NI MENCIONES DESCARGAR FACTURA.\"\n REGLAS FINANCIERAS INNEGOCIABLES:\n\nTienes terminantemente prohibido ofrecer, sugerir o aplicar descuentos, promociones, bonificaciones, rebajas o condonaciones de recargos por mora bajo ninguna circunstancia.\nLos precios, importes y escalas de vencimientos arrojados por el sistema son estrictos, finales e innegociables.\nSi el cliente solicita un descuento, promoción o que se le quite el recargo por pagar fuera de término, debes responder de manera amable pero muy firme que el sistema gestiona la facturación y las escalas de mora de forma automática y que no cuentas con autorización ni herramientas administrativas para modificar los montos a abonar.\nADHESIÓn A DÉBITO AUTOMÁTICO (TIENE PRIORIDAD MÁXIMA SOBRE LA REGLA 7): Cuando un cliente pregunte, mencione o pida adherirse a débito automático, suscripción mensual o pago automático recurrente: ESTÁ TERMINANTEMENTE PROHIBIDO responder ACCION_LINK_PAGO. Debes ejecutar OBLIGATORIAMENTE la herramienta generar_debito_automatico pasándole su número de celular o DNI. Cuando la herramienta te devuelva el enlace, pégalo en tu respuesta y explícale que ahí podrá adherir su tarjeta o cuenta de Mercado Pago.\n\nREGLA ESTRICTA DE CONFIRMACIÓN DE IDENTIDAD: Cuando busques al cliente con buscar_cliente y encuentres sus datos, TU RESPUESTA DEBE SER ÚNICA Y EXCLUSIVAMENTE PARA CONFIRMAR IDENTIDAD (Ej: '¡Hola [Nombre]! Acá veo tus datos... ¿Me confirmás que sos vos y que tu dirección es [Dirección]?'). ESTÁ TERMINANTEMENTE PROHIBIDO ofrecer links de pago, mencionar facturas, saldos o métodos de cobro en este paso. Espera el 'sí soy yo' del cliente antes de pasar a buscar la factura.\n\nREGLA ANTI-MEMORIA Y PROHIBICIÓN DE PDF EN DEUDAS PENDIENTES: Aunque en tus mensajes anteriores de la memoria o en turnos previos veas que alguna vez enviaste un enlace de descarga de PDF o un link que contenga 'factura-pdf', IGNORA ESOS MENSAJES VIEJOS. Si el estado actual de la factura del cliente es PENDIENTE DE PAGO (PENDING), ESTÁ TERMINANTEMENTE PROHIBIDO repetir, copiar o enviar cualquier enlace de PDF o factura fiscal. Solo puedes entregar el enlace de pago con tarjeta (paymentLink) si te lo piden.",
+          "passthroughBinaryImages": true
+        }
+      },
+      "id": "7d1bbc32-fe9a-4b86-8411-94a7cc9fad59",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        752,
+        320
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Code in JavaScript').first().json.numero_limpio }}",
+        "contextWindowLength": 20
+      },
+      "id": "894303d8-d4a2-4e8c-94f3-8b9a5cb72881",
+      "name": "Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        688,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to search a client by DNI or phone number. Always use this tool when the user provides a DNI or phone number. Input: just the number, example: 34355806",
+        "jsCode": "try {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://interfast-backend-95ww.onrender.com/api/bot/buscar-cliente?query=${encodeURIComponent(query)}`,\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!'\n    }\n  });\n  \n  if (typeof response === 'string') return response;\n  return response.formatted_message || JSON.stringify(response);\n} catch(e) {\n  return 'Error al buscar cliente en el CRM: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1072,
+        608
+      ],
+      "id": "f9e2fc6b-9557-4e0b-bc4a-5dd65d5416bb",
+      "name": "Code Tool"
+    },
+    {
+      "parameters": {
+        "description": "Create a support ticket in the database. Use this tool after completing diagnosis and verifying client data.",
+        "jsCode": "let body;\ntry {\n  body = typeof query === 'string' ? JSON.parse(query) : query;\n} catch(e) {\n  return 'Error: El input debe ser un JSON válido. ' + e.message;\n}\n\ntry {\n  const response = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://interfast-backend-95ww.onrender.com/api/bot/crear-ticket',\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!',\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(body)\n  });\n  \n  if (response && response.duplicate_prevented) {\n    return `¡ATENCIÓN! ${response.message}`;\n  }\n  \n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al crear ticket en el CRM: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1184,
+        608
+      ],
+      "id": "38fcf6a6-93f6-4d8d-a03c-3d5f7c071729",
+      "name": "Code Tool1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha-67bs.onrender.com/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "interfast2024"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('AI Agent').first().json.output }}"
+            },
+            {
+              "name": "session",
+              "value": "waha-sofi"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1376,
+        336
+      ],
+      "id": "6726430b-ca4d-4437-a2d9-210141edc297",
+      "name": "HTTP Request",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  const body = item.json.body || {};\n  const payload = body.payload || {};\n  \n  // 1. Solo eventos de mensaje e ignorar propios/estados\n  if (body.event !== \"message\" || payload.fromMe === true || payload.from === \"status@broadcast\") {\n    item.json.numero_limpio = \"error_extraccion\";\n    continue;\n  }\n\n  // 2. Extraer el número de teléfono limpio\n  let rawNumber = payload._data?.key?.remoteJidAlt || payload.from || \"error_no_number\";\n  item.json.numero_limpio = rawNumber.split('@')[0];\n\n  // 3. Detectar Tipo de Mensaje Real de WAHA (chat, ptt, image, audio)\n  item.json.tipo_mensaje = payload.type || \"chat\"; \n\n  // 4. Extractor de URL Inteligente (Busca en todas las capas de WAHA)\n  let rawUrl = payload.url || payload.media?.url || payload.message?.imageMessage?.url || payload.message?.audioMessage?.url || null;\n  \n  // Guardamos la URL unificada en una sola variable limpia para n8n\n  item.json.url_archivo = rawUrl;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        -96
+      ],
+      "id": "77dd8b86-488c-4ed6-b2b0-6a56e83b87c5",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "Client",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "condition": "eq",
+              "keyValue": "={{ $json.numero_limpio }}"
+            }
+          ]
+        }
+      },
+      "id": "3eec4f78-0f3e-449c-93ca-917bb9814688",
+      "name": "Supabase - Buscar ID Cliente",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        32,
+        112
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "t4Nr8Lvj4dvUITSa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "CutoffList",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clientId",
+              "condition": "eq",
+              "keyValue": "={{ parseInt($json.id) || 999999 }}"
+            }
+          ]
+        }
+      },
+      "id": "d13e1f7c-5ac3-4540-9762-084d6320722c",
+      "name": "Supabase - Buscar Corte1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        192,
+        112
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "t4Nr8Lvj4dvUITSa",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "PENDING"
+            }
+          ]
+        }
+      },
+      "id": "334cc284-51e1-49b1-b252-a4ee9d40370e",
+      "name": "¿Está Cortado?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        352,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://interfast-backend-95ww.onrender.com/api/invoices?clientId={{ $if($('AI Agent').isExecuted, $('AI Agent').first().json?.output?.split(':')[1], $if($('Supabase - Buscar ID Cliente').isExecuted, $('Supabase - Buscar ID Cliente').first().json?.id, 0)) || 0 }}&status=PENDING",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "InterfastN8NBot2026!"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ce2d1bb-a2f0-4248-a4b3-af4aa9751252",
+      "name": "Obtener Facturas Pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1280,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let inputData = $input.all();\nlet invoiceIds = [];\n\nif (inputData[0] && Array.isArray(inputData[0].json)) {\n    invoiceIds = inputData[0].json.map(item => item.id || item.invoiceId);\n} else if (inputData[0] && inputData[0].json && Array.isArray(inputData[0].json.invoices)) {\n    invoiceIds = inputData[0].json.invoices.map(item => item.id || item.invoiceId);\n} else {\n    invoiceIds = inputData.map(item => item.json.id || item.json.invoiceId).filter(id => id !== undefined);\n}\n\nreturn [{ json: { invoiceIds: invoiceIds } }];"
+      },
+      "id": "6339a193-b118-4dbf-bbfd-064902e70986",
+      "name": "Extraer IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.invoiceIds.length }}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "id": "1776d731-b64f-47f1-95c6-35c555939289",
+      "name": "¿Tiene Facturas Pendientes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha-67bs.onrender.com/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "interfast2024"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+            },
+            {
+              "name": "text",
+              "value": "Actualmente estás al día, no tienes facturas pendientes de pago. ¡Muchas gracias! 😊"
+            },
+            {
+              "name": "session",
+              "value": "default"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e68c4d9-4961-4158-aa28-3447c0e61c19",
+      "name": "WAHA - Al día",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://interfast-backend-95ww.onrender.com/api/invoices/mercadopago/multi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "InterfastN8NBot2026!"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"invoiceIds\": {{ JSON.stringify($json.invoiceIds) }}\n}",
+        "options": {}
+      },
+      "id": "ea9aa8a0-f3b8-4554-bb82-fcf7ebe01e2a",
+      "name": "Generar Link MP Multi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1696,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha-67bs.onrender.com/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "interfast2024"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+            },
+            {
+              "name": "text",
+              "value": "=Aquí tienes tu link de pago actualizado: {{ $json.init_point }}"
+            },
+            {
+              "name": "session",
+              "value": "default"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ca7f3b6a-35b8-41ff-b9d4-dfdf04a4448c",
+      "name": "WAHA - Enviar Link Multi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1856,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8878584d-8916-4f81-80f7-99025966a9c0",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "ACCION_LINK_PAGO",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1184,
+        320
+      ],
+      "id": "0120d672-43c3-4f72-ac0e-17827628b755",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        544,
+        608
+      ],
+      "id": "e957bb5a-da7c-4f4b-92f9-89bc77adc157",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1cyIosPT0FNFpJJ7",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to register a client cancellation request (baja) when they explicitly ask for it. Input must be a valid JSON string with 'clientId' (integer) and 'reason' (string). Example: {\"clientId\": 14, \"reason\": \"Mudanza\"}",
+        "jsCode": "let body;\ntry {\n  body = JSON.parse(query); \n} catch(e) {\n  body = { clientId: null, reason: query };\n}\n\nif (body.clientId) {\n  body.clientId = parseInt(body.clientId);\n}\n\ntry {\n  // Pegando al endpoint definitivo de bajas y blindado con tu x-api-key\n  const response = await this.helpers.httpRequest({\n    method: 'POST', // Método POST confirmado\n    url: 'https://interfast-backend-95ww.onrender.com/api/bajas', // URL definitiva actualizada\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!', // Tu guardián global de seguridad\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(body)\n  });\n  \n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al registrar la baja en el CRM: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        832,
+        608
+      ],
+      "id": "2eed2dff-cee2-464d-8fc1-fc3f5f01501e",
+      "name": "Code Tool2"
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to get the current price list, internet plans, and coverage map coordinates. It requires no input parameters.",
+        "jsCode": "try {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://interfast-backend-95ww.onrender.com/api/sales-info',\n    headers: { 'x-api-key': 'InterfastN8NBot2026!' }\n  });\n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al consultar catálogo: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1296,
+        608
+      ],
+      "id": "82446940-3e62-47b0-bfec-ee374d47f68f",
+      "name": "Code Tool3"
+    },
+    {
+      "parameters": {
+        "description": "Use this tool to check the real-time connectivity status (ping) of a client's antenna. Input must be the numeric clientId (integer). Example: 14",
+        "jsCode": "const clientId = parseInt(query.trim());\nif (isNaN(clientId)) {\n  return \"Error: El input debe ser un ID numérico válido (clientId).\";\n}\n\ntry {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://interfast-backend-95ww.onrender.com/api/clients/${clientId}/ping`,\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!' // Lo dejo por consistencia con tus otros endpoints blindados\n    }\n  });\n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al hacer ping a la antena en el backend: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        960,
+        608
+      ],
+      "id": "a8b962c2-8207-4671-89db-bde245b241ce",
+      "name": "Code Tool5"
+    },
+    {
+      "parameters": {
+        "url": "={{ ($('Webhook').first().json.body?.payload?.url || $('Webhook').first().json.body?.payload?.media?.url || '').replace('http://localhost:10000', 'https://waha-67bs.onrender.com') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "interfast2024"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        336
+      ],
+      "id": "baf64604-b7b0-46b2-9860-3e0e7bb9cfdb",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e6ebab21-224b-4784-bdd7-aa2ab76bd2dd",
+              "leftValue": "={{ $('Webhook').first().json.body?.payload?.url || $('Webhook').first().json.body?.payload?.media?.url || '' }}",
+              "rightValue": "chat",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -32,
+        624
+      ],
+      "id": "b1d8ac3a-5850-4561-9a5c-2573d1262b37",
+      "name": "¿Tiene Media?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7682c1cd-7ad1-4f58-83de-96d76b50a7ca",
+              "leftValue": "={{ $binary.data?.fileExtension || '' }}",
+              "rightValue": "oga",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        336,
+        336
+      ],
+      "id": "12ac2ec3-3ebd-48f1-ad36-c61ae137da34",
+      "name": "¿Es Audio?"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "Transcribí este audio a texto de forma literal en español argentino. Solo devuelve el texto limpio de la transcripción, sin saludos, introducciones ni comentarios.",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        688,
+        176
+      ],
+      "id": "35d50f70-70c7-4719-8b55-769aaa41600b",
+      "name": "Analyze audio",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1cyIosPT0FNFpJJ7",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "\"Use esta herramienta para registrar una nueva alta de cliente en el sistema. Debe recibir un JSON con 'name', 'phone', 'address' y 'notes'.\"",
+        "jsCode": "let body = typeof query === 'string' ? JSON.parse(query) : query;\ntry {\n  // Aseguramos que la dirección se incluya en las notas si el endpoint no tiene un campo 'address' específico\n  const direccion = body.address ? \" Dirección: \" + body.address : \" Dirección: No proporcionada\";\n  \n  const response = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://interfast-backend-95ww.onrender.com/api/leads',\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!',\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      name: body.name,\n      phone: body.phone,\n      notes: \"[AGENTE N8N] \" + body.notes + direccion,\n      status: \"NUEVO\"\n    })\n  });\n  return \"Alta registrada exitosamente con dirección en el CRM.\";\n} catch(e) {\n  return 'Error al registrar el alta: ' + e.message;\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1424,
+        608
+      ],
+      "id": "e9ea59d0-e0a6-4b40-9966-d9919c984998",
+      "name": "guardar_alta"
+    },
+    {
+      "parameters": {
+        "url": "https://interfast-backend-95ww.onrender.com/api/bot/obtener-factura",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "query",
+              "valueProvider": "fieldValue",
+              "value": "={{$fromAI('query')}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "x-api-key",
+              "valueProvider": "fieldValue",
+              "value": "InterfastN8NBot2026!"
+            }
+          ]
+        },
+        "toolDescription": "Herramienta OBLIGATORIA para consultar facturas o deuda de un cliente. Ejecuta esta herramienta obligatoriamente pasándole en \"query\" el clientId numérico que te devolvió la herramienta buscar_cliente."
+      },
+      "id": "6087d283-50f9-4b6a-af0e-48c736ab334c",
+      "name": "obtener_factura",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        1552,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Herramienta OBLIGATORIA para débito automático o suscripción mensual. Ejecuta esta herramienta pasándole en query el DNI, teléfono o ID del cliente.",
+        "url": "https://interfast-backend-95ww.onrender.com/api/bot/debito-automatico",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "query"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "x-api-key",
+              "valueProvider": "fieldValue",
+              "value": "InterfastN8NBot2026!"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        608
+      ],
+      "id": "b78b7c1f-3a29-4cee-990d-86bf418980f8",
+      "name": "generar_debito_automatico"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://interfast-backend-95ww.onrender.com/api/bot/registrar-comprobante",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.numero_limpio }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0dc3ae98-7e53-40e2-b7cf-60a1f29ae995",
+      "name": "Notificar Comprobante al CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        528,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://interfast-backend-95ww.onrender.com/api/bot/verificar-atencion?phone={{ $json.numero_limpio }}&timestamp={{ $('Webhook').first().json.body?.payload?.timestamp || $('Webhook').first().json.body?.payload?._data?.timestamp }}&fromMe={{ $('Webhook').first().json.body?.payload?.fromMe }}",
+        "options": {}
+      },
+      "id": "65c9b635-37d8-458b-9237-a8746e87dc00",
+      "name": "Verificar Atención Bot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.canRespond }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "e4b871ac-b65c-4ec5-ad71-7f9a9c0f1022",
+      "name": "¿Puede Responder Sofi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscar ID Cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Verificar Atención Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Buscar ID Cliente": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscar Corte1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Buscar Corte1": {
+      "main": [
+        [
+          {
+            "node": "¿Está Cortado?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Está Cortado?1": {
+      "main": [
+        [
+          {
+            "node": "Obtener Facturas Pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Tiene Media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Facturas Pendientes": {
+      "main": [
+        [
+          {
+            "node": "Extraer IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer IDs": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Facturas Pendientes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Facturas Pendientes?": {
+      "main": [
+        [
+          {
+            "node": "Generar Link MP Multi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WAHA - Al día",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Link MP Multi": {
+      "main": [
+        [
+          {
+            "node": "WAHA - Enviar Link Multi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Obtener Facturas Pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool2": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool3": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "¿Es Audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Media?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Audio?": {
+      "main": [
+        [
+          {
+            "node": "Notificar Comprobante al CRM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze audio": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "guardar_alta": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "obtener_factura": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generar_debito_automatico": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Comprobante al CRM": {
+      "main": [
+        [
+          {
+            "node": "Analyze audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Atención Bot": {
+      "main": [
+        [
+          {
+            "node": "¿Puede Responder Sofi?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Puede Responder Sofi?": {
+      "main": [
+        [
+          {
+            "node": "IF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "3592bffc-f5f0-4936-9398-67872e6dd9c3",
+  "activeVersionId": "3592bffc-f5f0-4936-9398-67872e6dd9c3",
+  "versionCounter": 258,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-06-09T23:08:27.892Z",
+      "createdAt": "2026-06-09T23:08:27.892Z",
+      "role": "workflow:owner",
+      "workflowId": "lIxhpAYplyjQyOLd",
+      "projectId": "JhN2ly2YEQmWzsRT",
+      "project": {
+        "updatedAt": "2026-06-09T23:04:54.288Z",
+        "createdAt": "2026-06-09T23:00:48.305Z",
+        "id": "JhN2ly2YEQmWzsRT",
+        "name": "MATIAS BRANDI <todoseguridadsm@outlook.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "8de5e3af-52c3-4da9-aff4-e5143345a039"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-08-14T21:48:02.535Z",
+    "createdAt": "2026-08-14T21:47:52.410Z",
+    "versionId": "3592bffc-f5f0-4936-9398-67872e6dd9c3",
+    "workflowId": "lIxhpAYplyjQyOLd",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "interfast-whatsapp",
+          "options": {}
+        },
+        "id": "cbb88c51-f0c8-452e-9ccc-4c0a3537b50e",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -208,
+          -96
+        ],
+        "webhookId": "interfast-evo-final"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "e3b866b2-68b7-4f63-9431-71798e263741",
+                "leftValue": "={{ $json.numero_limpio }}",
+                "rightValue": "error_extraccion",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "21e2a40c-acb5-49bc-8f41-12841e4f88c8",
+        "name": "IF",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -208,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=={{ $('Webhook').first().json.body?.payload?.location ? \"Te envié mi ubicación GPS.\" : ($('Webhook').first().json.body?.payload?.body || ($('Analyze audio').isExecuted ? \"El cliente envió un audio y la transcripción literal de su voz es: \" + $('Analyze audio').first().json?.content?.parts?.[0]?.text : null) || \"El cliente te envió una imagen o archivo adjunto. Como no podés verlo, asume por defecto que es un COMPROBANTE DE PAGO. Respondele agradeciendo y dile: '¡Gracias! Recibí tu comprobante/imagen. Si es el pago de tu factura, pasará a revisión administrativa y se acreditará pronto. (Nota: si me enviaste un sticker u otra foto, recordá que soy un asistente virtual y no tengo ojitos para verlo 👀)'.\") }}",
+          "options": {
+            "systemMessage": "Sos Sofi, el asistente de soporte tecnico de Interfast. Hablas en español argentino con voseo. Sos empatico y amable.\n\nREGLA MAS IMPORTANTE: Envia UN SOLO mensaje por vez. Espera respuesta antes de continuar.\n\nFLUJO OBLIGATORIO:\n\n1. SALUDO: Cuando el cliente dice que no tiene internet, saluda empáticamente y confirma que lo vas a ayudar.\n2. DIAGNÓSTICO (un paso por vez, espera respuesta antes de continuar):\n   - ANTES DE ARRANCAR EL DIAGNÓSTICO MANUAL: Si el cliente te dice que no tiene internet o que le anda mal, primero necesitas su ID numérico (si no lo tenés en la memoria de la charla, buscalo usando la herramienta buscar_cliente con su número, CUIT o DNI). Una vez que tengas el clientId, usá la herramienta \"Tool - Ping Antena\" para verificar el estado de su conexión.\n     * Si el Ping da OFFLINE: No hagas los pasos de reinicio. Decile directamente con empatía: \"Notamos un corte de energía en tu antena...\". Pedile que verifique si el transformador (POE) está bien enchufado a la corriente.\n     * Si el Ping da ONLINE: Decile que la antena responde bien (\"Todo parece funcionar bien en tu conexión inalámbrica...\"), por lo que el problema podría estar en el router o el cableado interno. Ahí sí, procedé con el Paso A.\n\n   - Paso A (Reinicio eléctrico): Pedile que desenchufe de la corriente tanto el router como el transformador de la antena. Decile que los deje desenchufados por 20 segundos cronometrados y los vuelva a conectar. Explicale que debe esperar 2 minutos a que las luces se estabilien y que te avise cuando esté listo para ver si volvió el servicio.\n   - Paso B (Verificación de luces): Si te dice que esperó y sigue sin internet, pedile que verifique si el transformador de la antena y el router quedaron encendidos y con luces.\n   - Paso C: Pedile que verifique si el cable que baja de la antena está bien calzado en el puerto WAN del router.\n   - Paso D (Factor climático): Si los cables y luces están perfectos pero sigue sin servicio, preguntale amablemente si ha corrido mucho viento en la zona últimamente (por si se pudo haber movido o desalineado la antena).\n\n3. Si el cliente soluciona el problema, despedite amablemente.\n\n4. Si no se soluciona tras los 3 pasos, dile que vas a crear un ticket para el tecnico pero primero necesitas verificar sus datos.\n\n5. Pedi el DNI, CUIT o celular. Usa la herramienta buscar_cliente para buscarlo.\n- Si LO ENCUENTRAS: la herramienta te devolverá sus datos y un ID numérico. Confirmá su nombre y dirección. Si te dice que sí es él, pasá al paso 6.\n- Si NO LO ENCUENTRAS: ¡ATENCIÓN! Está PROHIBIDO usar la herramienta crear_ticket, porque no podés inventar un ID. Decile amablemente: \"No logro encontrar tus datos en el sistema. Voy a derivar tu caso a un operador humano para que lo revise personalmente.\" y terminá la conversación ahí.\n6. Solo si encontraste al cliente, usa crear_ticket con estos campos exactos en formato JSON:\n{\n  \"clientId\": EL_ID_NUMERICO_REAL_QUE_ENCONTRASTE,\n  \"title\": \"Resumen corto del problema\",\n  \"description\": \"Detalle completo del diagnostico\",\n  \"status\": \"OPEN\",\n  \"priority\": \"NORMAL\"\n}\n7. REGLA DE PAGO NORMAL DE FACTURAS: Si el cliente consulta su deuda o pide pagar facturas vencidas (¡ATENCIÓN: Si menciona DÉBITO AUTOMÁTICO o SUSCRIPCIÓN MENSUAL, PROHIBIDO usar esta regla 7 y PROHIBIDO decir ACCION_LINK_PAGO!), busca en tu memoria...\n\n8. REGLA DE BAJAS: Si el cliente manifiesta explícitamente que quiere dar de baja el servicio, indaga brevemente el motivo de manera muy amable (ej. razones económicas, mudanza, disconformidad). Una vez que te dé el motivo, usa la herramienta solicitar_baja enviando el ID numérico del cliente (clientId) y el motivo (reason). Luego, confirmale que la solicitud de baja fue ingresada en el sistema y que será procesada por administración. ¡NUNCA inventes el clientId, búscalo antes con buscar_cliente!\nREGLA 9 (VENTAS Y COBERTURA):\n\nCuando un cliente consulte por planes o instalación, pedile amablemente su Pin de Ubicación por WhatsApp para verificar factibilidad técnica. Al recibirlo, usa consultar_catalogo_y_mapa.\n\nFILTRO OBLIGATORIO DE LÍNEA DE VISTA: Antes de pasar precios, preguntá: \"Como nuestro servicio es inalámbrico, ¿tenés árboles muy altos o construcciones de más de dos pisos que te tapen el techo hacia el frente?\".\n\nSi hay dudas o árboles, usá guardar_prospecto (status \"TECHNICAL_ISSUE\", notas: 'Posible obstrucción visual') y explícale que un técnico pasará a verificar la zona.\n\nSI TIENE COBERTURA Y LÍNEA DE VISTA LIBRE:\n\nDecile: \"¡Excelente, tenemos cobertura en tu zona!\".\n\nPRECIOS (SOLO REFERENCIA, NO SUMAR): Informá por separado: \"El costo de instalación es de $22.990 (incluye el primer mes) y el plan de 30 Megas tiene un valor mensual de $22.990\".\n\nOBTENCIÓN DE DATOS: Si acepta, pedile: \"Para avanzar, ¿me pasarías tu dirección exacta?\".\n\nACCIÓN DE ALTA: Una vez que tengas los datos, usá la herramienta guardar_alta enviando: name, phone, address y notes: \"[AGENTE N8N] Solicitud de alta\". Finalmente decile: \"¡Listo! Ya registré tu pedido y un técnico se pondrá en contacto a la brevedad\".\n\nSI NO TIENE COBERTURA: Decile amablemente que por ahora no llegamos a su zona y usá guardar_prospecto (status \"NO_COVERAGE\").\n\n10. \"REGLA ESTRICTA: Si el usuario envía una imagen de un comprobante, NO confirmes el pago. Dile solamente que pasará a revisión administrativa.\"\n\nIMPORTANTE: \n\"IMPORTANTE: El clientId debe ser estrictamente el numero entero 'id' que devolvio la herramienta buscar_cliente. NUNCA inventes este número.\"\n- La priority siempre debe ser NORMAL (en mayusculas).\n- NUNCA muestres IDs ni errores tecnicos al cliente.\n- NUNCA crees el ticket sin hacer el diagnostico completo de los 3 pasos.\n\"IMPORTANTE SOBRE FACTURAS: Al utilizar la herramienta obtener_factura, obedece estrictamente las instrucciones del campo formatted_message. SI LA FACTURA ESTÁ PENDIENTE DE PAGO (Estado PENDING): ESTÁ TERMINANTEMENTE PROHIBIDO y es una falta grave inventar, construir o entregar enlaces de descarga de PDF o facturas fiscales. PROHIBIDO escribir enlaces que contengan factura-pdf. Únicamente entrégale el Alias interfastsm con sus centavos e invítalo a pedirte el Link de Pago si prefiere abonar con tarjeta o sumarse al Débito Automático. Si en un mensaje posterior el cliente te pide el link para pagar con tarjeta, dale ÚNICA Y EXCLUSIVAMENTE el enlace paymentLink de Mercado Pago. SI LA FACTURA ESTÁ PAGADA (Estado PAID) y el JSON incluye el campo pdfUrl: Respóndele felicitándolo por estar al día y entrégale el enlace oficial de descarga del PDF que vino en ese campo. SI EL JSON NO INCLUYE EL CAMPO pdfUrl, JAMÁS LO INVENTES NI MENCIONES DESCARGAR FACTURA.\"\n REGLAS FINANCIERAS INNEGOCIABLES:\n\nTienes terminantemente prohibido ofrecer, sugerir o aplicar descuentos, promociones, bonificaciones, rebajas o condonaciones de recargos por mora bajo ninguna circunstancia.\nLos precios, importes y escalas de vencimientos arrojados por el sistema son estrictos, finales e innegociables.\nSi el cliente solicita un descuento, promoción o que se le quite el recargo por pagar fuera de término, debes responder de manera amable pero muy firme que el sistema gestiona la facturación y las escalas de mora de forma automática y que no cuentas con autorización ni herramientas administrativas para modificar los montos a abonar.\nADHESIÓn A DÉBITO AUTOMÁTICO (TIENE PRIORIDAD MÁXIMA SOBRE LA REGLA 7): Cuando un cliente pregunte, mencione o pida adherirse a débito automático, suscripción mensual o pago automático recurrente: ESTÁ TERMINANTEMENTE PROHIBIDO responder ACCION_LINK_PAGO. Debes ejecutar OBLIGATORIAMENTE la herramienta generar_debito_automatico pasándole su número de celular o DNI. Cuando la herramienta te devuelva el enlace, pégalo en tu respuesta y explícale que ahí podrá adherir su tarjeta o cuenta de Mercado Pago.\n\nREGLA ESTRICTA DE CONFIRMACIÓN DE IDENTIDAD: Cuando busques al cliente con buscar_cliente y encuentres sus datos, TU RESPUESTA DEBE SER ÚNICA Y EXCLUSIVAMENTE PARA CONFIRMAR IDENTIDAD (Ej: '¡Hola [Nombre]! Acá veo tus datos... ¿Me confirmás que sos vos y que tu dirección es [Dirección]?'). ESTÁ TERMINANTEMENTE PROHIBIDO ofrecer links de pago, mencionar facturas, saldos o métodos de cobro en este paso. Espera el 'sí soy yo' del cliente antes de pasar a buscar la factura.\n\nREGLA ANTI-MEMORIA Y PROHIBICIÓN DE PDF EN DEUDAS PENDIENTES: Aunque en tus mensajes anteriores de la memoria o en turnos previos veas que alguna vez enviaste un enlace de descarga de PDF o un link que contenga 'factura-pdf', IGNORA ESOS MENSAJES VIEJOS. Si el estado actual de la factura del cliente es PENDIENTE DE PAGO (PENDING), ESTÁ TERMINANTEMENTE PROHIBIDO repetir, copiar o enviar cualquier enlace de PDF o factura fiscal. Solo puedes entregar el enlace de pago con tarjeta (paymentLink) si te lo piden.",
+            "passthroughBinaryImages": true
+          }
+        },
+        "id": "7d1bbc32-fe9a-4b86-8411-94a7cc9fad59",
+        "name": "AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [
+          752,
+          320
+        ],
+        "retryOnFail": true,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Code in JavaScript').first().json.numero_limpio }}",
+          "contextWindowLength": 20
+        },
+        "id": "894303d8-d4a2-4e8c-94f3-8b9a5cb72881",
+        "name": "Memory",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          688,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Use this tool to search a client by DNI or phone number. Always use this tool when the user provides a DNI or phone number. Input: just the number, example: 34355806",
+          "jsCode": "try {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://interfast-backend-95ww.onrender.com/api/bot/buscar-cliente?query=${encodeURIComponent(query)}`,\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!'\n    }\n  });\n  \n  if (typeof response === 'string') return response;\n  return response.formatted_message || JSON.stringify(response);\n} catch(e) {\n  return 'Error al buscar cliente en el CRM: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          1072,
+          608
+        ],
+        "id": "f9e2fc6b-9557-4e0b-bc4a-5dd65d5416bb",
+        "name": "Code Tool"
+      },
+      {
+        "parameters": {
+          "description": "Create a support ticket in the database. Use this tool after completing diagnosis and verifying client data.",
+          "jsCode": "let body;\ntry {\n  body = typeof query === 'string' ? JSON.parse(query) : query;\n} catch(e) {\n  return 'Error: El input debe ser un JSON válido. ' + e.message;\n}\n\ntry {\n  const response = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://interfast-backend-95ww.onrender.com/api/bot/crear-ticket',\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!',\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(body)\n  });\n  \n  if (response && response.duplicate_prevented) {\n    return `¡ATENCIÓN! ${response.message}`;\n  }\n  \n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al crear ticket en el CRM: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          1184,
+          608
+        ],
+        "id": "38fcf6a6-93f6-4d8d-a03c-3d5f7c071729",
+        "name": "Code Tool1"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://waha-67bs.onrender.com/api/sendText",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Api-Key",
+                "value": "interfast2024"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "chatId",
+                "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+              },
+              {
+                "name": "text",
+                "value": "={{ $('AI Agent').first().json.output }}"
+              },
+              {
+                "name": "session",
+                "value": "waha-sofi"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1376,
+          336
+        ],
+        "id": "6726430b-ca4d-4437-a2d9-210141edc297",
+        "name": "HTTP Request",
+        "alwaysOutputData": false,
+        "executeOnce": false,
+        "retryOnFail": false,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "jsCode": "for (const item of $input.all()) {\n  const body = item.json.body || {};\n  const payload = body.payload || {};\n  \n  // 1. Solo eventos de mensaje e ignorar propios/estados\n  if (body.event !== \"message\" || payload.fromMe === true || payload.from === \"status@broadcast\") {\n    item.json.numero_limpio = \"error_extraccion\";\n    continue;\n  }\n\n  // 2. Extraer el número de teléfono limpio\n  let rawNumber = payload._data?.key?.remoteJidAlt || payload.from || \"error_no_number\";\n  item.json.numero_limpio = rawNumber.split('@')[0];\n\n  // 3. Detectar Tipo de Mensaje Real de WAHA (chat, ptt, image, audio)\n  item.json.tipo_mensaje = payload.type || \"chat\"; \n\n  // 4. Extractor de URL Inteligente (Busca en todas las capas de WAHA)\n  let rawUrl = payload.url || payload.media?.url || payload.message?.imageMessage?.url || payload.message?.audioMessage?.url || null;\n  \n  // Guardamos la URL unificada en una sola variable limpia para n8n\n  item.json.url_archivo = rawUrl;\n}\n\nreturn $input.all();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          16,
+          -96
+        ],
+        "id": "77dd8b86-488c-4ed6-b2b0-6a56e83b87c5",
+        "name": "Code in JavaScript"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "Client",
+          "returnAll": true,
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "phone",
+                "condition": "eq",
+                "keyValue": "={{ $json.numero_limpio }}"
+              }
+            ]
+          }
+        },
+        "id": "3eec4f78-0f3e-449c-93ca-917bb9814688",
+        "name": "Supabase - Buscar ID Cliente",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          32,
+          112
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "t4Nr8Lvj4dvUITSa",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "CutoffList",
+          "returnAll": true,
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "clientId",
+                "condition": "eq",
+                "keyValue": "={{ parseInt($json.id) || 999999 }}"
+              }
+            ]
+          }
+        },
+        "id": "d13e1f7c-5ac3-4540-9762-084d6320722c",
+        "name": "Supabase - Buscar Corte1",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          192,
+          112
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "t4Nr8Lvj4dvUITSa",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.status }}",
+                "value2": "PENDING"
+              }
+            ]
+          }
+        },
+        "id": "334cc284-51e1-49b1-b252-a4ee9d40370e",
+        "name": "¿Está Cortado?1",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          352,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "url": "=https://interfast-backend-95ww.onrender.com/api/invoices?clientId={{ $if($('AI Agent').isExecuted, $('AI Agent').first().json?.output?.split(':')[1], $if($('Supabase - Buscar ID Cliente').isExecuted, $('Supabase - Buscar ID Cliente').first().json?.id, 0)) || 0 }}&status=PENDING",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-api-key",
+                "value": "InterfastN8NBot2026!"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "6ce2d1bb-a2f0-4248-a4b3-af4aa9751252",
+        "name": "Obtener Facturas Pendientes",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          1280,
+          96
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "let inputData = $input.all();\nlet invoiceIds = [];\n\nif (inputData[0] && Array.isArray(inputData[0].json)) {\n    invoiceIds = inputData[0].json.map(item => item.id || item.invoiceId);\n} else if (inputData[0] && inputData[0].json && Array.isArray(inputData[0].json.invoices)) {\n    invoiceIds = inputData[0].json.invoices.map(item => item.id || item.invoiceId);\n} else {\n    invoiceIds = inputData.map(item => item.json.id || item.json.invoiceId).filter(id => id !== undefined);\n}\n\nreturn [{ json: { invoiceIds: invoiceIds } }];"
+        },
+        "id": "6339a193-b118-4dbf-bbfd-064902e70986",
+        "name": "Extraer IDs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1424,
+          96
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "number": [
+              {
+                "value1": "={{ $json.invoiceIds.length }}",
+                "operation": "larger"
+              }
+            ]
+          }
+        },
+        "id": "1776d731-b64f-47f1-95c6-35c555939289",
+        "name": "¿Tiene Facturas Pendientes?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          1552,
+          96
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://waha-67bs.onrender.com/api/sendText",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Api-Key",
+                "value": "interfast2024"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "chatId",
+                "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+              },
+              {
+                "name": "text",
+                "value": "Actualmente estás al día, no tienes facturas pendientes de pago. ¡Muchas gracias! 😊"
+              },
+              {
+                "name": "session",
+                "value": "default"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "1e68c4d9-4961-4158-aa28-3447c0e61c19",
+        "name": "WAHA - Al día",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1632,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://interfast-backend-95ww.onrender.com/api/invoices/mercadopago/multi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "x-api-key",
+                "value": "InterfastN8NBot2026!"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"invoiceIds\": {{ JSON.stringify($json.invoiceIds) }}\n}",
+          "options": {}
+        },
+        "id": "ea9aa8a0-f3b8-4554-bb82-fcf7ebe01e2a",
+        "name": "Generar Link MP Multi",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          1696,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://waha-67bs.onrender.com/api/sendText",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Api-Key",
+                "value": "interfast2024"
+              }
+            ]
+          },
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "chatId",
+                "value": "={{ $('Code in JavaScript').first().json.numero_limpio }}@c.us"
+              },
+              {
+                "name": "text",
+                "value": "=Aquí tienes tu link de pago actualizado: {{ $json.init_point }}"
+              },
+              {
+                "name": "session",
+                "value": "default"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ca7f3b6a-35b8-41ff-b9d4-dfdf04a4448c",
+        "name": "WAHA - Enviar Link Multi",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1856,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "8878584d-8916-4f81-80f7-99025966a9c0",
+                "leftValue": "={{ $json.output }}",
+                "rightValue": "ACCION_LINK_PAGO",
+                "operator": {
+                  "type": "string",
+                  "operation": "contains"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1184,
+          320
+        ],
+        "id": "0120d672-43c3-4f72-ac0e-17827628b755",
+        "name": "If"
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-2.5-flash",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1.1,
+        "position": [
+          544,
+          608
+        ],
+        "id": "e957bb5a-da7c-4f4b-92f9-89bc77adc157",
+        "name": "Google Gemini Chat Model",
+        "credentials": {
+          "googlePalmApi": {
+            "id": "1cyIosPT0FNFpJJ7",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "description": "Use this tool to register a client cancellation request (baja) when they explicitly ask for it. Input must be a valid JSON string with 'clientId' (integer) and 'reason' (string). Example: {\"clientId\": 14, \"reason\": \"Mudanza\"}",
+          "jsCode": "let body;\ntry {\n  body = JSON.parse(query); \n} catch(e) {\n  body = { clientId: null, reason: query };\n}\n\nif (body.clientId) {\n  body.clientId = parseInt(body.clientId);\n}\n\ntry {\n  // Pegando al endpoint definitivo de bajas y blindado con tu x-api-key\n  const response = await this.helpers.httpRequest({\n    method: 'POST', // Método POST confirmado\n    url: 'https://interfast-backend-95ww.onrender.com/api/bajas', // URL definitiva actualizada\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!', // Tu guardián global de seguridad\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(body)\n  });\n  \n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al registrar la baja en el CRM: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          832,
+          608
+        ],
+        "id": "2eed2dff-cee2-464d-8fc1-fc3f5f01501e",
+        "name": "Code Tool2"
+      },
+      {
+        "parameters": {
+          "description": "Use this tool to get the current price list, internet plans, and coverage map coordinates. It requires no input parameters.",
+          "jsCode": "try {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: 'https://interfast-backend-95ww.onrender.com/api/sales-info',\n    headers: { 'x-api-key': 'InterfastN8NBot2026!' }\n  });\n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al consultar catálogo: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          1296,
+          608
+        ],
+        "id": "82446940-3e62-47b0-bfec-ee374d47f68f",
+        "name": "Code Tool3"
+      },
+      {
+        "parameters": {
+          "description": "Use this tool to check the real-time connectivity status (ping) of a client's antenna. Input must be the numeric clientId (integer). Example: 14",
+          "jsCode": "const clientId = parseInt(query.trim());\nif (isNaN(clientId)) {\n  return \"Error: El input debe ser un ID numérico válido (clientId).\";\n}\n\ntry {\n  const response = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://interfast-backend-95ww.onrender.com/api/clients/${clientId}/ping`,\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!' // Lo dejo por consistencia con tus otros endpoints blindados\n    }\n  });\n  return JSON.stringify(response);\n} catch(e) {\n  return 'Error al hacer ping a la antena en el backend: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          960,
+          608
+        ],
+        "id": "a8b962c2-8207-4671-89db-bde245b241ce",
+        "name": "Code Tool5"
+      },
+      {
+        "parameters": {
+          "url": "={{ ($('Webhook').first().json.body?.payload?.url || $('Webhook').first().json.body?.payload?.media?.url || '').replace('http://localhost:10000', 'https://waha-67bs.onrender.com') }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Api-Key",
+                "value": "interfast2024"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          176,
+          336
+        ],
+        "id": "baf64604-b7b0-46b2-9860-3e0e7bb9cfdb",
+        "name": "HTTP Request1"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "e6ebab21-224b-4784-bdd7-aa2ab76bd2dd",
+                "leftValue": "={{ $('Webhook').first().json.body?.payload?.url || $('Webhook').first().json.body?.payload?.media?.url || '' }}",
+                "rightValue": "chat",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -32,
+          624
+        ],
+        "id": "b1d8ac3a-5850-4561-9a5c-2573d1262b37",
+        "name": "¿Tiene Media?"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "7682c1cd-7ad1-4f58-83de-96d76b50a7ca",
+                "leftValue": "={{ $binary.data?.fileExtension || '' }}",
+                "rightValue": "oga",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          336,
+          336
+        ],
+        "id": "12ac2ec3-3ebd-48f1-ad36-c61ae137da34",
+        "name": "¿Es Audio?"
+      },
+      {
+        "parameters": {
+          "resource": "audio",
+          "operation": "analyze",
+          "modelId": {
+            "__rl": true,
+            "value": "models/gemini-2.5-flash",
+            "mode": "list",
+            "cachedResultName": "models/gemini-2.5-flash"
+          },
+          "text": "Transcribí este audio a texto de forma literal en español argentino. Solo devuelve el texto limpio de la transcripción, sin saludos, introducciones ni comentarios.",
+          "inputType": "binary",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.googleGemini",
+        "typeVersion": 1.2,
+        "position": [
+          688,
+          176
+        ],
+        "id": "35d50f70-70c7-4719-8b55-769aaa41600b",
+        "name": "Analyze audio",
+        "credentials": {
+          "googlePalmApi": {
+            "id": "1cyIosPT0FNFpJJ7",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "description": "\"Use esta herramienta para registrar una nueva alta de cliente en el sistema. Debe recibir un JSON con 'name', 'phone', 'address' y 'notes'.\"",
+          "jsCode": "let body = typeof query === 'string' ? JSON.parse(query) : query;\ntry {\n  // Aseguramos que la dirección se incluya en las notas si el endpoint no tiene un campo 'address' específico\n  const direccion = body.address ? \" Dirección: \" + body.address : \" Dirección: No proporcionada\";\n  \n  const response = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://interfast-backend-95ww.onrender.com/api/leads',\n    headers: {\n      'x-api-key': 'InterfastN8NBot2026!',\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      name: body.name,\n      phone: body.phone,\n      notes: \"[AGENTE N8N] \" + body.notes + direccion,\n      status: \"NUEVO\"\n    })\n  });\n  return \"Alta registrada exitosamente con dirección en el CRM.\";\n} catch(e) {\n  return 'Error al registrar el alta: ' + e.message;\n}"
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          1424,
+          608
+        ],
+        "id": "e9ea59d0-e0a6-4b40-9966-d9919c984998",
+        "name": "guardar_alta"
+      },
+      {
+        "parameters": {
+          "url": "https://interfast-backend-95ww.onrender.com/api/bot/obtener-factura",
+          "sendQuery": true,
+          "parametersQuery": {
+            "values": [
+              {
+                "name": "query"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "parametersHeaders": {
+            "values": [
+              {
+                "name": "x-api-key",
+                "valueProvider": "fieldValue",
+                "value": "InterfastN8NBot2026!"
+              }
+            ]
+          }
+        },
+        "id": "6087d283-50f9-4b6a-af0e-48c736ab334c",
+        "name": "obtener_factura",
+        "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+        "typeVersion": 1.1,
+        "position": [
+          1552,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "toolDescription": "Herramienta OBLIGATORIA para débito automático o suscripción mensual. Ejecuta esta herramienta pasándole en query el DNI, teléfono o ID del cliente.",
+          "url": "https://interfast-backend-95ww.onrender.com/api/bot/debito-automatico",
+          "sendQuery": true,
+          "parametersQuery": {
+            "values": [
+              {
+                "name": "query"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "parametersHeaders": {
+            "values": [
+              {
+                "name": "x-api-key",
+                "valueProvider": "fieldValue",
+                "value": "InterfastN8NBot2026!"
+              }
+            ]
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+        "typeVersion": 1.1,
+        "position": [
+          1680,
+          608
+        ],
+        "id": "b78b7c1f-3a29-4cee-990d-86bf418980f8",
+        "name": "generar_debito_automatico"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://interfast-backend-95ww.onrender.com/api/bot/registrar-comprobante",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "phone",
+                "value": "={{ $json.numero_limpio }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "0dc3ae98-7e53-40e2-b7cf-60a1f29ae995",
+        "name": "Notificar Comprobante al CRM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          528,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "url": "=https://interfast-backend-95ww.onrender.com/api/bot/verificar-atencion?phone={{ $json.numero_limpio }}&timestamp={{ $('Webhook').first().json.body?.payload?.timestamp || $('Webhook').first().json.body?.payload?._data?.timestamp }}&fromMe={{ $('Webhook').first().json.body?.payload?.fromMe }}",
+          "options": {}
+        },
+        "id": "65c9b635-37d8-458b-9237-a8746e87dc00",
+        "name": "Verificar Atención Bot",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          224,
+          -80
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.canRespond }}",
+                "value2": true
+              }
+            ]
+          }
+        },
+        "id": "e4b871ac-b65c-4ec5-ad71-7f9a9c0f1022",
+        "name": "¿Puede Responder Sofi?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          432,
+          -80
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Buscar ID Cliente",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code Tool": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code Tool1": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          [
+            {
+              "node": "Verificar Atención Bot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Buscar ID Cliente": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Buscar Corte1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Buscar Corte1": {
+        "main": [
+          [
+            {
+              "node": "¿Está Cortado?1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Está Cortado?1": {
+        "main": [
+          [
+            {
+              "node": "Obtener Facturas Pendientes",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "¿Tiene Media?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Obtener Facturas Pendientes": {
+        "main": [
+          [
+            {
+              "node": "Extraer IDs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraer IDs": {
+        "main": [
+          [
+            {
+              "node": "¿Tiene Facturas Pendientes?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Tiene Facturas Pendientes?": {
+        "main": [
+          [
+            {
+              "node": "Generar Link MP Multi",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "WAHA - Al día",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Generar Link MP Multi": {
+        "main": [
+          [
+            {
+              "node": "WAHA - Enviar Link Multi",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "Obtener Facturas Pendientes",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Gemini Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code Tool2": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code Tool3": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code Tool5": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request1": {
+        "main": [
+          [
+            {
+              "node": "¿Es Audio?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Tiene Media?": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Es Audio?": {
+        "main": [
+          [
+            {
+              "node": "Notificar Comprobante al CRM",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Analyze audio": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "guardar_alta": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "obtener_factura": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "generar_debito_automatico": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notificar Comprobante al CRM": {
+        "main": [
+          [
+            {
+              "node": "Analyze audio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verificar Atención Bot": {
+        "main": [
+          [
+            {
+              "node": "¿Puede Responder Sofi?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "¿Puede Responder Sofi?": {
+        "main": [
+          [
+            {
+              "node": "IF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "MATIAS BRANDI",
+    "name": "Version 3592bffc",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-08-14T21:48:02.366Z",
+        "id": 222,
+        "workflowId": "lIxhpAYplyjQyOLd",
+        "versionId": "3592bffc-f5f0-4936-9398-67872e6dd9c3",
+        "event": "activated",
+        "userId": "8de5e3af-52c3-4da9-aff4-e5143345a039"
+      }
+    ]
+  }
+}
