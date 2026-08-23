@@ -815,7 +815,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                       </td>
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex flex-wrap items-center justify-center gap-2 min-w-[250px]">
                             {!isDebito && !isUpToDateNotified && (
                               <button 
                                 onClick={() => manualWhatsApp(inv)} 
