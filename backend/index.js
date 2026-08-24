@@ -3709,7 +3709,9 @@ app.post('/api/bot/check-status', handleVerificarAtencion);
 app.get('/api/bot/buscar-cliente', async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query) return res.status(400).json({ error: 'Falta parámetro query' });
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return res.status(400).json({ error: 'Falta parámetro de búsqueda o ID de cliente válido' });
+    }
 
     const whereClause = buildBotClientSearchWhere(query);
     const matchingClients = await prisma.client.findMany({
@@ -3948,10 +3950,17 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
   try {
     const { query, clientId } = req.query;
     const searchTarget = clientId || query;
-    if (!searchTarget) return res.status(400).json({ error: 'Falta parámetro query o clientId' });
+    
+    if (!searchTarget || typeof searchTarget !== 'string' || searchTarget.trim() === '') {
+      return res.status(400).json({ error: 'Falta parámetro de búsqueda o ID de cliente válido' });
+    }
 
     let matchingClients = [];
     const parsedId = !isNaN(parseInt(searchTarget)) && searchTarget.toString().trim().length <= 8 ? parseInt(searchTarget) : null;
+    
+    if (!parsedId) {
+      return res.status(400).json({ error: 'Falta parámetro de búsqueda o ID de cliente válido' });
+    }
     
     // 1. Si se pasó clientId o un ID numérico corto de cliente, buscar cliente directo
     if (parsedId && parsedId <= 2147483647) {
