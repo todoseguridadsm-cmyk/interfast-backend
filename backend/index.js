@@ -2789,7 +2789,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 return inv;
               }
             }
-            return candidates[0] || null;
+            return null;
           };
 
           function cleanDni(d) { return d && d.length >= 7; }
@@ -2832,10 +2832,19 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             const candidate = exactCentsMatches[0];
             const candidateDni = String(candidate.client?.dni || '').replace(/\D/g, '');
             
-            // Si MP mandó un DNI que contradice al cliente de centavos, no imputar ciegamente
+            // Si MP mandó un DNI que contradice al cliente de centavos
             if (cleanDni(payerDniRaw) && cleanDni(candidateDni) && !payerDniRaw.includes(candidateDni) && !candidateDni.includes(payerDniRaw)) {
-              console.warn(`⚠️ Webhook MP: Centavos coinciden con ${candidate.client?.name} pero DNI del pagador (${payerDniRaw}) contradice al DNI del cliente (${candidateDni}). Omitiendo auto-imputación por centavos.`);
+              console.log(`⚠️ Webhook MP: Contradicción de DNI detectada entre pagador (${payerDniRaw}) y cliente (${candidateDni}). Intentando desambiguación por Alias/Nombre...`);
+              
+              const disambiguated = disambiguate([candidate]);
+              if (disambiguated) {
+                matchedInvoice = disambiguated;
+                console.log(`🎯 Webhook MP: ¡RESCATADO POR ALIAS/NOMBRE! Factura #${matchedInvoice.id} imputada a pesar de la contradicción de DNI gracias a coincidencia de nombre/alias.`);
+              } else {
+                console.warn(`⚠️ Webhook MP: Centavos coinciden con ${candidate.client?.name} pero hay contradicción de DNI y no hay coincidencia de nombre ni Alias. Omitiendo auto-imputación por seguridad.`);
+              }
             } else {
+              // DNI coincide o no hay DNI válido para contradecir, se imputa ciegamente
               matchedInvoice = candidate;
               console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
             }
