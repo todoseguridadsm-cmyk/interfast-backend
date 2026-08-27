@@ -4899,8 +4899,54 @@ app.get('/api/chat/contacts', async (req, res) => {
 });
 
 app.get('/api/chat/messages/:phone', async (req, res) => {
-  // Como no guardaremos historial en BD (queda en el celular), retornamos array vacío.
-  res.json([]);
+  try {
+    const { phone } = req.params;
+    const cleanPhone = phone.replace(/\D/g, '');
+    const targetPhone = cleanPhone.startsWith('54') ? `${cleanPhone}@c.us` : `549${cleanPhone}@c.us`;
+
+    const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
+    const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
+
+    // Fetch messages from WAHA API (limit to 50 for quick loading)
+    const { data } = await axios.get(`${wahaUrl}/api/messages`, {
+      params: {
+        session: 'waha-sofi',
+        chatId: targetPhone,
+        limit: 50
+      },
+      headers: {
+        'X-Api-Key': wahaKey
+      }
+    });
+
+    // Map WAHA format to our expected format
+    const formattedMessages = data.map(msg => {
+      let text = '';
+      if (msg.body) {
+        text = msg.body;
+      } else if (msg._data?.message?.extendedTextMessage?.text) {
+        text = msg._data.message.extendedTextMessage.text;
+      } else if (msg._data?.message?.conversation) {
+        text = msg._data.message.conversation;
+      }
+
+      return {
+        id: msg.id,
+        phone: cleanPhone,
+        remitente: msg.fromMe ? 'Nosotros' : 'Cliente',
+        mensaje: text || '[Mensaje multimedia o sistema]',
+        created_at: new Date(msg.timestamp * 1000)
+      };
+    });
+
+    // Sort ascending (WAHA usually returns descending or ascending, we ensure ascending for chat UI)
+    formattedMessages.sort((a, b) => a.created_at - b.created_at);
+
+    res.json(formattedMessages);
+  } catch (error) {
+    console.error('Error fetching chat messages from WAHA:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Error obteniendo mensajes desde WAHA.' });
+  }
 });
 
 app.post('/api/chat/send', async (req, res) => {
@@ -4934,6 +4980,36 @@ app.post('/api/chat/send', async (req, res) => {
   }
 });
 
+
+app.post('/api/bot/waha-webhook', async (req, res) => {
+  // Proxy de Webhooks de WAHA hacia n8n
+  // Si SOFI_ENABLED es true, forwardeamos. Si no, lo descartamos.
+  try {
+    const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
+    const isEnabled = setting ? setting.value === 'true' : true;
+
+    if (!isEnabled) {
+      // Sofi está apagada, ignoramos el webhook y devolvemos 200 a WAHA
+      return res.status(200).json({ status: 'ignored', message: 'Sofi is disabled' });
+    }
+
+    // Forward to n8n
+    const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp'; // Hardcodeado por la config actual o usar env var
+    
+    // Evitamos enviar peticiones sin payload (por si WAHA manda vacíos de status)
+    if (req.body) {
+      // Hacemos el forward asincrónicamente para no bloquear la respuesta a WAHA
+      axios.post(n8nUrl, req.body, { headers: req.headers }).catch(err => {
+        console.error('Error enviando webhook a n8n:', err.message);
+      });
+    }
+
+    res.status(200).json({ status: 'forwarded' });
+  } catch (error) {
+    console.error('Error en el proxy de webhook WAHA:', error);
+    res.status(500).json({ error: 'Error procesando webhook' });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

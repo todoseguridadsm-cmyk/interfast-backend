@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MessageSquare, Send, Bot, Check, Users, Search, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, Bot, Check, Users, Search, Loader2, RefreshCw } from 'lucide-react';
 
 export default function ChatCRM() {
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
-  const [messages, setMessages] = useState({}); // Guardar mensajes en memoria local por chat { 'phone': [...] }
+  const [messages, setMessages] = useState({});
   const [messageInput, setMessageInput] = useState('');
   const [sofiEnabled, setSofiEnabled] = useState(true);
   const [sending, setSending] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef(null);
 
@@ -16,6 +17,12 @@ export default function ChatCRM() {
     fetchSofiStatus();
     fetchContacts();
   }, []);
+
+  useEffect(() => {
+    if (selectedContact) {
+      fetchMessages(selectedContact.phone);
+    }
+  }, [selectedContact]);
 
   useEffect(() => {
     scrollToBottom();
@@ -41,7 +48,7 @@ export default function ChatCRM() {
       await axios.post('https://interfast-backend-95ww.onrender.com/api/bot/toggle-sofi', { enabled: newState });
     } catch (err) {
       console.error(err);
-      setSofiEnabled(sofiEnabled); // revert on error
+      setSofiEnabled(sofiEnabled);
       alert('Error cambiando el estado de Sofi');
     }
   };
@@ -52,6 +59,21 @@ export default function ChatCRM() {
       setContacts(data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchMessages = async (phone) => {
+    setLoadingHistory(true);
+    try {
+      const { data } = await axios.get(`https://interfast-backend-95ww.onrender.com/api/chat/messages/${phone}`);
+      setMessages(prev => ({
+        ...prev,
+        [phone]: data
+      }));
+    } catch (err) {
+      console.error('Error fetching WAHA messages:', err);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -69,7 +91,6 @@ export default function ChatCRM() {
         message: msg
       });
       
-      // Agregar a la memoria local de la interfaz
       setMessages(prev => {
         const phone = selectedContact.phone;
         const currentMsgs = prev[phone] || [];
@@ -98,19 +119,17 @@ export default function ChatCRM() {
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col bg-slate-50 overflow-hidden rounded-2xl shadow-sm border border-slate-200">
       
-      {/* Header General */}
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600">
             <MessageSquare size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Mensajería Rápida (WAHA)</h2>
-            <p className="text-xs text-slate-500">Envía mensajes directamente desde el CRM (el historial queda en el celular de la empresa)</p>
+            <h2 className="text-xl font-bold text-slate-900">Chat WAHA CRM</h2>
+            <p className="text-xs text-slate-500">Historial en vivo desde WhatsApp (Sin base de datos propia)</p>
           </div>
         </div>
 
-        {/* Switch Sofi */}
         <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
           <Bot size={20} className={sofiEnabled ? 'text-indigo-600' : 'text-slate-400'} />
           <span className="text-sm font-semibold text-slate-700">
@@ -125,10 +144,8 @@ export default function ChatCRM() {
         </div>
       </header>
 
-      {/* Cuerpo del Chat (2 Columnas) */}
       <div className="flex flex-1 overflow-hidden">
         
-        {/* Panel Izquierdo: Lista de Contactos */}
         <div className="w-80 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
           <div className="p-4 border-b border-slate-100">
             <div className="relative">
@@ -171,29 +188,43 @@ export default function ChatCRM() {
           </div>
         </div>
 
-        {/* Panel Derecho: Historial de Mensajes y Envío */}
         <div className="flex-1 flex flex-col bg-[#e5ddd5] relative">
           <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-light_04fcacde539c58cca6745483d4858c52.png")', backgroundRepeat: 'repeat' }}></div>
           
           {selectedContact ? (
             <>
-              {/* Info Contacto Top */}
-              <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center gap-4 z-10 shrink-0">
-                <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold uppercase">
-                  {selectedContact.name.substring(0,2)}
+              <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex items-center justify-between z-10 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-slate-600 font-bold uppercase">
+                    {selectedContact.name.substring(0,2)}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{selectedContact.name}</h3>
+                    <p className="text-xs text-slate-500">{selectedContact.phone}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800">{selectedContact.name}</h3>
-                  <p className="text-xs text-slate-500">{selectedContact.phone}</p>
-                </div>
+                <button 
+                  onClick={() => fetchMessages(selectedContact.phone)} 
+                  disabled={loadingHistory}
+                  className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
+                  title="Recargar historial desde WAHA"
+                >
+                  <RefreshCw size={18} className={loadingHistory ? "animate-spin" : ""} />
+                </button>
               </div>
 
-              {/* Mensajes */}
               <div className="flex-1 overflow-y-auto p-6 z-10 flex flex-col gap-2">
-                {currentMessages.length === 0 && (
+                {loadingHistory && currentMessages.length === 0 && (
                   <div className="flex justify-center my-4">
-                    <span className="bg-emerald-100 text-emerald-800 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
-                      Esta conversación no guarda historial anterior. Los mensajes que envíes aparecerán aquí mientras no cierres la ventana.
+                    <span className="bg-white/80 text-slate-600 text-xs px-4 py-2 rounded-full shadow-sm flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin" /> Cargando historial desde WAHA...
+                    </span>
+                  </div>
+                )}
+                {currentMessages.length === 0 && !loadingHistory && (
+                  <div className="flex justify-center my-4">
+                    <span className="bg-amber-100 text-amber-800 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
+                      No se encontraron mensajes recientes en WAHA para este contacto.
                     </span>
                   </div>
                 )}
@@ -214,7 +245,6 @@ export default function ChatCRM() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Bottom */}
               <form onSubmit={handleSend} className="bg-slate-50 p-4 border-t border-slate-200 flex items-center gap-4 z-10 shrink-0">
                 <input
                   type="text"
@@ -236,8 +266,8 @@ export default function ChatCRM() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center z-10 text-slate-500">
               <MessageSquare size={64} className="mb-4 text-emerald-600/30" />
-              <h3 className="text-2xl font-bold text-slate-700">Envío Rápido de WhatsApp</h3>
-              <p className="mt-2 text-center max-w-sm">Selecciona un cliente de la lista para enviarle un mensaje a través de WAHA. El mensaje se registrará en el celular de la empresa.</p>
+              <h3 className="text-2xl font-bold text-slate-700">Chat con Historial en WAHA</h3>
+              <p className="mt-2 text-center max-w-sm">Selecciona un cliente. El historial de mensajes se descargará directamente del celular en tiempo real.</p>
             </div>
           )}
         </div>
