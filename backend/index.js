@@ -4994,12 +4994,14 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
     }
 
     // Forward to n8n
-    const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp'; // Hardcodeado por la config actual o usar env var
+    const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
     
-    // Evitamos enviar peticiones sin payload (por si WAHA manda vacíos de status)
     if (req.body) {
-      // Hacemos el forward asincrónicamente para no bloquear la respuesta a WAHA
-      axios.post(n8nUrl, req.body, { headers: req.headers }).catch(err => {
+      const headers = { ...req.headers };
+      delete headers['host'];
+      delete headers['content-length'];
+      
+      axios.post(n8nUrl, req.body, { headers }).catch(err => {
         console.error('Error enviando webhook a n8n:', err.message);
       });
     }
