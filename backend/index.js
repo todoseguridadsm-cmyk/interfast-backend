@@ -8,6 +8,7 @@ BigInt.prototype.toJSON = function () {
 
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const { PrismaClient } = require('@prisma/client');
 const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const cron = require('node-cron');
