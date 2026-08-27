@@ -111,9 +111,18 @@ let waStatus = 'DISCONNECTED';
 let waQrCode = null;
 let waSocket = null;
 global.recentReceipts = []; // Store { phone, timestamp }
+global.recentChats = new Map(); // Store { phone, name, lastMessageTime }
+
 setInterval(() => {
   const now = Date.now();
   global.recentReceipts = global.recentReceipts.filter(r => now - r.timestamp < 24 * 60 * 60 * 1000);
+  
+  // Limpiar chats recientes muy viejos (más de 30 días) para no llenar la RAM
+  for (const [phone, chat] of global.recentChats.entries()) {
+    if (now - chat.lastMessageTime.getTime() > 30 * 24 * 60 * 60 * 1000) {
+      global.recentChats.delete(phone);
+    }
+  }
 }, 60 * 60 * 1000);
 
 async function connectToWhatsApp() {
@@ -4879,18 +4888,43 @@ app.get('/api/chat/contacts', async (req, res) => {
       select: { id: true, name: true, phone: true }
     });
 
-    const contactList = dbClients
-      .filter(c => c.phone)
-      .map(c => {
+    const contactMap = new Map();
+
+    dbClients.forEach(c => {
+      if (c.phone) {
         const cleanPhone = c.phone.replace(/\D/g, '');
-        return {
+        contactMap.set(cleanPhone, {
           clientId: c.id,
           name: c.name,
           phone: cleanPhone,
           lastMessage: '',
-          lastMessageTime: new Date()
-        };
-      });
+          lastMessageTime: new Date(0) // Fecha antigua por defecto
+        });
+      }
+    });
+
+    if (global.recentChats) {
+      for (const [phone, chatData] of global.recentChats.entries()) {
+        let cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+        if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+
+        if (contactMap.has(cleanPhone)) {
+          contactMap.get(cleanPhone).lastMessageTime = chatData.lastMessageTime;
+        } else {
+          contactMap.set(cleanPhone, {
+            clientId: 'unknown-' + cleanPhone,
+            name: chatData.name,
+            phone: cleanPhone,
+            lastMessage: '',
+            lastMessageTime: chatData.lastMessageTime
+          });
+        }
+      }
+    }
+
+    const contactList = Array.from(contactMap.values());
+    contactList.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
 
     res.json(contactList);
   } catch (error) {
@@ -4974,6 +5008,14 @@ app.post('/api/chat/send', async (req, res) => {
         'X-Api-Key': wahaKey
       }
     });
+
+    if (global.recentChats) {
+      global.recentChats.set(phoneClean, {
+        phone: phoneClean,
+        name: global.recentChats.get(phoneClean)?.name || 'Desconocido (WhatsApp)',
+        lastMessageTime: new Date()
+      });
+    }
       
     res.json({ message: 'Mensaje enviado a través de WAHA API.' });
   } catch (error) {
@@ -4999,6 +5041,21 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
     const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
     
     if (req.body) {
+      if (req.body.payload && req.body.payload.from && global.recentChats) {
+        let phone = req.body.payload.from.replace('@c.us', '').replace('@s.whatsapp.net', '');
+        let notifyName = req.body.payload._data?.notifyName || 'Desconocido (WhatsApp)';
+        
+        let cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+        if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+
+        global.recentChats.set(cleanPhone, {
+          phone: cleanPhone,
+          name: notifyName,
+          lastMessageTime: new Date()
+        });
+      }
+
       const headers = { ...req.headers };
       delete headers['host'];
       delete headers['content-length'];

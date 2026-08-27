@@ -16,6 +16,13 @@ export default function ChatCRM() {
   useEffect(() => {
     fetchSofiStatus();
     fetchContacts();
+
+    // Refrescar lista de contactos cada 15 segundos para reordenar por recientes y mostrar nuevos
+    const contactsInterval = setInterval(() => {
+      fetchContacts(true); // silent fetch
+    }, 15000);
+
+    return () => clearInterval(contactsInterval);
   }, []);
 
   useEffect(() => {
