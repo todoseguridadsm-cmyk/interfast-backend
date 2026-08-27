@@ -787,31 +787,38 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                         </span>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        {isPaid ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                            <CheckCircle size={14} /> PAGADO
-                          </span>
-                        ) : inv.status === 'PARTIAL' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                            <CheckCircle size={14} /> PARCIAL
-                          </span>
-                        ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                              <Clock size={14} /> PENDIENTE
+                        <div className="flex flex-col items-center gap-1">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                              <CheckCircle size={14} /> PAGADO
                             </span>
-                            {isDebito && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
-                                <CreditCard size={10} /> DÉBITO AUT.
+                          ) : inv.status === 'PARTIAL' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                              <CheckCircle size={14} /> PARCIAL
+                            </span>
+                          ) : (
+                            <>
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                                <Clock size={14} /> PENDIENTE
                               </span>
-                            )}
-                            {!isDebito && inv.status === 'PENDING' && isUpToDateNotified && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
-                                <MessageCircle size={10} /> NOTIFICADO {activeV}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                              {isDebito && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">
+                                  <CreditCard size={10} /> DÉBITO AUT.
+                                </span>
+                              )}
+                              {!isDebito && inv.status === 'PENDING' && isUpToDateNotified && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                                  <MessageCircle size={10} /> NOTIFICADO {activeV}
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {inv.client?.status === 'SUSPENDED' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                              <AlertCircle size={10} /> CORTADO
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
