@@ -210,6 +210,8 @@ export default function DailyCash() {
 
   const totalIngreso  = totalCashIn + totalMpIn + totalRoelaIn + totalManualIn;
   const cajaGeneral   = totalIngreso - totalRetiro - totalAbono - totalGastos;
+  const egresoFisicoGeneral = all.filter(i => i.source === 'CASH_POS' && i.type === 'OUT').reduce((s, i) => s + i.amount, 0);
+  const saldoFisico = totalCashIn - egresoFisicoGeneral;
 
   // Caja por socio: cobros físicos propios + retiros del socio (positivo) - sueldo (negativo)
   const getSocioCaja = (socioName) => {
@@ -320,7 +322,7 @@ export default function DailyCash() {
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cobros Físicos</p>
-            <p className="text-xl lg:text-2xl font-black text-emerald-600 truncate">+${fmt(totalCashIn)}</p>
+            <p className="text-xl lg:text-2xl font-black text-emerald-600 truncate">${fmt(saldoFisico)}</p>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mercado Pago</p>
