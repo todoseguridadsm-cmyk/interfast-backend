@@ -4813,41 +4813,31 @@ app.post('/api/bot/send-custom-message', async (req, res) => {
 
 app.post('/api/bot/broadcast-n8n', async (req, res) => {
   try {
-    const { clients, message } = req.body;
+    const { clients, message, nodeName } = req.body;
     if (!clients || !Array.isArray(clients) || !message) {
       return res.status(400).json({ error: 'Faltan parámetros clients o message.' });
     }
 
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
-    if (!n8nWebhookUrl) {
-      return res.status(500).json({ error: 'La URL del webhook de n8n no está configurada en el servidor (N8N_WEBHOOK_URL).' });
-    }
-
-    let successCount = 0;
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/difusion';
     
-    // We send requests sequentially or concurrently. To avoid overwhelming n8n, 
-    // let's do it sequentially with a small delay.
-    for (const client of clients) {
-      if (!client.phone) continue;
-      
-      const phoneClean = client.phone.replace(/\D/g, '');
-      // El formato que use n8n depende de su configuración, enviamos los datos crudos y limpios
-      try {
-        await axios.post(n8nWebhookUrl, {
-          phone: phoneClean,
-          message: message,
-          clientName: client.name,
-          clientId: client.id
-        });
-        successCount++;
-        // Esperamos 500ms entre cada envío para no saturar n8n/whatsapp
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (err) {
-        console.error(`Error enviando a ${client.name} (${client.phone}) via n8n:`, err.message);
-      }
+    // Enviamos todo el bloque de clientes a n8n en una sola petición.
+    // Sofi (n8n) se encargará de iterarlos y aplicar la demora correspondiente para evitar baneos.
+    try {
+      await axios.post(n8nWebhookUrl, {
+        nodeName: nodeName,
+        message: message,
+        clients: clients.map(c => ({
+          phone: c.phone ? c.phone.replace(/\D/g, '') : '',
+          clientName: c.name,
+          clientId: c.id
+        })).filter(c => c.phone !== '')
+      });
+    } catch (err) {
+      console.error('Error enviando batch a n8n:', err.message);
+      return res.status(500).json({ error: 'Hubo un error al comunicarse con n8n (Sofi).' });
     }
 
-    res.json({ message: `Difusión enviada a n8n. ${successCount} de ${clients.length} mensajes procesados.` });
+    res.json({ message: `Difusión enviada a Sofi (n8n) para ${clients.length} clientes. Los mensajes se enviarán con demora en segundo plano.` });
   } catch (error) {
     console.error('Error en broadcast n8n:', error);
     res.status(500).json({ error: 'Hubo un error al procesar la difusión.' });
