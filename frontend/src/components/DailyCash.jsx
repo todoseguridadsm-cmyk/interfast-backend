@@ -380,7 +380,7 @@ export default function DailyCash() {
                     <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
                     Cobros Físicos
                   </span>
-                  <span className="font-black text-emerald-600">${fmt(socio.data.cashIn - socio.data.egresoFisico - socio.data.retiro)}</span>
+                  <span className="font-black text-emerald-600">${fmt(socio.data.cashIn - socio.data.egresoFisico - socio.data.retiroFisico)}</span>
                 </div>
                 {socio.data.egresoFisico > 0 && (
                   <div className="flex justify-between items-center text-sm">
