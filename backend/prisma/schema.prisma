@@ -102,6 +102,7 @@ model Payment {
   userId         Int?
   mpFee          Float    @default(0.0)
   mpTax          Float    @default(0.0)
+  mpPaymentId    String?  @unique
   operator       String?
   invoice        Invoice  @relation(fields: [invoiceId], references: [id])
   user           User?    @relation(fields: [userId], references: [id])

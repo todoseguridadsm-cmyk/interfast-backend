@@ -284,7 +284,7 @@ export default function DailyCash() {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-1"><Calendar size={12}/> Desde</label>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} min="2026-07-31"
             className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm" />
         </div>
         <div className="flex flex-col">

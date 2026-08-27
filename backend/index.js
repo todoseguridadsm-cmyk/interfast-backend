@@ -2654,6 +2654,15 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
     console.log(`🔔 Webhook MP DISPARADO: topic=${topic}, ID detectado=${paymentId}`);
 
     if (paymentId && clientMP) {
+      // 0. Validar si el pago ya fue procesado
+      const existingPayment = await prisma.payment.findUnique({
+        where: { mpPaymentId: String(paymentId) }
+      });
+      if (existingPayment) {
+        console.log(`⚠️ Webhook MP: El pago ${paymentId} ya fue procesado anteriormente (Pago ID: ${existingPayment.id}). Ignorando para evitar duplicados.`);
+        return;
+      }
+
       // 1. Ir a MP y preguntar los detalles reales del pago por seguridad sin importar el string exacto de topic
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
@@ -3049,7 +3058,8 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               amountPaid: transactionAmount,
               mpFee: mpFee,
               mpTax: mpTax,
-              lateFeeApplied: 0
+              lateFeeApplied: 0,
+              mpPaymentId: String(paymentId)
             }
           });
 
@@ -4401,7 +4411,7 @@ cron.schedule('* * * * *', async () => {
 
 // Sincronización periódica de Mercado Pago (cada 10 minutos)
 // Busca cobros acreditados sin webhook y los concilia por centavos o referencia
-cron.schedule('*/10 * * * *', async () => {
+// cron.schedule('*/10 * * * *', async () => {
   if (!clientMP) return;
   try {
     console.log('[Cron MP Sync] Iniciando conciliación periódica de Mercado Pago...');
@@ -4422,6 +4432,13 @@ cron.schedule('*/10 * * * *', async () => {
     
     for (const mpPayment of mpPayments) {
       if (mpPayment.status !== 'approved') continue;
+      
+      const existingPayment = await prisma.payment.findUnique({
+        where: { mpPaymentId: String(mpPayment.id) }
+      });
+      if (existingPayment) {
+        continue;
+      }
 
       const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
       const ref = (mpPayment.external_reference || mpPayment.metadata?.external_reference || '').toString().trim();
@@ -4632,7 +4649,8 @@ cron.schedule('*/10 * * * *', async () => {
               amountPaid: transactionAmount,
               mpFee: mpFee,
               mpTax: mpTax,
-              lateFeeApplied: Math.max(0, expectedAmountForDate - (invoice.priceV1 || invoice.originalAmount))
+              lateFeeApplied: Math.max(0, expectedAmountForDate - (invoice.priceV1 || invoice.originalAmount)),
+              mpPaymentId: String(mpPayment.id)
             }
           });
 
