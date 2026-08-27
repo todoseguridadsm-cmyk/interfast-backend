@@ -380,8 +380,17 @@ export default function DailyCash() {
                     <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
                     Cobros Físicos
                   </span>
-                  <span className="font-black text-emerald-600">+${fmt(socio.data.cashIn)}</span>
+                  <span className="font-black text-emerald-600">${fmt(socio.data.cashIn - socio.data.egresoFisico - socio.data.retiro)}</span>
                 </div>
+                {socio.data.egresoFisico > 0 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500 font-medium flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>
+                      Gastos
+                    </span>
+                    <span className="font-black text-orange-500">-${fmt(socio.data.egresoFisico)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-slate-500 font-medium flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
