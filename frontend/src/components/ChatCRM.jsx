@@ -5,10 +5,9 @@ import { MessageSquare, Send, Bot, Check, Users, Search, Loader2 } from 'lucide-
 export default function ChatCRM() {
   const [contacts, setContacts] = useState([]);
   const [selectedContact, setSelectedContact] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState({}); // Guardar mensajes en memoria local por chat { 'phone': [...] }
   const [messageInput, setMessageInput] = useState('');
   const [sofiEnabled, setSofiEnabled] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef(null);
@@ -16,21 +15,11 @@ export default function ChatCRM() {
   useEffect(() => {
     fetchSofiStatus();
     fetchContacts();
-    const intervalId = setInterval(fetchContacts, 5000); // Poll contacts
-    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
-    if (selectedContact) {
-      fetchMessages(selectedContact.phone);
-      const intervalId = setInterval(() => fetchMessages(selectedContact.phone), 3000); // Poll messages
-      return () => clearInterval(intervalId);
-    }
-  }, [selectedContact]);
-
-  useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, selectedContact]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -66,15 +55,6 @@ export default function ChatCRM() {
     }
   };
 
-  const fetchMessages = async (phone) => {
-    try {
-      const { data } = await axios.get(`https://interfast-backend-95ww.onrender.com/api/chat/messages/${phone}`);
-      setMessages(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleSend = async (e) => {
     e.preventDefault();
     if (!messageInput.trim() || !selectedContact) return;
@@ -88,8 +68,17 @@ export default function ChatCRM() {
         phone: selectedContact.phone,
         message: msg
       });
-      await fetchMessages(selectedContact.phone);
-      await fetchContacts();
+      
+      // Agregar a la memoria local de la interfaz
+      setMessages(prev => {
+        const phone = selectedContact.phone;
+        const currentMsgs = prev[phone] || [];
+        return {
+          ...prev,
+          [phone]: [...currentMsgs, { id: Date.now(), remitente: 'Nosotros', mensaje: msg, created_at: new Date() }]
+        };
+      });
+
     } catch (err) {
       console.error(err);
       alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
@@ -104,6 +93,8 @@ export default function ChatCRM() {
     c.phone.includes(searchTerm)
   );
 
+  const currentMessages = selectedContact ? (messages[selectedContact.phone] || []) : [];
+
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col bg-slate-50 overflow-hidden rounded-2xl shadow-sm border border-slate-200">
       
@@ -114,8 +105,8 @@ export default function ChatCRM() {
             <MessageSquare size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Chat WhatsApp CRM</h2>
-            <p className="text-xs text-slate-500">Conversaciones sincronizadas con Baileys</p>
+            <h2 className="text-xl font-bold text-slate-900">Mensajería Rápida (WAHA)</h2>
+            <p className="text-xs text-slate-500">Envía mensajes directamente desde el CRM (el historial queda en el celular de la empresa)</p>
           </div>
         </div>
 
@@ -144,7 +135,7 @@ export default function ChatCRM() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Buscar chat..." 
+                placeholder="Buscar cliente..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
@@ -156,26 +147,23 @@ export default function ChatCRM() {
             {filteredContacts.length === 0 ? (
               <div className="p-8 text-center text-slate-400 flex flex-col items-center">
                 <Users size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">No hay chats recientes.</p>
+                <p className="text-sm">No hay clientes con teléfono registrado.</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
                 {filteredContacts.map(c => (
                   <button
-                    key={c.phone}
+                    key={c.clientId}
                     onClick={() => setSelectedContact(c)}
-                    className={`w-full text-left p-4 hover:bg-slate-50 transition-colors flex flex-col gap-1 relative ${selectedContact?.phone === c.phone ? 'bg-emerald-50/50' : ''}`}
+                    className={`w-full text-left p-4 hover:bg-slate-50 transition-colors flex flex-col gap-1 relative ${selectedContact?.clientId === c.clientId ? 'bg-emerald-50/50' : ''}`}
                   >
-                    {selectedContact?.phone === c.phone && (
+                    {selectedContact?.clientId === c.clientId && (
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
                     )}
                     <div className="flex justify-between items-center w-full">
                       <span className="font-semibold text-slate-900 truncate pr-2">{c.name}</span>
-                      <span className="text-[10px] text-slate-400 shrink-0">
-                        {new Date(c.lastMessageTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </span>
                     </div>
-                    <div className="text-xs text-slate-500 truncate w-full">{c.lastMessage}</div>
+                    <div className="text-xs text-slate-500 truncate w-full">{c.phone}</div>
                   </button>
                 ))}
               </div>
@@ -185,7 +173,6 @@ export default function ChatCRM() {
 
         {/* Panel Derecho: Historial de Mensajes y Envío */}
         <div className="flex-1 flex flex-col bg-[#e5ddd5] relative">
-          {/* Fondo estilo WA */}
           <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-light_04fcacde539c58cca6745483d4858c52.png")', backgroundRepeat: 'repeat' }}></div>
           
           {selectedContact ? (
@@ -203,7 +190,14 @@ export default function ChatCRM() {
 
               {/* Mensajes */}
               <div className="flex-1 overflow-y-auto p-6 z-10 flex flex-col gap-2">
-                {messages.map((m, idx) => {
+                {currentMessages.length === 0 && (
+                  <div className="flex justify-center my-4">
+                    <span className="bg-emerald-100 text-emerald-800 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
+                      Esta conversación no guarda historial anterior. Los mensajes que envíes aparecerán aquí mientras no cierres la ventana.
+                    </span>
+                  </div>
+                )}
+                {currentMessages.map((m, idx) => {
                   const isMe = m.remitente === 'Nosotros';
                   return (
                     <div key={m.id || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -242,8 +236,8 @@ export default function ChatCRM() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center z-10 text-slate-500">
               <MessageSquare size={64} className="mb-4 text-emerald-600/30" />
-              <h3 className="text-2xl font-bold text-slate-700">WhatsApp CRM</h3>
-              <p className="mt-2 text-center max-w-sm">Selecciona un chat en el menú lateral para comenzar a enviar mensajes directamente desde la plataforma.</p>
+              <h3 className="text-2xl font-bold text-slate-700">Envío Rápido de WhatsApp</h3>
+              <p className="mt-2 text-center max-w-sm">Selecciona un cliente de la lista para enviarle un mensaje a través de WAHA. El mensaje se registrará en el celular de la empresa.</p>
             </div>
           )}
         </div>
