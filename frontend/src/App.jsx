@@ -17,7 +17,8 @@ import NodesList from './components/NodesList';
 import AltasWebList from './components/AltasWebList';
 import ContentApproval from './components/ContentApproval';
 import MpReconciliation from './components/MpReconciliation';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle, RefreshCw } from 'lucide-react';
+import BroadcastList from './components/BroadcastList';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle, RefreshCw, Megaphone } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -144,6 +145,14 @@ function AppContent() {
             </Link>
           )}
 
+          {/* Difusión */}
+          {isAllowed('CLIENTES') && (
+            <Link onClick={handleLinkClick} to="/broadcast" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/broadcast' ? 'bg-indigo-600/20 text-indigo-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <Radio size={20} />
+              <span>Difusión</span>
+            </Link>
+          )}
+
           {/* 5. Cortes de Servicio */}
           {isAllowed('CORTES') && (
             <Link onClick={handleLinkClick} to="/cutoff" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/cutoff' ? 'bg-red-600/20 text-red-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
@@ -253,6 +262,7 @@ function AppContent() {
             <Route path="/clients" element={isAllowed('CLIENTES') ? <ClientsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/altas-web" element={isAllowed('CLIENTES') ? <AltasWebList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/content-approval" element={isAllowed('CLIENTES') ? <ContentApproval /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/broadcast" element={isAllowed('CLIENTES') ? <BroadcastList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/plans" element={isAllowed('PLANES') ? <PlansList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/invoices" element={isAllowed('FACTURACION') ? <InvoicesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cutoff" element={isAllowed('CORTES') ? <CutoffList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />

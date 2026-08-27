@@ -4811,6 +4811,49 @@ app.post('/api/bot/send-custom-message', async (req, res) => {
   }
 });
 
+app.post('/api/bot/broadcast-n8n', async (req, res) => {
+  try {
+    const { clients, message } = req.body;
+    if (!clients || !Array.isArray(clients) || !message) {
+      return res.status(400).json({ error: 'Faltan parámetros clients o message.' });
+    }
+
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (!n8nWebhookUrl) {
+      return res.status(500).json({ error: 'La URL del webhook de n8n no está configurada en el servidor (N8N_WEBHOOK_URL).' });
+    }
+
+    let successCount = 0;
+    
+    // We send requests sequentially or concurrently. To avoid overwhelming n8n, 
+    // let's do it sequentially with a small delay.
+    for (const client of clients) {
+      if (!client.phone) continue;
+      
+      const phoneClean = client.phone.replace(/\D/g, '');
+      // El formato que use n8n depende de su configuración, enviamos los datos crudos y limpios
+      try {
+        await axios.post(n8nWebhookUrl, {
+          phone: phoneClean,
+          message: message,
+          clientName: client.name,
+          clientId: client.id
+        });
+        successCount++;
+        // Esperamos 500ms entre cada envío para no saturar n8n/whatsapp
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        console.error(`Error enviando a ${client.name} (${client.phone}) via n8n:`, err.message);
+      }
+    }
+
+    res.json({ message: `Difusión enviada a n8n. ${successCount} de ${clients.length} mensajes procesados.` });
+  } catch (error) {
+    console.error('Error en broadcast n8n:', error);
+    res.status(500).json({ error: 'Hubo un error al procesar la difusión.' });
+  }
+});
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
