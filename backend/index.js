@@ -4411,7 +4411,7 @@ cron.schedule('* * * * *', async () => {
 
 // Sincronización periódica de Mercado Pago (cada 10 minutos)
 // Busca cobros acreditados sin webhook y los concilia por centavos o referencia
-// cron.schedule('*/10 * * * *', async () => {
+cron.schedule('*/10 * * * *', async () => {
   if (!clientMP) return;
   try {
     console.log('[Cron MP Sync] Iniciando conciliación periódica de Mercado Pago...');
