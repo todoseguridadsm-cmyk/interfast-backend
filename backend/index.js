@@ -155,6 +155,42 @@ async function connectToWhatsApp() {
     }
   });
 
+  sock.ev.on('messages.upsert', async (m) => {
+    try {
+      if (m.type !== 'notify') return;
+      for (const msg of m.messages) {
+        if (!msg.message) continue;
+        const fromMe = msg.key.fromMe;
+        const remoteJid = msg.key.remoteJid;
+        // Ignore status broadcasts
+        if (remoteJid === 'status@broadcast') continue;
+
+        // Clean phone number
+        const phone = remoteJid.split('@')[0];
+        const remitente = fromMe ? 'Nosotros' : 'Cliente';
+        
+        let textMessage = '';
+        if (msg.message.conversation) {
+          textMessage = msg.message.conversation;
+        } else if (msg.message.extendedTextMessage) {
+          textMessage = msg.message.extendedTextMessage.text;
+        }
+
+        if (textMessage) {
+          await prisma.historial_mensajes.create({
+            data: {
+              phone: phone,
+              remitente: remitente,
+              mensaje: textMessage
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error procesando mensaje entrante:', err);
+    }
+  });
+
   waSocket = sock;
 }
 
@@ -4841,6 +4877,122 @@ app.post('/api/bot/broadcast-n8n', async (req, res) => {
   } catch (error) {
     console.error('Error en broadcast n8n:', error);
     res.status(500).json({ error: 'Hubo un error al procesar la difusión.' });
+  }
+});
+
+// --- SOFI (n8n) TOGGLE ---
+app.get('/api/bot/status', async (req, res) => {
+  try {
+    const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
+    const isEnabled = setting ? setting.value === 'true' : true; // Default true
+    res.json({ enabled: isEnabled });
+  } catch (error) {
+    res.status(500).json({ error: 'Error obteniendo el estado de Sofi' });
+  }
+});
+
+app.post('/api/bot/toggle-sofi', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    await prisma.systemSettings.upsert({
+      where: { key: 'SOFI_ENABLED' },
+      update: { value: enabled ? 'true' : 'false' },
+      create: { key: 'SOFI_ENABLED', value: enabled ? 'true' : 'false' }
+    });
+    res.json({ message: `Sofi ${enabled ? 'activada' : 'desactivada'} correctamente.` });
+  } catch (error) {
+    res.status(500).json({ error: 'Error actualizando el estado de Sofi' });
+  }
+});
+
+// --- CHAT ENDPOINTS ---
+app.get('/api/chat/contacts', async (req, res) => {
+  try {
+    // Obtenemos todos los números con mensajes
+    const messages = await prisma.historial_mensajes.findMany({
+      orderBy: { created_at: 'desc' }
+    });
+
+    const clientsMap = {};
+    for (const m of messages) {
+      if (!clientsMap[m.phone]) {
+        clientsMap[m.phone] = {
+          phone: m.phone,
+          lastMessage: m.mensaje,
+          lastMessageTime: m.created_at,
+          unread: 0 // Si tuviésemos campo de leído, lo usaríamos
+        };
+      }
+    }
+    
+    // Tratamos de cruzar con los clientes en la base de datos
+    const dbClients = await prisma.client.findMany({
+      select: { id: true, name: true, phone: true }
+    });
+
+    const contactList = Object.values(clientsMap).map(contact => {
+      const dbMatch = dbClients.find(c => {
+        if (!c.phone) return false;
+        const clean = c.phone.replace(/\D/g, '');
+        return clean.includes(contact.phone) || contact.phone.includes(clean);
+      });
+      return {
+        ...contact,
+        name: dbMatch ? dbMatch.name : contact.phone,
+        clientId: dbMatch ? dbMatch.id : null
+      };
+    });
+
+    res.json(contactList);
+  } catch (error) {
+    console.error('Error fetching chat contacts:', error);
+    res.status(500).json({ error: 'Error obteniendo contactos.' });
+  }
+});
+
+app.get('/api/chat/messages/:phone', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const messages = await prisma.historial_mensajes.findMany({
+      where: { phone },
+      orderBy: { created_at: 'asc' }
+    });
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching chat messages:', error);
+    res.status(500).json({ error: 'Error obteniendo mensajes.' });
+  }
+});
+
+app.post('/api/chat/send', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Faltan parámetros phone o message.' });
+    }
+
+    const phoneClean = phone.replace(/\D/g, '');
+    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+    
+    if (waSocket && waStatus === 'CONNECTED') {
+      await waSocket.sendMessage(targetPhone, { text: message });
+      
+      // Guardar en el historial
+      const msg = await prisma.historial_mensajes.create({
+        data: {
+          phone: phoneClean,
+          remitente: 'Nosotros',
+          mensaje: message
+        }
+      });
+      
+      res.json({ message: 'Mensaje enviado.', msg });
+    } else {
+      res.status(400).json({ error: 'El WhatsApp (Baileys) no está conectado.' });
+    }
+  } catch (error) {
+    console.error('Error enviando mensaje de chat:', error);
+    res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
   }
 });
 
