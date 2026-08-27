@@ -20,7 +20,11 @@ export default function ChatCRM() {
 
   useEffect(() => {
     if (selectedContact) {
+      // Fetch immediately
       fetchMessages(selectedContact.phone);
+      // Poll every 5 seconds
+      const intervalId = setInterval(() => fetchMessages(selectedContact.phone, true), 5000);
+      return () => clearInterval(intervalId);
     }
   }, [selectedContact]);
 
@@ -62,8 +66,8 @@ export default function ChatCRM() {
     }
   };
 
-  const fetchMessages = async (phone) => {
-    setLoadingHistory(true);
+  const fetchMessages = async (phone, isPolling = false) => {
+    if (!isPolling) setLoadingHistory(true);
     try {
       const { data } = await axios.get(`https://interfast-backend-95ww.onrender.com/api/chat/messages/${phone}`);
       setMessages(prev => ({
@@ -73,7 +77,7 @@ export default function ChatCRM() {
     } catch (err) {
       console.error('Error fetching WAHA messages:', err);
     } finally {
-      setLoadingHistory(false);
+      if (!isPolling) setLoadingHistory(false);
     }
   };
 
