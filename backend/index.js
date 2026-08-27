@@ -4907,16 +4907,17 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
     const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
     const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
 
-    // Fetch messages from WAHA API (limit to 50 for quick loading)
+    // Fetch messages from WAHA API (limit to 15 for quick loading and to prevent WAHA from hanging)
     const { data } = await axios.get(`${wahaUrl}/api/messages`, {
       params: {
         session: 'waha-sofi',
         chatId: targetPhone,
-        limit: 50
+        limit: 15
       },
       headers: {
         'X-Api-Key': wahaKey
-      }
+      },
+      timeout: 15000
     });
 
     // Map WAHA format to our expected format
@@ -4945,7 +4946,7 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
     res.json(formattedMessages);
   } catch (error) {
     console.error('Error fetching chat messages from WAHA:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Error obteniendo mensajes desde WAHA.' });
+    res.status(500).json({ error: 'Error obteniendo mensajes desde WAHA.', details: error.response?.data || error.message, stack: error.stack });
   }
 });
 
@@ -5009,7 +5010,7 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
     res.status(200).json({ status: 'forwarded' });
   } catch (error) {
     console.error('Error en el proxy de webhook WAHA:', error);
-    res.status(500).json({ error: 'Error procesando webhook' });
+    res.status(500).json({ error: 'Error procesando webhook', details: error.message, stack: error.stack });
   }
 });
 
