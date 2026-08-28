@@ -113,6 +113,32 @@ let waSocket = null;
 global.recentReceipts = []; // Store { phone, timestamp }
 global.recentChats = new Map(); // Store { phone, name, lastMessageTime }
 
+// Utilidad centralizada para enviar mensajes a través de WAHA (Sofi)
+async function sendWhatsAppMessage(phone, text) {
+  const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
+  const apiKey = process.env.WAHA_API_KEY || 'interfast2024';
+  const phoneClean = phone.replace(/\D/g, '');
+  const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
+
+  try {
+    const { default: axios } = require('axios');
+    await axios.post(`${wahaUrl}/api/sendText`, {
+      chatId: targetPhone,
+      text: text,
+      session: 'waha-sofi'
+    }, {
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+    return true;
+  } catch (error) {
+    console.error('Error enviando mensaje vía WAHA:', error.message);
+    return false;
+  }
+}
+
 setInterval(() => {
   const now = Date.now();
   global.recentReceipts = global.recentReceipts.filter(r => now - r.timestamp < 24 * 60 * 60 * 1000);
@@ -1569,10 +1595,6 @@ app.delete('/api/invoices/:id', async (req, res) => {
 });
 
 app.post('/api/invoices/mass-notify', async (req, res) => {
-  if (waStatus !== 'CONNECTED') {
-    return res.status(400).json({ error: 'El Robot de WhatsApp no está conectado (Escanea el QR).' });
-  }
-
   try {
     const { invoiceIds } = req.body;
 
@@ -1586,9 +1608,12 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       include: { client: true }
     });
 
-    let notifiedCount = 0;
-    for (const inv of invoices) {
-      if (!inv.client.phone) continue;
+    res.json({ message: `El envío de notificaciones a ${invoices.length} facturas ha comenzado en segundo plano.` });
+
+    (async () => {
+      let notifiedCount = 0;
+      for (const inv of invoices) {
+        if (!inv.client || !inv.client.phone) continue;
 
       const phone = inv.client.phone.replace(/\D/g, '');
       if (phone.length < 8) continue;
@@ -1648,7 +1673,7 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
       const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
 
-      if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
+      await sendWhatsAppMessage(targetPhone, message);
       
       await prisma.invoice.update({
         where: { id: inv.id },
@@ -1660,8 +1685,9 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       // Delay 3 seconds between messages to prevent WA Ban
       await new Promise(r => setTimeout(r, 3000));
     }
+    console.log(`¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot (WAHA).`);
+    })().catch(err => console.error("Error en mass-notify background:", err));
 
-    res.json({ message: `¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot.` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al enviar messages masivos internos' });
@@ -2313,7 +2339,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
     // Proceso asincrono
     (async () => {
       for (const invoice of invoices) {
-        if (!waSocket || typeof waStatus === 'undefined' || waStatus !== 'CONNECTED' || !invoice.client?.phone) continue;
+        if (!invoice.client || !invoice.client.phone) continue;
         
         const phoneClean = invoice.client.phone.replace(/\D/g, '');
         if (phoneClean.length < 8) continue;
@@ -2374,7 +2400,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `¡Muchas gracias!`;
 
         try {
-          await waSocket.sendMessage(targetPhone, { text: msg });
+          await sendWhatsAppMessage(targetPhone, msg);
           // Update notifiedAt
           await prisma.invoice.update({
             where: { id: invoice.id },
