@@ -20,7 +20,11 @@ export default function BroadcastList() {
       .catch(err => console.error('Error fetching clients:', err));
   }, []);
 
-  const filteredClients = clients.filter(c => c.mainNode === selectedNode && c.status === 'ACTIVE' && c.phone);
+  const filteredClients = clients.filter(c => {
+    if (!c.mainNode || !selectedNode) return false;
+    const nodeMatch = c.mainNode.trim().toLowerCase() === selectedNode.trim().toLowerCase();
+    return nodeMatch && c.status === 'ACTIVE' && c.phone;
+  });
 
   const handleSendBroadcast = async () => {
     if (!selectedNode) return alert('Por favor, selecciona un nodo primero.');
