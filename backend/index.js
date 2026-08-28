@@ -4898,7 +4898,8 @@ app.get('/api/chat/contacts', async (req, res) => {
           name: c.name,
           phone: cleanPhone,
           lastMessage: '',
-          lastMessageTime: new Date(0) // Fecha antigua por defecto
+          lastMessageTime: new Date(0), // Fecha antigua por defecto
+          unreadCount: 0
         });
       }
     });
@@ -4909,15 +4910,26 @@ app.get('/api/chat/contacts', async (req, res) => {
         if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
         if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
 
-        if (contactMap.has(cleanPhone)) {
-          contactMap.get(cleanPhone).lastMessageTime = chatData.lastMessageTime;
+        // Robust matching to ignore prefixes like 0 or 15
+        let matchedDbPhone = null;
+        for (const dbPhone of contactMap.keys()) {
+          if (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone)) {
+            matchedDbPhone = dbPhone;
+            break;
+          }
+        }
+
+        if (matchedDbPhone) {
+          contactMap.get(matchedDbPhone).lastMessageTime = chatData.lastMessageTime;
+          contactMap.get(matchedDbPhone).unreadCount = chatData.unreadCount || 0;
         } else {
           contactMap.set(cleanPhone, {
             clientId: 'unknown-' + cleanPhone,
             name: chatData.name,
             phone: cleanPhone,
             lastMessage: '',
-            lastMessageTime: chatData.lastMessageTime
+            lastMessageTime: chatData.lastMessageTime,
+            unreadCount: chatData.unreadCount || 0
           });
         }
       }
@@ -4941,6 +4953,15 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
 
     const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
     const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
+
+    // Reset unread count
+    if (global.recentChats) {
+      for (const [mapKey, chatData] of global.recentChats.entries()) {
+        if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
+          chatData.unreadCount = 0;
+        }
+      }
+    }
 
     // Fetch messages from WAHA API (limit to 15 for quick loading and to prevent WAHA from hanging)
     const { data } = await axios.get(`${wahaUrl}/api/messages`, {
@@ -5010,10 +5031,20 @@ app.post('/api/chat/send', async (req, res) => {
     });
 
     if (global.recentChats) {
-      global.recentChats.set(phoneClean, {
-        phone: phoneClean,
-        name: global.recentChats.get(phoneClean)?.name || 'Desconocido (WhatsApp)',
-        lastMessageTime: new Date()
+      let foundPhone = cleanPhone;
+      // Tratar de encontrar la entrada existente para no perder el unreadCount
+      for (const mapKey of global.recentChats.keys()) {
+        if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
+          foundPhone = mapKey;
+          break;
+        }
+      }
+      
+      global.recentChats.set(foundPhone, {
+        phone: foundPhone,
+        name: global.recentChats.get(foundPhone)?.name || 'Desconocido (WhatsApp)',
+        lastMessageTime: new Date(),
+        unreadCount: 0 // Lo acabamos de responder nosotros, así que lo leímos
       });
     }
       
@@ -5042,17 +5073,36 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
     
     if (req.body) {
       if (req.body.payload && req.body.payload.from && global.recentChats) {
-        let phone = req.body.payload.from.replace('@c.us', '').replace('@s.whatsapp.net', '');
+        let phoneStr = req.body.payload.from;
+        
+        // Handle @lid devices (often used by WhatsApp Web/Graph API internally)
+        if (phoneStr.includes('@lid') && req.body.payload._data?.key?.remoteJidAlt) {
+          phoneStr = req.body.payload._data.key.remoteJidAlt;
+        }
+        
         let notifyName = req.body.payload._data?.notifyName || 'Desconocido (WhatsApp)';
         
-        let cleanPhone = phone.replace(/\D/g, '');
+        let cleanPhone = phoneStr.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
         if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
         if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
 
-        global.recentChats.set(cleanPhone, {
-          phone: cleanPhone,
-          name: notifyName,
-          lastMessageTime: new Date()
+        // Actualizar chat reciente
+        let foundPhone = cleanPhone;
+        for (const mapKey of global.recentChats.keys()) {
+          if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
+            foundPhone = mapKey;
+            break;
+          }
+        }
+
+        const existingChat = global.recentChats.get(foundPhone) || {};
+        const isFromMe = req.body.payload.fromMe === true;
+
+        global.recentChats.set(foundPhone, {
+          phone: foundPhone,
+          name: notifyName !== 'Desconocido (WhatsApp)' ? notifyName : (existingChat.name || notifyName),
+          lastMessageTime: new Date(),
+          unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
         });
       }
 

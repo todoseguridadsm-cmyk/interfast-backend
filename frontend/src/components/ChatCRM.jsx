@@ -136,7 +136,7 @@ export default function ChatCRM() {
             <MessageSquare size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Chat WAHA CRM</h2>
+            <h2 className="text-xl font-bold text-slate-900">Interfast Whasapp Web</h2>
             <p className="text-xs text-slate-500">Historial en vivo desde WhatsApp (Sin base de datos propia)</p>
           </div>
         </div>
@@ -190,6 +190,11 @@ export default function ChatCRM() {
                     )}
                     <div className="flex justify-between items-center w-full">
                       <span className="font-semibold text-slate-900 truncate pr-2">{c.name}</span>
+                      {c.unreadCount > 0 && (
+                        <div className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                          {c.unreadCount}
+                        </div>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500 truncate w-full">{c.phone}</div>
                   </button>
