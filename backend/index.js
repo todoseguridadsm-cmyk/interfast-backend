@@ -4912,10 +4912,12 @@ app.get('/api/chat/contacts', async (req, res) => {
 
         // Robust matching to ignore prefixes like 0 or 15
         let matchedDbPhone = null;
-        for (const dbPhone of contactMap.keys()) {
-          if (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone)) {
-            matchedDbPhone = dbPhone;
-            break;
+        if (cleanPhone.length > 5) {
+          for (const dbPhone of contactMap.keys()) {
+            if (dbPhone.length > 5 && (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone))) {
+              matchedDbPhone = dbPhone;
+              break;
+            }
           }
         }
 
@@ -4955,9 +4957,9 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
     const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
 
     // Reset unread count
-    if (global.recentChats) {
+    if (global.recentChats && cleanPhone.length > 5) {
       for (const [mapKey, chatData] of global.recentChats.entries()) {
-        if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
+        if (mapKey.length > 5 && (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey))) {
           chatData.unreadCount = 0;
         }
       }
@@ -5030,11 +5032,11 @@ app.post('/api/chat/send', async (req, res) => {
       }
     });
 
-    if (global.recentChats) {
+    if (global.recentChats && cleanPhone.length > 5) {
       let foundPhone = cleanPhone;
       // Tratar de encontrar la entrada existente para no perder el unreadCount
       for (const mapKey of global.recentChats.keys()) {
-        if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
+        if (mapKey.length > 5 && (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey))) {
           foundPhone = mapKey;
           break;
         }
@@ -5060,11 +5062,14 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
   // Proxy de Webhooks de WAHA hacia n8n
   // Si SOFI_ENABLED es true, forwardeamos. Si no, lo descartamos.
   try {
-    if (req.body) {
+    if (req.body && req.body.event === 'message') {
       // Registrar la actividad del chat en memoria para el CRM, sin importar si Sofi está apagada o prendida
       if (req.body.payload && req.body.payload.from && global.recentChats) {
         let phoneStr = req.body.payload.from;
         
+        // Ignorar estados
+        if (phoneStr === 'status@broadcast') return;
+
         // Handle @lid devices (often used by WhatsApp Web/Graph API internally)
         if (phoneStr.includes('@lid') && req.body.payload._data?.key?.remoteJidAlt) {
           phoneStr = req.body.payload._data.key.remoteJidAlt;
@@ -5076,24 +5081,26 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
         if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
         if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
 
-        // Actualizar chat reciente
-        let foundPhone = cleanPhone;
-        for (const mapKey of global.recentChats.keys()) {
-          if (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey)) {
-            foundPhone = mapKey;
-            break;
+        if (cleanPhone.length > 5) {
+          // Actualizar chat reciente
+          let foundPhone = cleanPhone;
+          for (const mapKey of global.recentChats.keys()) {
+            if (mapKey.length > 5 && (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey))) {
+              foundPhone = mapKey;
+              break;
+            }
           }
+
+          const existingChat = global.recentChats.get(foundPhone) || {};
+          const isFromMe = req.body.payload.fromMe === true;
+
+          global.recentChats.set(foundPhone, {
+            phone: foundPhone,
+            name: notifyName !== 'Desconocido (WhatsApp)' ? notifyName : (existingChat.name || notifyName),
+            lastMessageTime: new Date(),
+            unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
+          });
         }
-
-        const existingChat = global.recentChats.get(foundPhone) || {};
-        const isFromMe = req.body.payload.fromMe === true;
-
-        global.recentChats.set(foundPhone, {
-          phone: foundPhone,
-          name: notifyName !== 'Desconocido (WhatsApp)' ? notifyName : (existingChat.name || notifyName),
-          lastMessageTime: new Date(),
-          unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
-        });
       }
     }
 
