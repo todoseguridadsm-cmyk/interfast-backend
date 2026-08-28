@@ -4828,7 +4828,7 @@ app.post('/api/bot/broadcast-n8n', async (req, res) => {
       return res.status(400).json({ error: 'Faltan parámetros clients o message.' });
     }
 
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/difusion';
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
     
     // Enviamos todo el bloque de clientes a n8n en una sola petición.
     // Sofi (n8n) se encargará de iterarlos y aplicar la demora correspondiente para evitar baneos.
@@ -4843,8 +4843,9 @@ app.post('/api/bot/broadcast-n8n', async (req, res) => {
         })).filter(c => c.phone !== '')
       });
     } catch (err) {
-      console.error('Error enviando batch a n8n:', err.message);
-      return res.status(500).json({ error: 'Hubo un error al comunicarse con n8n (Sofi).' });
+      const n8nError = err.response?.data?.message || err.message;
+      console.error('Error enviando batch a n8n:', n8nError);
+      return res.status(500).json({ error: `Hubo un error al comunicarse con n8n (Sofi): ${n8nError}` });
     }
 
     res.json({ message: `Difusión enviada a Sofi (n8n) para ${clients.length} clientes. Los mensajes se enviarán con demora en segundo plano.` });
