@@ -5060,18 +5060,8 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
   // Proxy de Webhooks de WAHA hacia n8n
   // Si SOFI_ENABLED es true, forwardeamos. Si no, lo descartamos.
   try {
-    const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
-    const isEnabled = setting ? setting.value === 'true' : true;
-
-    if (!isEnabled) {
-      // Sofi está apagada, ignoramos el webhook y devolvemos 200 a WAHA
-      return res.status(200).json({ status: 'ignored', message: 'Sofi is disabled' });
-    }
-
-    // Forward to n8n
-    const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
-    
     if (req.body) {
+      // Registrar la actividad del chat en memoria para el CRM, sin importar si Sofi está apagada o prendida
       if (req.body.payload && req.body.payload.from && global.recentChats) {
         let phoneStr = req.body.payload.from;
         
@@ -5105,7 +5095,20 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
           unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
         });
       }
+    }
 
+    const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
+    const isEnabled = setting ? setting.value === 'true' : true;
+
+    if (!isEnabled) {
+      // Sofi está apagada, ignoramos el webhook hacia n8n y devolvemos 200 a WAHA
+      return res.status(200).json({ status: 'ignored', message: 'Sofi is disabled' });
+    }
+
+    // Forward to n8n
+    const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
+    
+    if (req.body) {
       const headers = { ...req.headers };
       delete headers['host'];
       delete headers['content-length'];
