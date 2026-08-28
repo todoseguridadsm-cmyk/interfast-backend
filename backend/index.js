@@ -4828,7 +4828,7 @@ app.post('/api/bot/broadcast-n8n', async (req, res) => {
       return res.status(400).json({ error: 'Faltan parámetros clients o message.' });
     }
 
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/difusion';
     
     // Enviamos todo el bloque de clientes a n8n en una sola petición.
     // Sofi (n8n) se encargará de iterarlos y aplicar la demora correspondiente para evitar baneos.
