@@ -43,7 +43,13 @@ try {
 }
 
 const app = express();
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DIRECT_URL
+    }
+  }
+});
 const { emitAfipInvoiceHelper, generateInvoicePDFStream, generateInvoicePDFBuffer } = require('./afip_helper');
 const PORT = process.env.PORT || 4000;
 
