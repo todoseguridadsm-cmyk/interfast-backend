@@ -3106,8 +3106,8 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
 
-        if (invoiceIdsToProcess.length === 0) {
-          console.log(`ℹ️ Webhook MP: Sin referencia válida (${ref}). Intentando conciliación automática inteligente para pago de $${transactionAmount}...`);
+                if (invoiceIdsToProcess.length === 0) {
+          console.log(`ℹ️ Webhook MP: Sin referencia válida. Intentando conciliación por Nombre, Alias, DNI/CUIL, o Email para pago de $${transactionAmount}...`);
           
           const pendingInvoices = await prisma.invoice.findMany({
             where: { status: 'PENDING' },
@@ -3116,83 +3116,68 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           });
           
           let matchedInvoice = null;
-          let exactCentsMatches = [];
 
-          const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+          const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
+          const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+          const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
+          const payerEmailRaw = (mpPayment.payer?.email || '').toLowerCase().trim();
+          const cleanDni = (d) => d && d.length >= 7;
 
+          // Función para validar si una factura cumple con el monto (margen de $5)
+          const isValidAmount = (inv) => {
+            const possibleBaseAmounts = [
+              inv.originalAmount,
+              inv.priceV1,
+              inv.priceV2,
+              inv.priceV3,
+              inv.priceV4
+            ].filter(a => a !== null && a > 0);
+            return possibleBaseAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
+          };
+
+          // --- PASO 1: Buscar coincidencias por Nombre o Alias en Observaciones ---
           for (const inv of pendingInvoices) {
-            const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
-            const centsVal = getCents999(cId);
+            if (!isValidAmount(inv)) continue; // Solo nos interesan clientes con montos parecidos
+            
+            let isNameMatch = false;
 
-                (inv.priceV1 || inv.originalAmount) + centsVal,
-                inv.priceV2 ? inv.priceV2 + centsVal : null,
-                inv.priceV3 ? inv.priceV3 + centsVal : null,
-                inv.priceV4 ? inv.priceV4 + centsVal : null
-              ];
-            }
-
-            possibleAmounts = possibleAmounts.filter(a => a !== null && a > 0);
-            const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
-
-            if (matchesCentsAndAmount) {
-              exactCentsMatches.push(inv);
-            }
-          }
-
-          const disambiguate = (candidates) => {
-            const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
-            const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-            for (const inv of candidates) {
-              const obs = (inv.client?.observation || '');
-              
-              // 0. PRIORIDAD ABSOLUTA: Alias en Observaciones (ej: "MP: CYNTHIA LORENA RAMON VERON")
-              const rawAliases = obs
-                .split(/[|\n]/)
-                .map(s => s.replace(/^.*MP:\s*/i, '').trim())
-                .filter(s => s.length > 2);
-
-              for (const alias of rawAliases) {
-                const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-                const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
-                const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
-                if (aliasTokens.length > 0 && (payerClean.includes(aliasClean) || matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
-                  console.log(`🏷️ Webhook MP: ¡MATCH POR ALIAS EN OBSERVACIONES! ("MP: ${alias}" vs "${payerRaw}") → cliente ${inv.client?.name} (#${inv.clientId})`);
-                  return inv;
-                }
+            // 1.a Prioridad: Alias en Observaciones
+            const obs = (inv.client?.observation || '');
+            const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
+            for (const alias of rawAliases) {
+              const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+              const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
+              const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
+              if (aliasTokens.length > 0 && (payerClean.includes(aliasClean) || matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
+                console.log(`🏷️ Webhook MP: MATCH POR ALIAS EN OBSERVACIONES ("${alias}") → cliente ${inv.client?.name}`);
+                isNameMatch = true;
+                break;
               }
+            }
 
-              // 1. Coincidencia por Nombre del Cliente
+            // 1.b Prioridad: Nombre del Cliente
+            if (!isNameMatch) {
               const clientRaw = (inv.client?.name || '');
               const clientClean = clientRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
               const clientTokens = clientClean.split(/\s+/).filter(w => w.length >= 3);
               const matchingTokens = clientTokens.filter(tok => payerClean.includes(tok)).length;
               if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
-                console.log(`🏷️ Webhook MP: Match por nombre de cliente ("${clientRaw}" vs "${payerRaw}") → cliente #${inv.clientId}`);
-                return inv;
-              }
-
-              // 2. Coincidencia por DNI
-              const payerDni = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
-              const clientDni = String(inv.client?.dni || '').replace(/\D/g, '');
-              if (cleanDni(clientDni) && cleanDni(payerDni) && (payerDni.includes(clientDni) || clientDni.includes(payerDni))) {
-                return inv;
+                console.log(`🏷️ Webhook MP: MATCH POR NOMBRE DE CLIENTE ("${clientRaw}")`);
+                isNameMatch = true;
               }
             }
-            return null;
-          };
 
-          function cleanDni(d) { return d && d.length >= 7; }
+            if (isNameMatch) {
+              matchedInvoice = inv;
+              break;
+            }
+          }
 
-
-          // 0. PASO DE ALTA PRIORIDAD: Coincidencia directa por DNI/CUIL o Email del pagador enviado por MercadoPago
-          const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
-          const payerEmailRaw = (mpPayment.payer?.email || '').toLowerCase().trim();
-          
-          function cleanDni(d) { return d && d.length >= 7; }
-          
-          if (cleanDni(payerDniRaw) || (payerEmailRaw && payerEmailRaw.length > 5)) {
+          // --- PASO 2: Buscar coincidencias por DNI / CUIL / Email ---
+          if (!matchedInvoice && (cleanDni(payerDniRaw) || (payerEmailRaw && payerEmailRaw.length > 5))) {
             for (const inv of pendingInvoices) {
+              if (!isValidAmount(inv)) continue;
+
               const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
               const cEmail = (inv.client?.email || '').toLowerCase().trim();
 
@@ -3200,56 +3185,15 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               const emailMatches = cEmail && payerEmailRaw && cEmail === payerEmailRaw;
 
               if (dniMatches || emailMatches) {
-                // Verificar que el monto abonado corresponda a alguna de las escalas V1, V2, V3 o V4 (con margen de $5.00)
-                const possibleTierAmounts = [
-                  inv.priceV1 || inv.originalAmount,
-                  inv.priceV2,
-                  inv.priceV3,
-                  inv.priceV4
-                ].filter(a => a !== null && a > 0);
-
-                const matchesTier = possibleTierAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
-                if (matchesTier) {
-                  matchedInvoice = inv;
-                  console.log(`🎯 Webhook MP [Paso DNI/CUIL]: ¡ÉXITO POR DATOS DE PAGADOR MP! Factura #${matchedInvoice.id} imputada al cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) por coincidencia directa de ${dniMatches ? `DNI/CUIL (${payerDniRaw})` : `Email (${payerEmailRaw})`}.`);
-                  break;
-                }
+                console.log(`🎯 Webhook MP: MATCH POR DNI/EMAIL. Cliente ${inv.client?.name}`);
+                matchedInvoice = inv;
+                break;
               }
             }
           }
 
-          if (!matchedInvoice && exactCentsMatches.length === 1) {
-            const candidate = exactCentsMatches[0];
-            const candidateDni = String(candidate.client?.dni || '').replace(/\D/g, '');
-            
-            // Si MP mandó un DNI que contradice al cliente de centavos
-            if (cleanDni(payerDniRaw) && cleanDni(candidateDni) && !payerDniRaw.includes(candidateDni) && !candidateDni.includes(payerDniRaw)) {
-              console.log(`⚠️ Webhook MP: Contradicción de DNI detectada entre pagador (${payerDniRaw}) y cliente (${candidateDni}). Intentando desambiguación por Alias/Nombre...`);
-              
-              const disambiguated = disambiguate([candidate]);
-              if (disambiguated) {
-                matchedInvoice = disambiguated;
-                console.log(`🎯 Webhook MP: ¡RESCATADO POR ALIAS/NOMBRE! Factura #${matchedInvoice.id} imputada a pesar de la contradicción de DNI gracias a coincidencia de nombre/alias.`);
-              } else {
-                console.warn(`⚠️ Webhook MP: Centavos coinciden con ${candidate.client?.name} pero hay contradicción de DNI y no hay coincidencia de nombre ni Alias. Omitiendo auto-imputación por seguridad.`);
-              }
-            } else {
-              // DNI coincide o no hay DNI válido para contradecir, se imputa ciegamente
-              matchedInvoice = candidate;
-              console.log(`🎯 Webhook MP: ¡ÉXITO! Factura #${matchedInvoice.id} del cliente ${matchedInvoice.client.name} (ID: ${matchedInvoice.clientId}) imputada por coincidencia única de centavos ($${transactionAmount}).`);
-            }
-          } else if (!matchedInvoice && exactCentsMatches.length > 1) {
-            console.log(`⚠️ Webhook MP: Colisión detectada (${exactCentsMatches.length} clientes para centavos de $${transactionAmount}). Desambiguando por nombre/DNI del pagador...`);
-            matchedInvoice = disambiguate(exactCentsMatches);
-            if (matchedInvoice) {
-              console.log(`🎯 Webhook MP: ¡DESAMBIGUACIÓN EXITOSA! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} por coincidencia de datos del pagador.`);
-            } else {
-              console.warn(`⚠️ Webhook MP: No se pudo desambiguar automáticamente entre los ${exactCentsMatches.length} clientes que comparten los centavos de $${transactionAmount}.`);
-            }
-          }
-
+          // --- PASO 3: Búsqueda por Suma Total Agrupada ---
           if (!matchedInvoice) {
-            // Intentar conciliación por suma total agrupada por cliente
             const today = new Date();
             const getActiveAmount = (inv) => {
               let expected = inv.priceV1 || inv.originalAmount;
@@ -3257,7 +3201,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                 const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
                 const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
                 const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-                const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
                 if (today > d3 && inv.priceV4) expected = inv.priceV4;
                 else if (today > d2 && inv.priceV3) expected = inv.priceV3;
                 else if (today > d1 && inv.priceV2) expected = inv.priceV2;
@@ -3276,79 +3219,50 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               if (clientInvs.length > 1) {
                 const totalActive = clientInvs.reduce((acc, inv) => acc + getActiveAmount(inv), 0);
                 if (Math.round(transactionAmount * 100) === Math.round(totalActive * 100)) {
-                  console.log(`🎯 Webhook MP: ¡ÉXITO MULTIPLE! El cliente #${clientId} pagó la suma exacta de sus ${clientInvs.length} facturas ($${transactionAmount}).`);
+                  console.log(`🎯 Webhook MP: ¡ÉXITO MULTIPLE! El cliente #${clientId} pagó la suma exacta de sus facturas.`);
                   invoiceIdsToProcess = clientInvs.map(inv => inv.id);
-                  break;
+                  break; // found grouping match
                 }
               }
             }
           }
 
-          if (!matchedInvoice && invoiceIdsToProcess.length === 0) {
-            console.log(`ℹ️ Webhook MP: Sin coincidencia por centavos ni suma. Buscando por aproximación de monto y nombre/DNI/email/teléfono...`);
-            let nameAndAmountMatches = [];
-            for (const inv of pendingInvoices) {
-              const possibleBaseAmounts = [
-                inv.originalAmount,
-                inv.priceV1,
-                inv.priceV2,
-                inv.priceV3,
-                inv.priceV4
-              ].filter(a => a !== null && a > 0);
-
-              const matchesBaseAmount = possibleBaseAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
-              
-              if (matchesBaseAmount) {
-                nameAndAmountMatches.push(inv);
-              }
-            }
-
-            if (nameAndAmountMatches.length > 0) {
-              
-                for (let candidate of nameAndAmountMatches) {
-                  if (strictVerifyPayment(candidate, mpPayment)) {
-                    matchedInvoice = candidate;
-                    break;
-                  }
-                }
-
-              if (matchedInvoice) {
-                console.log(`🎯 Webhook MP [Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} sin coincidencia estricta de centavos.`);
-              }
-            }
-            
-            // NEW: Fallback a comprobantes de WhatsApp recientes
-            if (!matchedInvoice && invoiceIdsToProcess.length === 0 && global.recentReceipts && global.recentReceipts.length > 0) {
-               console.log(`ℹ️ Webhook MP: Buscando coincidencias con comprobantes recientes enviados por WhatsApp...`);
-               for (const receipt of global.recentReceipts) {
-                 const client = await prisma.client.findFirst({ where: { phone: { contains: receipt.phone } } });
-                 if (client) {
-                   const cInvs = pendingInvoices.filter(i => i.clientId === client.id);
-                   if (cInvs.length > 0) {
-                     const getActiveAmountLocal = (inv) => {
-                       const today = new Date();
-                       let expected = inv.priceV1 || inv.originalAmount;
-                       if (inv.dueDate1) {
-                         const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-                         const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-                         const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-                         const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
-                         if (today > d3 && inv.priceV4) expected = inv.priceV4;
-                         else if (today > d2 && inv.priceV3) expected = inv.priceV3;
-                         else if (today > d1 && inv.priceV2) expected = inv.priceV2;
-                       }
-                       return expected;
-                     };
-                     
-                     const totalActive = cInvs.reduce((acc, inv) => acc + getActiveAmountLocal(inv), 0);
-                     if (cInvs.some(inv => Math.abs(getActiveAmountLocal(inv) - transactionAmount) < 5) || Math.abs(totalActive - transactionAmount) < 5) {
-                        matchedInvoice = cInvs[0];
-                        console.log(`🎯 Webhook MP: ¡ÉXITO COMPROBANTE! Pago asociado al cliente ${client.name} porque envió un comprobante recientemente desde su WhatsApp.`);
-                        break;
-                     }
-                   }
+          // --- PASO 4: Fallback a comprobantes de WhatsApp recientes ---
+          if (!matchedInvoice && invoiceIdsToProcess.length === 0 && global.recentReceipts && global.recentReceipts.length > 0) {
+             for (const receipt of global.recentReceipts) {
+               const client = await prisma.client.findFirst({ where: { phone: { contains: receipt.phone } } });
+               if (client) {
+                 const cInvs = pendingInvoices.filter(i => i.clientId === client.id && isValidAmount(i));
+                 if (cInvs.length > 0) {
+                   matchedInvoice = cInvs[0];
+                   console.log(`🎯 Webhook MP: MATCH por comprobante reciente enviado por WhatsApp.`);
+                   break;
                  }
                }
+             }
+          }
+
+          // --- PASO 5: Validación de Centavos (SOLO COMO SUGERENCIA) ---
+          let suggestedClientName = '';
+          if (!matchedInvoice && invoiceIdsToProcess.length === 0) {
+            const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+            for (const inv of pendingInvoices) {
+              const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
+              const centsVal = getCents999(cId);
+
+              const possibleAmounts = [
+                (inv.priceV1 || inv.originalAmount) + centsVal,
+                inv.priceV2 ? inv.priceV2 + centsVal : null,
+                inv.priceV3 ? inv.priceV3 + centsVal : null,
+                inv.priceV4 ? inv.priceV4 + centsVal : null
+              ].filter(a => a !== null && a > 0);
+
+              const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
+              if (matchesCentsAndAmount) {
+                console.log(`⚠️ Webhook MP: Match por centavos con cliente ${inv.client?.name}. Guardando como Pagos No Registrados con sugerencia.`);
+                suggestedClientName = inv.client?.name;
+                break;
+              }
             }
           }
 
@@ -3360,30 +3274,41 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             if (invoiceIdsToProcess.length === 0) invoiceIdsToProcess.push(matchedInvoice.id);
             if (existingUnidentified) {
                await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
-               console.log(`🗑️ Webhook MP: Pago no identificado #${existingUnidentified.id} eliminado tras ser asociado exitosamente.`);
             }
           } else if (invoiceIdsToProcess.length > 0) {
             if (existingUnidentified) {
                await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
-               console.log(`🗑️ Webhook MP: Pago no identificado #${existingUnidentified.id} eliminado tras ser asociado a facturas múltiples.`);
             }
           } else {
-            console.error(`❌ Webhook MP: Pago rechazado localmente. Guardando en Pagos No Identificados. Monto $${transactionAmount}.`);
+            console.error(`❌ Webhook MP: Pago guardado en Pagos No Identificados. Monto $${transactionAmount}.`);
+            
+            let finalPayerName = payerRaw.trim();
+            if (suggestedClientName) {
+              finalPayerName = `[SUGERENCIA CENTAVOS: ${suggestedClientName}] ` + finalPayerName;
+            }
+
             if (!existingUnidentified) {
               await prisma.unidentifiedPayment.create({
                 data: {
                   amount: transactionAmount,
                   date: new Date(),
                   mpPaymentId: String(paymentId),
-                  payerName: `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`.trim(),
+                  payerName: finalPayerName,
                   payerEmail: mpPayment.payer?.email || '',
                   payerDni: String(mpPayment.payer?.identification?.number || '')
                 }
+              });
+            } else if (suggestedClientName && !existingUnidentified.payerName.includes('SUGERENCIA')) {
+              await prisma.unidentifiedPayment.update({
+                where: { id: existingUnidentified.id },
+                data: { payerName: finalPayerName }
               });
             }
             return;
           }
         }
+
+        
 
         for (const invoiceId of invoiceIdsToProcess) {
           const invoice = await prisma.invoice.findUnique({
