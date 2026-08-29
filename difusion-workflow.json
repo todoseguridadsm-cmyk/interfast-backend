@@ -1,0 +1,173 @@
+{
+  "name": "Difusión Masiva Segura WAHA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "difusion",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "difusion-masiva-webhook"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.clients",
+        "options": {}
+      },
+      "id": "split-items",
+      "name": "Separar Clientes",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2.2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-node",
+      "name": "Loop",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const originalMessage = $('Webhook1').first().json.body.message;\nconst zeroWidthChars = ['\\u200B', '\\u200C', '\\u200D', '\\uFEFF'];\n\n// Generar de 5 a 10 caracteres invisibles aleatorios\nconst numChars = Math.floor(Math.random() * 6) + 5;\nlet invisibleSuffix = '';\nfor (let i = 0; i < numChars; i++) {\n  const randomIndex = Math.floor(Math.random() * zeroWidthChars.length);\n  invisibleSuffix += zeroWidthChars[randomIndex];\n}\n\n// Calcular tiempo aleatorio de pausa (entre 20 y 35 segundos)\nconst delaySeconds = Math.floor(Math.random() * 16) + 20;\n\nreturn {\n  ...$input.item.json,\n  messageObfuscated: originalMessage + invisibleSuffix,\n  delaySeconds: delaySeconds\n};"
+      },
+      "id": "code-node",
+      "name": "Ofuscación y Pausa Aleatoria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.delaySeconds }}",
+        "unit": "seconds"
+      },
+      "id": "wait-node",
+      "name": "Pausa Aleatoria (Anti-Ban)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://waha-67bs.onrender.com/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "interfast2024"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.phone }}@c.us"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.messageObfuscated }}"
+            },
+            {
+              "name": "session",
+              "value": "waha-sofi"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-message",
+      "name": "Enviar a WAHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1200, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Separar Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Clientes": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop": {
+      "main": [
+        [
+          {
+            "node": "Ofuscación y Pausa Aleatoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ofuscación y Pausa Aleatoria": {
+      "main": [
+        [
+          {
+            "node": "Pausa Aleatoria (Anti-Ban)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausa Aleatoria (Anti-Ban)": {
+      "main": [
+        [
+          {
+            "node": "Enviar a WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a WAHA": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
