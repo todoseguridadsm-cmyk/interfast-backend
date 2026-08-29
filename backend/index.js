@@ -697,10 +697,29 @@ app.get('/api/dashboard', async (req, res) => {
 // 2. Clients CRUD
 app.get('/api/clients', async (req, res) => {
   try {
-    const clients = await prisma.client.findMany({ include: { plan: true } });
+    const clients = await prisma.client.findMany({
+      where: {
+        status: { not: 'BAJA' }
+      },
+      include: { plan: true },
+      orderBy: { id: 'asc' }
+    });
     res.json(clients);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener clientes' });
+  }
+});
+
+app.get('/api/clients/bajas', async (req, res) => {
+  try {
+    const clients = await prisma.client.findMany({
+      where: { status: 'BAJA' },
+      include: { plan: true },
+      orderBy: { updatedAt: 'desc' }
+    });
+    res.json(clients);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener clientes de baja' });
   }
 });
 
@@ -855,7 +874,7 @@ app.put('/api/clients/:id/status', async (req, res) => {
     
     // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
     if (client.ipNumber && client.mainNode) {
-      if (status === 'SUSPENDED') {
+      if (status === 'SUSPENDED' || status === 'BAJA') {
         try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name || 'Cliente'} (ID: ${client.id}) - Corte CRM`); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
       } else if (status === 'ACTIVE') {
         try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message || JSON.stringify(e)); }

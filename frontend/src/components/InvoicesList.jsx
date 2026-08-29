@@ -722,13 +722,14 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                 <th className="px-3 py-3 font-semibold text-right text-orange-500">Mora</th>
                 <th className="px-3 py-3 font-semibold text-right text-blue-600">Total a Pagar</th>
                 <th className="px-3 py-3 font-semibold text-center">Estado</th>
+                <th className="px-3 py-3 font-semibold text-center whitespace-nowrap">Fecha de Pago</th>
                 <th className="px-3 py-3 font-semibold text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-16 text-center text-slate-400">
+                  <td colSpan="10" className="px-6 py-16 text-center text-slate-400">
                     <FileText className="mx-auto mb-3 opacity-20" size={48} />
                     <p className="text-lg font-medium text-slate-500">Aún no hay facturas aquí.</p>
                   </td>
@@ -819,6 +820,11 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="px-3 py-3 text-center text-slate-600 whitespace-nowrap text-xs">
+                        {inv.payments && inv.payments.length > 0 
+                          ? new Date(inv.payments[0].paymentDate).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) + ' hs'
+                          : '-'}
                       </td>
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (

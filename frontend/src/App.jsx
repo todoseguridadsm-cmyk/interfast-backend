@@ -13,6 +13,7 @@ import POSCaja from './components/POSCaja';
 import WhatsAppStatus from './components/WhatsAppStatus';
 import CutoffList from './components/CutoffList';
 import BajasList from './components/BajasList';
+import RetirosList from './components/RetirosList';
 import NodesList from './components/NodesList';
 import AltasWebList from './components/AltasWebList';
 import ContentApproval from './components/ContentApproval';
@@ -223,6 +224,14 @@ function AppContent() {
             </Link>
           )}
 
+          {/* 16. Bajas / Retiros (Clientes inactivos) */}
+          {isAllowed('BAJAS') && (
+            <Link onClick={handleLinkClick} to="/retiros" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/retiros' ? 'bg-orange-600/20 text-orange-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <UserMinus size={20} />
+              <span>Bajas / Retiros</span>
+            </Link>
+          )}
+
 
           {/* Planes (Admin) */}
           {isAllowed('PLANES') && (
@@ -273,6 +282,7 @@ function AppContent() {
             <Route path="/invoices" element={isAllowed('FACTURACION') ? <InvoicesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cutoff" element={isAllowed('CORTES') ? <CutoffList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/bajas" element={isAllowed('BAJAS') ? <BajasList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/retiros" element={isAllowed('BAJAS') ? <RetirosList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/pos" element={isAllowed('CAJA') ? <POSCaja /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/mp-reconciliation" element={isAllowed('REPORTES') ? <MpReconciliation /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cash" element={isAllowed('CAJA') ? <DailyCash /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />

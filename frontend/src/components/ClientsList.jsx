@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info, CreditCard } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info, CreditCard, UserMinus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -174,13 +174,24 @@ export default function ClientsList() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este cliente?')) return;
+    if (!window.confirm('¿Eliminar definitivamente el cliente?')) return;
     try {
       await axios.delete(`https://interfast-backend-95ww.onrender.com/api/clients/${id}`);
       fetchClients();
     } catch (error) {
       console.error(error);
       alert('Error al eliminar');
+    }
+  };
+
+  const handleDarDeBaja = async (id) => {
+    if (!window.confirm('¿Mover cliente a la sección de BAJAS / RETIROS? El cliente será removido de esta lista.')) return;
+    try {
+      await axios.put(`https://interfast-backend-95ww.onrender.com/api/clients/${id}/status`, { status: 'BAJA' });
+      fetchClients();
+    } catch (error) {
+      console.error(error);
+      alert('Error al dar de baja');
     }
   };
 
@@ -484,9 +495,14 @@ export default function ClientsList() {
                       <MessageCircle size={18} />
                     </button>
                     {canManageClients && (
-                      <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
-                        <Trash2 size={18} />
-                      </button>
+                      <>
+                        <button onClick={() => handleDarDeBaja(client.id)} className="text-orange-500 hover:text-orange-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-orange-50 mr-1" title="Dar de baja / Mover a Retiros">
+                          <UserMinus size={18} />
+                        </button>
+                        <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
+                          <Trash2 size={18} />
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
