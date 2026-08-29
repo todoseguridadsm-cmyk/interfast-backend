@@ -2746,7 +2746,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\n` +
           `Una vez transferido, envíanos la foto del comprobante por aquí.\n\n` +
           `💳 *¿Preferís pagar con tarjeta / efectivo (Rapipago/PagoFácil)?*\n` +
-          `Podés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n` +
+          `Podés hacerlo desde aquí (puede incluir recargo):\n${mpLink}\n\n` +
           `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` + 
           `¡Muchas gracias!`;
         msg = obfuscateMessage(msg);
