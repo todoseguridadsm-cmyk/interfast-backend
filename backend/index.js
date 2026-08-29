@@ -584,9 +584,12 @@ app.post('/api/cutoffs/execute', async (req, res) => {
     }
 
     let successCount = 0;
+    const errors = [];
+    
+    // Primero, actualizar la base de datos (rápido)
     for (const cutoffId of ids) {
       const cutoff = await prisma.cutoffList.findUnique({
-        where: { id: cutoffId },
+        where: { id: parseInt(cutoffId) },
         include: { client: true }
       });
       
@@ -596,18 +599,53 @@ app.post('/api/cutoffs/execute', async (req, res) => {
             where: { id: cutoff.clientId },
             data: { status: 'SUSPENDED' }
           });
-          await mikrotik.addIpToCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode, 'Morosos', `${cutoff.client.name || 'Cliente'} (ID: ${cutoff.client.id || cutoff.clientId}) - Corte CRM`);
+          
+          await prisma.cutoffList.update({
+            where: { id: cutoff.id },
+            data: { status: 'CUT' }
+          });
+          
           successCount++;
         } catch (err) {
-          console.error(`Error ejecutando corte para IP ${cutoff.client.ipNumber}:`, err);
+          console.error(`Error DB para IP ${cutoff.client.ipNumber}:`, err);
+          errors.push(`Error DB en ID ${cutoff.clientId}: ${err.message}`);
         }
       }
+    }
+
+    // Luego enviar comandos a Mikrotik de forma asíncrona (no bloqueante) para no causar timeout en Vercel/Render
+    (async () => {
+      for (const cutoffId of ids) {
+        try {
+          const cutoff = await prisma.cutoffList.findUnique({
+            where: { id: parseInt(cutoffId) },
+            include: { client: true }
+          });
+          if (cutoff && cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
+            await mikrotik.addIpToCutoffList(
+              cutoff.client.ipNumber, 
+              cutoff.client.mainNode, 
+              'Morosos', 
+              `${cutoff.client.name || 'Cliente'} (ID: ${cutoff.client.id || cutoff.clientId}) - Corte CRM`
+            );
+          }
+        } catch (err) {
+          console.error(`Error asíncrono en Mikrotik (Corte) ID ${cutoffId}:`, err.message);
+        }
+      }
+    })();
+
+    if (errors.length > 0) {
+      return res.status(207).json({ 
+        message: `Se actualizaron ${successCount} clientes en la base de datos. Sin embargo, hubo algunos errores.`, 
+        details: errors 
+      });
     }
 
     res.json({ message: `Se ejecutaron ${successCount} cortes de servicio correctamente.` });
   } catch (error) {
     console.error('Error en /api/cutoffs/execute:', error);
-    res.status(500).json({ error: 'Error al ejecutar los cortes' });
+    res.status(500).json({ error: 'Error al ejecutar los cortes', details: error.message || error.toString() });
   }
 });
 
@@ -2126,9 +2164,12 @@ app.post('/api/cutoffs/restore', async (req, res) => {
     }
 
     let successCount = 0;
+    const errors = [];
+    
+    // DB Update
     for (const cutoffId of ids) {
       const cutoff = await prisma.cutoffList.findUnique({
-        where: { id: cutoffId },
+        where: { id: parseInt(cutoffId) },
         include: { client: true }
       });
       
@@ -2138,19 +2179,48 @@ app.post('/api/cutoffs/restore', async (req, res) => {
             where: { id: cutoff.clientId },
             data: { status: 'ACTIVE' }
           });
-          // await ensureCurrentMonthInvoice(cutoff.clientId); // Desactivado por solicitud del usuario (evita deuda mes 8 al rehabilitar)
-          if (cutoff.client.ipNumber && cutoff.client.mainNode) {
-            await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
-          }
+          
+          await prisma.cutoffList.update({
+            where: { id: cutoff.id },
+            data: { status: 'RESOLVED' }
+          });
+          
           successCount++;
         } catch (err) {
-          console.error(`Error restaurando servicio para IP ${cutoff.client.ipNumber}:`, err);
+          console.error(`Error DB restaurando IP ${cutoff.client.ipNumber}:`, err);
+          errors.push(`Error DB en ID ${cutoff.clientId}: ${err.message}`);
         }
       }
     }
-    res.json({ message: `Servicio de Internet restaurado en Mikrotik para ${successCount} clientes (las facturas se mantienen en estado PENDING).` });
+
+    // Mikrotik Async Update
+    (async () => {
+      for (const cutoffId of ids) {
+        try {
+          const cutoff = await prisma.cutoffList.findUnique({
+            where: { id: parseInt(cutoffId) },
+            include: { client: true }
+          });
+          if (cutoff && cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
+            await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
+          }
+        } catch (err) {
+          console.error(`Error asíncrono en Mikrotik (Restaurar) ID ${cutoffId}:`, err.message);
+        }
+      }
+    })();
+
+    if (errors.length > 0) {
+      return res.status(207).json({ 
+        message: `Se actualizaron ${successCount} clientes en la base de datos. Hubo algunos errores.`, 
+        details: errors 
+      });
+    }
+
+    res.json({ message: `Se restauraron ${successCount} servicios correctamente.` });
   } catch (error) {
-    res.status(500).json({ error: 'Error restaurando los servicios' });
+    console.error('Error en /api/cutoffs/restore:', error);
+    res.status(500).json({ error: 'Error al restaurar los servicios', details: error.message || error.toString() });
   }
 });
 
