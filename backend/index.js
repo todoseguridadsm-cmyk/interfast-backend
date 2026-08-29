@@ -3124,18 +3124,6 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
             const centsVal = getCents999(cId);
 
-            let possibleAmounts = [];
-            if (inv.month === 8 && inv.year === 2026) {
-              // Agosto 2026: V1 usa el monto cargado en DB, V2/V3/V4 usan centavos unicos
-              possibleAmounts = [
-                inv.priceV1 || inv.originalAmount,
-                inv.priceV2 ? inv.priceV2 + centsVal : null,
-                inv.priceV3 ? inv.priceV3 + centsVal : null,
-                inv.priceV4 ? inv.priceV4 + centsVal : null
-              ];
-            } else {
-              // Septiembre 2026 en adelante: V1 a V4 aplican centavos unicos de 999 combinaciones
-              possibleAmounts = [
                 (inv.priceV1 || inv.originalAmount) + centsVal,
                 inv.priceV2 ? inv.priceV2 + centsVal : null,
                 inv.priceV3 ? inv.priceV3 + centsVal : null,
