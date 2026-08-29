@@ -135,6 +135,86 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const getRandomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 // Utilidad centralizada para enviar mensajes a través de WAHA (Sofi)
+
+// Validacion estricta anti-pagos-fantasma
+function strictVerifyPayment(inv, mpPayment) {
+  try {
+    const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
+    const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    
+    // A) PRIORIDAD OBSERVACIONES
+    const obs = (inv.client?.observation || '');
+    const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
+    
+    for (const alias of rawAliases) {
+      const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
+      const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
+      if (aliasTokens.length > 0 && (payerClean.includes(aliasClean) || matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
+        console.log(`[strictVerifyPayment] MATCH OBSERVACIONES: "${alias}" para cliente ${inv.client?.name}`);
+        return true;
+      }
+    }
+
+    // B) COINCIDENCIA POR NOMBRE
+    const clientName = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
+    const matchedWordsCount = nameWords.filter(word => payerClean.includes(word)).length;
+    
+    if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
+      console.log(`[strictVerifyPayment] MATCH NOMBRE: ${matchedWordsCount} palabras de "${clientName}" encontradas`);
+      return true;
+    }
+
+    // C) COINCIDENCIA POR DNI / CUIT
+    const payerDniRaw = String(mpPayment.payer?.identification?.number || '');
+    const clientDni = String(inv.client?.dni || '').replace(/\D/g, '');
+    
+    if (clientDni && clientDni.length >= 6 && payerDniRaw.includes(clientDni)) {
+      console.log(`[strictVerifyPayment] MATCH DNI: ${clientDni} en ${payerDniRaw}`);
+      return true;
+    }
+
+    // D) MATCH POR EMAIL (EXTRA)
+    const payerEmail = (mpPayment.payer?.email || '').toLowerCase();
+    const clientEmail = (inv.client?.email || '').toLowerCase();
+    if (clientEmail && clientEmail.length > 5 && payerEmail === clientEmail) {
+      console.log(`[strictVerifyPayment] MATCH EMAIL: ${clientEmail}`);
+      return true;
+    }
+
+    return false;
+  } catch(e) {
+    console.error('Error en strictVerifyPayment:', e);
+    return false;
+  }
+}
+
+async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount, candidates) {
+  try {
+    let note = '';
+    if (candidates && candidates.length > 0) {
+       const names = candidates.map(c => c.client?.name).join(', ');
+       note = `POSIBLE CLIENTE POR COINCIDENCIA DE CENTAVOS: ${names}`;
+    }
+    const payerNameRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''}`.trim() || mpPayment.description || 'Desconocido';
+    const payerName = note ? `${payerNameRaw} - ${note}` : payerNameRaw;
+
+    await prisma.unidentifiedPayment.create({
+      data: {
+        amount: transactionAmount,
+        mpPaymentId: String(mpPayment.id || ''),
+        payerName: payerName.substring(0, 250),
+        payerEmail: mpPayment.payer?.email || null,
+        payerDni: String(mpPayment.payer?.identification?.number || ''),
+      }
+    });
+    console.log(`[Pagos No Reconocidos] Guardado pago de ${transactionAmount} (${payerName})`);
+  } catch (err) {
+    console.error('Error guardando UnidentifiedPayment:', err);
+  }
+}
+
 async function sendWhatsAppMessage(phone, text) {
   const phoneClean = phone.replace(/\D/g, '');
   
@@ -3039,7 +3119,14 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
             }
 
             if (nameAndAmountMatches.length > 0) {
-              matchedInvoice = disambiguate(nameAndAmountMatches);
+              
+                for (let candidate of nameAndAmountMatches) {
+                  if (strictVerifyPayment(candidate, mpPayment)) {
+                    matchedInvoice = candidate;
+                    break;
+                  }
+                }
+
               if (matchedInvoice) {
                 console.log(`🎯 Webhook MP [Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client.name} sin coincidencia estricta de centavos.`);
               }
@@ -4528,7 +4615,7 @@ cron.schedule('* * * * *', async () => {
 // Sincronización periódica de Mercado Pago (cada 10 minutos)
 // Busca cobros acreditados sin webhook y los concilia por centavos o referencia
 cron.schedule('*/10 * * * *', async () => {
-  return; // DESACTIVADO TEMPORALMENTE PARA EVITAR PAGOS FANTASMA
+  // return; // REACTIVADO CON VERIFICACION ESTRICTA
   if (!clientMP) return;
   try {
     console.log('[Cron MP Sync] Iniciando conciliación periódica de Mercado Pago...');
@@ -4681,7 +4768,14 @@ cron.schedule('*/10 * * * *', async () => {
           }
 
           if (nameAndAmountMatches.length > 0) {
-            matchedInvoice = disambiguate(nameAndAmountMatches);
+            
+              for (let candidate of nameAndAmountMatches) {
+                if (strictVerifyPayment(candidate, mpPayment)) {
+                  matchedInvoice = candidate;
+                  break;
+                }
+              }
+
             if (matchedInvoice) {
               console.log(`🎯 [Cron MP Sync - Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client?.name} sin coincidencia estricta de centavos.`);
             }
