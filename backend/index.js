@@ -119,6 +119,21 @@ let waSocket = null;
 global.recentReceipts = []; // Store { phone, timestamp }
 global.recentChats = new Map(); // Store { phone, name, lastMessageTime }
 
+// Helper functions for Anti-Ban (Obfuscation and Safe Delays)
+function obfuscateMessage(message) {
+  const zeroWidthChars = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+  const numChars = Math.floor(Math.random() * 6) + 5;
+  let invisibleSuffix = '';
+  for (let i = 0; i < numChars; i++) {
+    const randomIndex = Math.floor(Math.random() * zeroWidthChars.length);
+    invisibleSuffix += zeroWidthChars[randomIndex];
+  }
+  return message + invisibleSuffix;
+}
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const getRandomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
 // Utilidad centralizada para enviar mensajes a través de WAHA (Sofi)
 async function sendWhatsAppMessage(phone, text) {
   const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
@@ -1400,6 +1415,7 @@ app.post('/api/invoices/generate', async (req, res) => {
         include: { client: true }
       });
 
+      let notifiedCount = 0;
       for (const inv of createdInvoices) {
         if (!inv.client || !inv.client.phone) continue;
 
@@ -1412,7 +1428,8 @@ app.post('/api/invoices/generate', async (req, res) => {
           const totalWithCents = inv.priceV1 + centsVal;
           const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
 
-          const messageBody = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos la factura de tu servicio de Internet para el período ${inv.month}/${inv.year}.\n\n💰 *Monto a Abonar (Vencimiento 1):* *$${totalEs}*\n👉 *Alias Mercado Pago:* *interfastsm* (respetar centavos para acreditación automática).\n\n💡 *¿Querés pagar con tarjeta (Link de Pago) o sumarte al Débito Automático Mensual?* Respondeme este mensaje pidiéndomelo.\n\n*Te adjuntamos la factura en formato PDF con el detalle de los 4 vencimientos y tarifas.*\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*`;
+          let messageBody = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos la factura de tu servicio de Internet para el período ${inv.month}/${inv.year}.\n\n💰 Monto a Abonar (Vencimiento 1): $${totalEs}\n👉 Alias Mercado Pago: interfastsm (respetar centavos para acreditación automática).\n\n💡 ¿Querés pagar con tarjeta (Link de Pago), sumarte al Débito Automático Mensual, o en efectivo en un rapipago o pago facil? Respondeme este mensaje pidiéndomelo.\n\nTe adjuntamos la factura en formato PDF con el detalle de los 4 vencimientos y tarifas.\n\n⚠️ Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.`;
+          messageBody = obfuscateMessage(messageBody);
 
           // Generar el buffer del PDF
           const pdfBuffer = await generateInvoicePDFBuffer(inv);
@@ -1433,8 +1450,14 @@ app.post('/api/invoices/generate', async (req, res) => {
           console.error(`❌ Error enviando factura PDF a cliente ID ${inv.clientId}:`, sendErr.message);
         }
 
-        // Retraso de 3 segundos entre envíos para evitar baneos
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        notifiedCount++;
+        if (notifiedCount % 40 === 0) {
+          console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
+          await sleep(90000);
+        } else {
+          const delay = getRandomDelay(15000, 25000);
+          await sleep(delay);
+        }
       }
       console.log('🏁 Proceso de envío de PDFs finalizado.');
     })().catch(err => console.error('Error en tarea en segundo plano de envío de facturas:', err));
@@ -1677,7 +1700,8 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       const totalWithCents = totalAmountWithFee + centsVal;
       const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-      const message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+      let message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito, pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+      message = obfuscateMessage(message);
 
       await sendWhatsAppMessage(targetPhone, message);
       
@@ -1688,8 +1712,13 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       
       notifiedCount++;
 
-      // Delay 3 seconds between messages to prevent WA Ban
-      await new Promise(r => setTimeout(r, 3000));
+      if (notifiedCount % 40 === 0) {
+        console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
+        await sleep(90000);
+      } else {
+        const delay = getRandomDelay(15000, 25000);
+        await sleep(delay);
+      }
     }
     console.log(`¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot (WAHA).`);
     })().catch(err => console.error("Error en mass-notify background:", err));
@@ -1778,7 +1807,8 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       const totalWithCents = totalAmountWithFee + centsVal;
       const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-      const message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+      let message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* con tarjeta o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+      message = obfuscateMessage(message);
 
       if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
       
@@ -1789,8 +1819,13 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       
       notifiedCount++;
 
-      // Delay 6 seconds between warning messages to prevent WA Ban, user requested safe delay
-      await new Promise(r => setTimeout(r, 6000));
+      if (notifiedCount % 40 === 0) {
+        console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
+        await sleep(90000);
+      } else {
+        const delay = getRandomDelay(15000, 25000);
+        await sleep(delay);
+      }
     }
 
     res.json({ message: `¡Avisos de corte enviados! ${notifiedCount} deudores advertidos automáticamente por el Robot.` });
@@ -2344,6 +2379,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
 
     // Proceso asincrono
     (async () => {
+      let notifiedCount = 0;
       for (const invoice of invoices) {
         if (!invoice.client || !invoice.client.phone) continue;
         
@@ -2391,7 +2427,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/redirect`;
         const debitoLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/debito`;
 
-        const msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
+        let msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
           `📅 *Período:* ${String(invoice.month).padStart(2,'0')}/${invoice.year}\n` +
           `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n` +
           `${pricesText}` +
@@ -2404,6 +2440,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `Podés hacerlo desde aquí (incluye recargo):\n${mpLink}\n\n` +
           `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` + 
           `¡Muchas gracias!`;
+        msg = obfuscateMessage(msg);
 
         try {
           await sendWhatsAppMessage(targetPhone, msg);
@@ -2416,9 +2453,14 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           console.error(`Error enviando WA masivo a ${invoice.client.name}:`, err.message);
         }
         
-        // Esperar entre 5 y 10 segundos
-        const delay = Math.floor(Math.random() * 5000) + 5000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        notifiedCount++;
+        if (notifiedCount % 40 === 0) {
+          console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
+          await sleep(90000);
+        } else {
+          const delay = getRandomDelay(15000, 25000);
+          await sleep(delay);
+        }
       }
     })();
   } catch (error) {
