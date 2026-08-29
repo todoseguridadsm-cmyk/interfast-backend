@@ -707,7 +707,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
-                <th className="px-3 py-3 font-semibold text-center w-12">
+                <th className="px-2 py-2 font-semibold text-center w-12">
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
@@ -715,15 +715,15 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                     className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                   />
                 </th>
-                <th className="px-3 py-3 font-semibold">Cliente</th>
-                <th className="px-3 py-3 font-semibold text-center">Período</th>
-                <th className="px-3 py-3 font-semibold text-center">Vencimiento</th>
-                <th className="px-3 py-3 font-semibold text-right">Original</th>
-                <th className="px-3 py-3 font-semibold text-right text-orange-500">Mora</th>
-                <th className="px-3 py-3 font-semibold text-right text-blue-600">Total a Pagar</th>
-                <th className="px-3 py-3 font-semibold text-center">Estado</th>
-                <th className="px-3 py-3 font-semibold text-center whitespace-nowrap">Fecha de Pago</th>
-                <th className="px-3 py-3 font-semibold text-center">Acciones</th>
+                <th className="px-2 py-2 font-semibold">Cliente</th>
+                <th className="px-2 py-2 font-semibold text-center">Período</th>
+                <th className="px-2 py-2 font-semibold text-center">Vencimiento</th>
+                <th className="px-2 py-2 font-semibold text-right">Original</th>
+                <th className="px-2 py-2 font-semibold text-right text-orange-500">Mora</th>
+                <th className="px-2 py-2 font-semibold text-right text-blue-600">Total a Pagar</th>
+                <th className="px-2 py-2 font-semibold text-center">Estado</th>
+                <th className="px-2 py-2 font-semibold text-center ">Fecha de Pago</th>
+                <th className="px-2 py-2 font-semibold text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -748,7 +748,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
 
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         {isSelectable && (
                           <input 
                             type="checkbox" 
@@ -758,22 +758,22 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                           />
                         )}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-2">
                         <div className="font-semibold text-slate-900">{inv.client?.name || 'Cliente borrado'}</div>
                         <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">
                           TK{String(inv.clientId).padStart(3, '0')}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-center font-medium text-slate-600">
+                      <td className="px-2 py-2 text-center font-medium text-slate-600">
                         {String(inv.month).padStart(2, '0')}/{inv.year}
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600">
+                      <td className="px-2 py-2 text-center text-slate-600">
                         {new Date(inv.dueDate).toLocaleDateString('es-AR')}
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-600">
+                      <td className="px-2 py-2 text-right text-slate-600">
                         ${displayOriginal.toLocaleString(undefined, {minimumFractionDigits: 2})}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2 py-2 text-right">
                         {inv.calculatedLateFee > 0 ? (
                           <span className="text-orange-500 font-bold inline-flex items-center gap-1">
                             <AlertCircle size={14} /> +${inv.calculatedLateFee.toLocaleString(undefined, {minimumFractionDigits: 2})}
@@ -782,12 +782,12 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                           <span className="text-slate-300">---</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2 py-2 text-right">
                         <span className={`font-bold ${isPaid ? 'text-slate-500 line-through' : 'text-slate-900 text-base'}`}>
                           ${displayTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-center">
+                      <td className="px-2 py-2 text-center">
                         <div className="flex flex-col items-center gap-1">
                           {isPaid ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
@@ -821,12 +821,17 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-center text-slate-600 whitespace-nowrap text-xs">
-                        {inv.payments && inv.payments.length > 0 
-                          ? new Date(inv.payments[0].paymentDate).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) + ' hs'
-                          : '-'}
-                      </td>
-                      <td className="px-3 py-3 text-center">
+                        <td className="px-2 py-2 text-center text-slate-600 text-xs leading-tight">
+                          {inv.payments && inv.payments.length > 0 
+                            ? (
+                              <>
+                                <div className="font-semibold">{new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR')}</div>
+                                <div className="text-[10px] text-slate-400">{new Date(inv.payments[0].paymentDate).toLocaleTimeString('es-AR', {timeStyle: 'short'})} hs</div>
+                              </>
+                            )
+                            : '-'}
+                        </td>
+                      <td className="px-2 py-2 text-center">
                         {inv.status !== 'PAID' && (
                           <div className="flex flex-wrap items-center justify-center gap-1.5 w-max">
                             {!isDebito && !isUpToDateNotified && (
