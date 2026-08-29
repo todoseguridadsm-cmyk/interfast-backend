@@ -828,38 +828,38 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                       </td>
                       <td className="px-3 py-3 text-center">
                         {inv.status !== 'PAID' && (
-                          <div className="flex flex-wrap items-center justify-center gap-2 min-w-[250px]">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5 w-max">
                             {!isDebito && !isUpToDateNotified && (
                               <button 
                                 onClick={() => manualWhatsApp(inv)} 
-                                className="text-green-500 hover:text-green-700 transition-colors p-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
+                                className="text-green-500 hover:text-green-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
                                 title={`Notificar ${activeV}`}
                               >
-                                <MessageCircle size={16} /> Notificar {activeV}
+                                <MessageCircle size={14} /> <span className="hidden xl:inline">Notificar {activeV}</span>
                               </button>
                             )}
                             {!isDebito && inv.status === 'PENDING' && !isUpToDateNotified && (
                               <button 
                                 onClick={() => warningWhatsApp(inv)} 
-                                className="text-orange-500 hover:text-orange-700 transition-colors p-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
+                                className="text-orange-500 hover:text-orange-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
                                 title="Aviso de Corte"
                               >
-                                <AlertCircle size={16} /> Avisar Corte
+                                <AlertCircle size={14} /> <span className="hidden xl:inline">Avisar Corte</span>
                               </button>
                             )}
                             {!isDebito && inv.status === 'PENDING' && (
                               <button 
                                 onClick={() => mercadoPagoWhatsApp(inv)} 
-                                className="text-sky-500 hover:text-sky-700 transition-colors p-2 rounded-lg hover:bg-sky-50 bg-white border border-sky-200 flex items-center gap-1 font-bold text-xs" 
+                                className="text-sky-500 hover:text-sky-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-sky-50 bg-white border border-sky-200 flex items-center gap-1 font-bold text-xs" 
                                 title="Link MercadoPago"
                               >
-                                <CreditCard size={16} /> Link MP
+                                <CreditCard size={14} /> <span className="hidden xl:inline">Link MP</span>
                               </button>
                             )}
                             {inv.status === 'PENDING' && (
                               <button 
                                 onClick={() => handleDeleteInvoice(inv.id)} 
-                                className="text-red-500 hover:text-red-700 transition-colors p-2 rounded-lg hover:bg-red-50 bg-white border border-red-200" 
+                                className="text-red-500 hover:text-red-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-red-50 bg-white border border-red-200" 
                                 title="Anular Factura"
                               >
                                 <Trash2 size={16} />
