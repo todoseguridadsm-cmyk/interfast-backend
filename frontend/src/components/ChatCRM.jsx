@@ -29,6 +29,12 @@ export default function ChatCRM() {
     if (selectedContact) {
       // Fetch immediately
       fetchMessages(selectedContact.phone);
+      // Mark as read
+      axios.post(`https://interfast-backend-95ww.onrender.com/api/chat/messages/${selectedContact.phone}/read`).catch(console.error);
+      
+      // Actualizar contador localmente
+      setContacts(prev => prev.map(c => c.phone === selectedContact.phone ? { ...c, unreadCount: 0 } : c));
+
       // Poll every 5 seconds
       const intervalId = setInterval(() => fetchMessages(selectedContact.phone, true), 5000);
       return () => clearInterval(intervalId);
@@ -82,7 +88,7 @@ export default function ChatCRM() {
         [phone]: data
       }));
     } catch (err) {
-      console.error('Error fetching WAHA messages:', err);
+      console.error('Error fetching messages:', err);
     } finally {
       if (!isPolling) setLoadingHistory(false);
     }
@@ -136,8 +142,8 @@ export default function ChatCRM() {
             <MessageSquare size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Interfast Whasapp Web</h2>
-            <p className="text-xs text-slate-500">Historial en vivo desde WhatsApp (Sin base de datos propia)</p>
+            <h2 className="text-xl font-bold text-slate-900">Interfast WhatsApp Web</h2>
+            <p className="text-xs text-slate-500">Historial en vivo y notificaciones de facturación integradas</p>
           </div>
         </div>
 
@@ -223,7 +229,7 @@ export default function ChatCRM() {
                   onClick={() => fetchMessages(selectedContact.phone)} 
                   disabled={loadingHistory}
                   className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
-                  title="Recargar historial desde WAHA"
+                  title="Recargar historial"
                 >
                   <RefreshCw size={18} className={loadingHistory ? "animate-spin" : ""} />
                 </button>
@@ -233,14 +239,14 @@ export default function ChatCRM() {
                 {loadingHistory && currentMessages.length === 0 && (
                   <div className="flex justify-center my-4">
                     <span className="bg-white/80 text-slate-600 text-xs px-4 py-2 rounded-full shadow-sm flex items-center gap-2">
-                      <Loader2 size={14} className="animate-spin" /> Cargando historial desde WAHA...
+                      <Loader2 size={14} className="animate-spin" /> Cargando historial de mensajes...
                     </span>
                   </div>
                 )}
                 {currentMessages.length === 0 && !loadingHistory && (
                   <div className="flex justify-center my-4">
                     <span className="bg-amber-100 text-amber-800 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
-                      No se encontraron mensajes recientes en WAHA para este contacto.
+                      No hay mensajes registrados con este contacto.
                     </span>
                   </div>
                 )}
@@ -282,8 +288,8 @@ export default function ChatCRM() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center z-10 text-slate-500">
               <MessageSquare size={64} className="mb-4 text-emerald-600/30" />
-              <h3 className="text-2xl font-bold text-slate-700">Chat con Historial en WAHA</h3>
-              <p className="mt-2 text-center max-w-sm">Selecciona un cliente. El historial de mensajes se descargará directamente del celular en tiempo real.</p>
+              <h3 className="text-2xl font-bold text-slate-700">WhatsApp Web Interfast</h3>
+              <p className="mt-2 text-center max-w-sm">Selecciona un cliente para chatear. Podrás ver las notificaciones enviadas por el bot y las respuestas del cliente.</p>
             </div>
           )}
         </div>

@@ -217,40 +217,68 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
 
 async function sendWhatsAppMessage(phone, text) {
   const phoneClean = phone.replace(/\D/g, '');
+  let success = false;
   
   // Priorizar el socket interno de Baileys (Sofi) para no depender de n8n/waha
   if (waSocket && waStatus === 'CONNECTED') {
     const targetPhoneBaileys = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
     try {
       await waSocket.sendMessage(targetPhoneBaileys, { text: text });
-      return true;
+      success = true;
     } catch (e) {
       console.error('Error enviando por Baileys interno, cayendo a WAHA:', e.message);
     }
   }
 
   // Fallback a WAHA si Baileys no está conectado
-  const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
-  const apiKey = process.env.WAHA_API_KEY || 'interfast2024';
-  const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
+  if (!success) {
+    const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
+    const apiKey = process.env.WAHA_API_KEY || 'interfast2024';
+    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
 
-  try {
-    const { default: axios } = require('axios');
-    await axios.post(`${wahaUrl}/api/sendText`, {
-      chatId: targetPhone,
-      text: text,
-      session: 'waha-sofi'
-    }, {
-      headers: {
-        'X-Api-Key': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
-    return true;
-  } catch (error) {
-    console.error('Error enviando mensaje vía WAHA:', error.message);
-    return false;
+    try {
+      const { default: axios } = require('axios');
+      await axios.post(`${wahaUrl}/api/sendText`, {
+        chatId: targetPhone,
+        text: text,
+        session: 'waha-sofi'
+      }, {
+        headers: {
+          'X-Api-Key': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      success = true;
+    } catch (error) {
+      console.error('Error enviando mensaje vía WAHA:', error.message);
+    }
   }
+
+  if (success) {
+    try {
+      // Buscar el nombre del cliente
+      const client = await prisma.client.findFirst({
+        where: { phone: { contains: phoneClean } },
+        select: { name: true }
+      });
+      
+      // Guardar el mensaje saliente en la BD
+      await prisma.whatsAppMessage.create({
+        data: {
+          phone: phoneClean,
+          name: client ? client.name : null,
+          text: text,
+          isFromMe: true,
+          isRead: true, // Los enviados por nosotros los marcamos leídos
+          timestamp: new Date()
+        }
+      });
+    } catch (dbErr) {
+      console.error('Error guardando mensaje saliente en BD:', dbErr);
+    }
+  }
+  
+  return success;
 }
 
 setInterval(() => {
@@ -5250,16 +5278,16 @@ app.post('/api/bot/toggle-sofi', async (req, res) => {
 });
 
 // --- CHAT ENDPOINTS ---
+
+// --- CHAT ENDPOINTS ---
 app.get('/api/chat/contacts', async (req, res) => {
   try {
-    // Retornamos todos los clientes de la base de datos para que puedan buscarlos y enviarles mensaje
     const dbClients = await prisma.client.findMany({
       where: { status: 'ACTIVE' },
       select: { id: true, name: true, phone: true }
     });
 
     const contactMap = new Map();
-
     dbClients.forEach(c => {
       if (c.phone) {
         const cleanPhone = c.phone.replace(/\D/g, '');
@@ -5268,42 +5296,53 @@ app.get('/api/chat/contacts', async (req, res) => {
           name: c.name,
           phone: cleanPhone,
           lastMessage: '',
-          lastMessageTime: new Date(0), // Fecha antigua por defecto
+          lastMessageTime: new Date(0),
           unreadCount: 0
         });
       }
     });
 
-    if (global.recentChats) {
-      for (const [phone, chatData] of global.recentChats.entries()) {
-        let cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
-        if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    const recentChatsData = await prisma.$queryRaw`
+      SELECT 
+        phone, 
+        MAX(name) as "name", 
+        MAX(timestamp) as "lastMessageTime",
+        SUM(CASE WHEN "isRead" = false AND "isFromMe" = false THEN 1 ELSE 0 END) as "unreadCount",
+        (SELECT text FROM "WhatsAppMessage" w2 WHERE w2.phone = "WhatsAppMessage".phone ORDER BY timestamp DESC LIMIT 1) as "lastMessage"
+      FROM "WhatsAppMessage"
+      GROUP BY phone
+    `;
 
-        // Robust matching to ignore prefixes like 0 or 15
-        let matchedDbPhone = null;
-        if (cleanPhone.length > 5) {
-          for (const dbPhone of contactMap.keys()) {
-            if (dbPhone.length > 5 && (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone))) {
-              matchedDbPhone = dbPhone;
-              break;
-            }
+    for (const chatData of recentChatsData) {
+      let cleanPhone = chatData.phone.replace(/\D/g, '');
+      if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+      if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+
+      let matchedDbPhone = null;
+      if (cleanPhone.length > 5) {
+        for (const dbPhone of contactMap.keys()) {
+          if (dbPhone.length > 5 && (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone))) {
+            matchedDbPhone = dbPhone;
+            break;
           }
         }
+      }
 
-        if (matchedDbPhone) {
-          contactMap.get(matchedDbPhone).lastMessageTime = chatData.lastMessageTime;
-          contactMap.get(matchedDbPhone).unreadCount = chatData.unreadCount || 0;
-        } else {
-          contactMap.set(cleanPhone, {
-            clientId: 'unknown-' + cleanPhone,
-            name: chatData.name,
-            phone: cleanPhone,
-            lastMessage: '',
-            lastMessageTime: chatData.lastMessageTime,
-            unreadCount: chatData.unreadCount || 0
-          });
-        }
+      const unreadCount = parseInt(chatData.unreadCount || 0);
+
+      if (matchedDbPhone) {
+        contactMap.get(matchedDbPhone).lastMessageTime = new Date(chatData.lastMessageTime);
+        contactMap.get(matchedDbPhone).unreadCount = unreadCount;
+        contactMap.get(matchedDbPhone).lastMessage = chatData.lastMessage || '';
+      } else {
+        contactMap.set(cleanPhone, {
+          clientId: 'unknown-' + cleanPhone,
+          name: chatData.name || 'Desconocido (WhatsApp)',
+          phone: cleanPhone,
+          lastMessage: chatData.lastMessage || '',
+          lastMessageTime: new Date(chatData.lastMessageTime),
+          unreadCount: unreadCount
+        });
       }
     }
 
@@ -5320,113 +5359,67 @@ app.get('/api/chat/contacts', async (req, res) => {
 app.get('/api/chat/messages/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
-    const cleanPhone = phone.replace(/\D/g, '');
-    const targetPhone = cleanPhone.startsWith('54') ? `${cleanPhone}@c.us` : `549${cleanPhone}@c.us`;
-
-    const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
-    const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
-
-    // Reset unread count
-    if (global.recentChats && cleanPhone.length > 5) {
-      for (const [mapKey, chatData] of global.recentChats.entries()) {
-        if (mapKey.length > 5 && (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey))) {
-          chatData.unreadCount = 0;
-        }
-      }
-    }
-
-    // Fetch messages from WAHA API (limit to 15 for quick loading and to prevent WAHA from hanging)
-    const { data } = await axios.get(`${wahaUrl}/api/messages`, {
-      params: {
-        session: 'waha-sofi',
-        chatId: targetPhone,
-        limit: 15
-      },
-      headers: {
-        'X-Api-Key': wahaKey
-      },
-      timeout: 15000
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+    if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    
+    const messages = await prisma.whatsAppMessage.findMany({
+      where: { phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone } },
+      orderBy: { timestamp: 'asc' },
+      take: 100
     });
 
-    // Map WAHA format to our expected format
-    const formattedMessages = data.map(msg => {
-      let text = '';
-      if (msg.body) {
-        text = msg.body;
-      } else if (msg._data?.message?.extendedTextMessage?.text) {
-        text = msg._data.message.extendedTextMessage.text;
-      } else if (msg._data?.message?.conversation) {
-        text = msg._data.message.conversation;
-      }
-
-      return {
-        id: msg.id,
-        phone: cleanPhone,
-        remitente: msg.fromMe ? 'Nosotros' : 'Cliente',
-        mensaje: text || '[Mensaje multimedia o sistema]',
-        created_at: new Date(msg.timestamp * 1000)
-      };
-    });
-
-    // Sort ascending (WAHA usually returns descending or ascending, we ensure ascending for chat UI)
-    formattedMessages.sort((a, b) => a.created_at - b.created_at);
+    const formattedMessages = messages.map(msg => ({
+      id: msg.id,
+      phone: cleanPhone,
+      remitente: msg.isFromMe ? 'Nosotros' : 'Cliente',
+      mensaje: msg.text,
+      created_at: msg.timestamp
+    }));
 
     res.json(formattedMessages);
   } catch (error) {
-    console.error('Error fetching chat messages from WAHA:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Error obteniendo mensajes desde WAHA.', details: error.response?.data || error.message, stack: error.stack });
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ error: 'Error obteniendo historial de mensajes.' });
+  }
+});
+
+app.post('/api/chat/messages/:phone/read', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+    if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    
+    await prisma.whatsAppMessage.updateMany({
+      where: { 
+        phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone },
+        isFromMe: false,
+        isRead: false
+      },
+      data: { isRead: true }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking messages as read:', error);
+    res.status(500).json({ error: 'Error marcando mensajes como leídos.' });
   }
 });
 
 app.post('/api/chat/send', async (req, res) => {
   try {
-    const { phone, message } = req.body;
-    if (!phone || !message) {
-      return res.status(400).json({ error: 'Faltan parámetros phone o message.' });
+    const { phone, text } = req.body;
+    const success = await sendWhatsAppMessage(phone, text);
+    if (success) {
+      res.json({ message: 'Mensaje enviado' });
+    } else {
+      res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
     }
-
-    const phoneClean = phone.replace(/\D/g, '');
-    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
-    
-    // Usamos la API de WAHA para enviar el mensaje
-    const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
-    const wahaKey = process.env.WAHA_API_KEY || 'interfast2024';
-
-    await axios.post(`${wahaUrl}/api/sendText`, {
-      session: 'waha-sofi',
-      chatId: targetPhone,
-      text: message
-    }, {
-      headers: {
-        'X-Api-Key': wahaKey
-      }
-    });
-
-    if (global.recentChats && cleanPhone.length > 5) {
-      let foundPhone = cleanPhone;
-      // Tratar de encontrar la entrada existente para no perder el unreadCount
-      for (const mapKey of global.recentChats.keys()) {
-        if (mapKey.length > 5 && (mapKey.endsWith(cleanPhone) || cleanPhone.endsWith(mapKey))) {
-          foundPhone = mapKey;
-          break;
-        }
-      }
-      
-      global.recentChats.set(foundPhone, {
-        phone: foundPhone,
-        name: global.recentChats.get(foundPhone)?.name || 'Desconocido (WhatsApp)',
-        lastMessageTime: new Date(),
-        unreadCount: 0 // Lo acabamos de responder nosotros, así que lo leímos
-      });
-    }
-      
-    res.json({ message: 'Mensaje enviado a través de WAHA API.' });
   } catch (error) {
-    console.error('Error enviando mensaje de chat vía WAHA:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp por WAHA.' });
+    res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
   }
 });
-
 
 app.post('/api/bot/waha-webhook', async (req, res) => {
   // Proxy de Webhooks de WAHA hacia n8n
@@ -5463,6 +5456,7 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
 
           const existingChat = global.recentChats.get(foundPhone) || {};
           const isFromMe = req.body.payload.fromMe === true;
+          const textMsg = req.body.payload.body || (req.body.payload.hasMedia ? '[Archivo/Audio Adjunto]' : '[Mensaje no soportado]');
 
           global.recentChats.set(foundPhone, {
             phone: foundPhone,
@@ -5470,6 +5464,18 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
             lastMessageTime: new Date(),
             unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
           });
+          
+          // Guardar en Base de Datos de manera asíncrona
+          prisma.whatsAppMessage.create({
+            data: {
+              phone: foundPhone,
+              name: notifyName !== 'Desconocido (WhatsApp)' ? notifyName : null,
+              text: textMsg,
+              isFromMe: isFromMe,
+              isRead: isFromMe,
+              timestamp: new Date()
+            }
+          }).catch(err => console.error('Error guardando mensaje entrante en BD:', err));
         }
       }
     }
