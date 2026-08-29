@@ -333,6 +333,41 @@ async function connectToWhatsApp() {
     }
   });
 
+  
+  sock.ev.on('messages.upsert', async (m) => {
+    try {
+      if (m.type === 'notify') {
+        for (const msg of m.messages) {
+          if (!msg.message || msg.key.fromMe || msg.key.remoteJid === 'status@broadcast') continue;
+          
+          let text = '';
+          if (msg.message.conversation) text = msg.message.conversation;
+          else if (msg.message.extendedTextMessage) text = msg.message.extendedTextMessage.text;
+          else if (msg.message.imageMessage) text = '[Imagen/Comprobante adjunto]';
+          else if (msg.message.documentMessage) text = '[Documento adjunto]';
+          else continue;
+
+          const phone = msg.key.remoteJid.replace('@s.whatsapp.net', '');
+          const name = msg.pushName || 'Desconocido';
+          
+          await prisma.whatsAppMessage.create({
+            data: {
+              phone: phone,
+              name: name,
+              text: text,
+              isFromMe: false,
+              isRead: false,
+              timestamp: new Date()
+            }
+          });
+          console.log(`📥 Nuevo mensaje de ${name} (${phone}): ${text}`);
+        }
+      }
+    } catch(err) {
+      console.error('Error procesando mensaje entrante de Baileys:', err);
+    }
+  });
+
   waSocket = sock;
 }
 
@@ -3072,7 +3107,7 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
 
   const updatedInvoice = await prisma.invoice.updateMany({
     where: { id: invoiceId, status: 'PENDING' },
-    data: { status: 'PAID', paymentDate: new Date(), paymentMethod: 'MERCADOPAGO' }
+    data: { status: 'PAID' }
   });
 
   if (updatedInvoice.count === 0) return false;
