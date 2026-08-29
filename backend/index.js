@@ -846,6 +846,47 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
   }
 });
 
+// Consultar estado real del servicio Mikrotik para múltiples clientes BAJA (batch por nodo)
+app.get('/api/clients/bajas/service-status', async (req, res) => {
+  try {
+    const clients = await prisma.client.findMany({
+      where: { status: 'BAJA', ipNumber: { not: null } },
+      select: { id: true, ipNumber: true, mainNode: true }
+    });
+
+    // Agrupar por nodo para hacer una sola conexión por nodo
+    const byNode = {};
+    for (const c of clients) {
+      if (!c.ipNumber || !c.mainNode) continue;
+      if (!byNode[c.mainNode]) byNode[c.mainNode] = [];
+      byNode[c.mainNode].push(c);
+    }
+
+    const statusMap = {}; // { clientId: true/false (true=cortado, false=con servicio) }
+    for (const [nodeName, nodeClients] of Object.entries(byNode)) {
+      try {
+        const ips = nodeClients.map(c => c.ipNumber);
+        const result = await mikrotik.checkIpsInCutoffList(ips, nodeName);
+        for (const c of nodeClients) {
+          const cleanIp = (c.ipNumber || '').split('/')[0].trim();
+          statusMap[c.id] = result[cleanIp] === true; // true = cortado
+        }
+      } catch (err) {
+        console.error(`Error al consultar nodo ${nodeName}:`, err.message);
+        // Si falla un nodo, marcamos como desconocido (null)
+        for (const c of nodeClients) {
+          statusMap[c.id] = null;
+        }
+      }
+    }
+
+    res.json(statusMap);
+  } catch (error) {
+    console.error('Error al consultar estado de servicio:', error);
+    res.status(500).json({ error: 'Error al consultar Mikrotik' });
+  }
+});
+
 app.post('/api/clients', async (req, res) => {
   try {
     const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;

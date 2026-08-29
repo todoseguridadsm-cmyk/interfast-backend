@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { UserMinus, RotateCcw, Trash2, Search, AlertCircle, Power, Wifi, WifiOff, Calendar } from 'lucide-react';
+import { UserMinus, RotateCcw, Trash2, Search, AlertCircle, Wifi, WifiOff, Calendar, Loader2, RefreshCw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://interfast-backend-95ww.onrender.com/api';
 
@@ -9,9 +9,11 @@ export default function RetirosList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [actionLoading, setActionLoading] = useState(null); // id del cliente en accion
+  const [actionLoading, setActionLoading] = useState(null);
   const [editingDate, setEditingDate] = useState(null);
   const [dateInput, setDateInput] = useState('');
+  const [serviceStatus, setServiceStatus] = useState({}); // { clientId: true(cortado)/false(activo)/null(desconocido) }
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : { role: 'STAFF' };
@@ -28,11 +30,25 @@ export default function RetirosList() {
       const res = await axios.get(`${API_URL}/clients/bajas`);
       setBajas(res.data);
       setError(null);
+      // Consultar estado Mikrotik en paralelo
+      fetchServiceStatus();
     } catch (err) {
       console.error(err);
       setError('Error al cargar la lista de retiros.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServiceStatus = async () => {
+    try {
+      setStatusLoading(true);
+      const res = await axios.get(`${API_URL}/clients/bajas/service-status`);
+      setServiceStatus(res.data);
+    } catch (err) {
+      console.error('Error al consultar estado Mikrotik:', err);
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -42,7 +58,8 @@ export default function RetirosList() {
       setActionLoading(id);
       const res = await axios.put(`${API_URL}/clients/${id}/enable-service`);
       alert(`✅ ${res.data.message}`);
-      fetchBajas();
+      // Actualizar estado local inmediatamente
+      setServiceStatus(prev => ({ ...prev, [id]: false }));
     } catch (err) {
       console.error(err);
       alert('❌ Error al habilitar servicio: ' + (err.response?.data?.error || err.message));
@@ -57,7 +74,7 @@ export default function RetirosList() {
       setActionLoading(id);
       const res = await axios.put(`${API_URL}/clients/${id}/disable-service`);
       alert(`✅ ${res.data.message}`);
-      fetchBajas();
+      setServiceStatus(prev => ({ ...prev, [id]: true }));
     } catch (err) {
       console.error(err);
       alert('❌ Error al cortar servicio: ' + (err.response?.data?.error || err.message));
@@ -90,11 +107,9 @@ export default function RetirosList() {
 
   const handleSaveServiceDate = async (clientId) => {
     try {
-      // Find the cancellationRequest for this client
       const client = bajas.find(c => c.id === clientId);
       const cr = client?.cancellationRequests?.[0];
       if (!cr) {
-        alert('Este cliente no tiene solicitud de baja asociada. Creando una...');
         await axios.post(`${API_URL}/bajas`, {
           clientId: clientId,
           reason: 'Baja existente',
@@ -121,6 +136,36 @@ export default function RetirosList() {
     String(c.id).includes(searchTerm)
   );
 
+  const getServiceBadge = (clientId) => {
+    const status = serviceStatus[clientId];
+    if (statusLoading && status === undefined) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          <Loader2 size={12} className="animate-spin" /> Consultando...
+        </span>
+      );
+    }
+    if (status === null || status === undefined) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          ? Desconocido
+        </span>
+      );
+    }
+    if (status === true) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+          <WifiOff size={13} /> Cortado
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+        <Wifi size={13} /> Activo
+      </span>
+    );
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500">Cargando clientes inactivos...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
 
@@ -133,11 +178,20 @@ export default function RetirosList() {
             Bajas / Retiros de Antena
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Base de datos de clientes inactivos o retirados. Podés dar o cortar servicio sin dar de alta.
+            Base de datos de clientes inactivos. Estado de internet consultado en tiempo real desde Mikrotik.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={fetchServiceStatus}
+            disabled={statusLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+            title="Refrescar estado Mikrotik"
+          >
+            <RefreshCw size={14} className={statusLoading ? 'animate-spin' : ''} />
+            {statusLoading ? 'Consultando...' : 'Estado Mikrotik'}
+          </button>
           <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">{filteredBajas.length} clientes</span>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -159,8 +213,9 @@ export default function RetirosList() {
               <th className="p-4 font-medium">N° / TK</th>
               <th className="p-4 font-medium">Cliente</th>
               <th className="p-4 font-medium hidden md:table-cell">Dirección</th>
-              <th className="p-4 font-medium">Plan / IP</th>
+              <th className="p-4 font-medium">IP</th>
               <th className="p-4 font-medium">Servicio hasta</th>
+              <th className="p-4 font-medium text-center">Estado Mikrotik</th>
               <th className="p-4 font-medium text-center">Internet</th>
               <th className="p-4 font-medium text-right">Acciones</th>
             </tr>
@@ -168,7 +223,7 @@ export default function RetirosList() {
           <tbody className="divide-y divide-slate-200">
             {filteredBajas.length === 0 ? (
               <tr>
-                <td colSpan="7" className="p-8 text-center text-slate-500">
+                <td colSpan="8" className="p-8 text-center text-slate-500">
                   <AlertCircle className="mx-auto text-slate-400 mb-2" size={32} />
                   No hay clientes en la lista de retiros.
                 </td>
@@ -180,7 +235,7 @@ export default function RetirosList() {
                 const serviceActive = keepUntil && keepUntil > new Date();
                 return (
                   <tr key={client.id} className="transition-colors hover:bg-orange-50/20">
-                    {/* N° Cliente + Tickets */}
+                    {/* N° + TK */}
                     <td className="p-4">
                       <div className="flex flex-col gap-1">
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full w-fit">
@@ -188,7 +243,7 @@ export default function RetirosList() {
                         </span>
                         {client.tickets?.map(tk => (
                           <span key={tk.id} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full w-fit">
-                            TK{tk.id} · {tk.title?.slice(0, 18)}{tk.title?.length > 18 ? '...' : ''}
+                            TK{tk.id} · {tk.title?.slice(0, 15)}{tk.title?.length > 15 ? '…' : ''}
                           </span>
                         ))}
                       </div>
@@ -197,7 +252,7 @@ export default function RetirosList() {
                     {/* Cliente */}
                     <td className="p-4">
                       <div className="font-medium text-slate-800">{client.name}</div>
-                      <div className="text-xs text-slate-500">DNI: {client.dni} | Tel: {client.phone}</div>
+                      <div className="text-xs text-slate-500">DNI: {client.dni} | {client.phone}</div>
                     </td>
 
                     {/* Dirección */}
@@ -205,10 +260,10 @@ export default function RetirosList() {
                       {client.address}, {client.city}
                     </td>
 
-                    {/* Plan / IP */}
-                    <td className="p-4 text-sm text-slate-600">
-                      <div className="font-medium">{client.plan?.name || '-'}</div>
-                      <div className="text-xs text-slate-500">{client.ipNumber || 'Sin IP'}</div>
+                    {/* IP */}
+                    <td className="p-4">
+                      <div className="text-xs font-mono text-slate-600">{client.ipNumber || '-'}</div>
+                      <div className="text-xs text-slate-400">{client.mainNode}</div>
                     </td>
 
                     {/* Servicio hasta */}
@@ -221,57 +276,50 @@ export default function RetirosList() {
                             onChange={e => setDateInput(e.target.value)}
                             className="text-xs border border-slate-300 rounded px-2 py-1 w-32"
                           />
-                          <button
-                            onClick={() => handleSaveServiceDate(client.id)}
-                            className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-xs font-bold"
-                          >✓</button>
-                          <button
-                            onClick={() => { setEditingDate(null); setDateInput(''); }}
-                            className="p-1 bg-slate-100 text-slate-500 rounded hover:bg-slate-200 text-xs font-bold"
-                          >✕</button>
+                          <button onClick={() => handleSaveServiceDate(client.id)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-xs font-bold">✓</button>
+                          <button onClick={() => { setEditingDate(null); setDateInput(''); }} className="p-1 bg-slate-100 text-slate-500 rounded hover:bg-slate-200 text-xs font-bold">✕</button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           {keepUntil ? (
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${serviceActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                              {serviceActive ? <Wifi size={11} /> : <WifiOff size={11} />}
                               {keepUntil.toLocaleDateString('es-AR')}
                             </span>
                           ) : (
                             <span className="text-xs text-slate-400 italic">-</span>
                           )}
                           <button
-                            onClick={() => {
-                              setEditingDate(client.id);
-                              setDateInput(keepUntil ? keepUntil.toISOString().split('T')[0] : '');
-                            }}
+                            onClick={() => { setEditingDate(client.id); setDateInput(keepUntil ? keepUntil.toISOString().split('T')[0] : ''); }}
                             className="p-1 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
                             title="Editar fecha de servicio"
-                          >
-                            <Calendar size={14} />
-                          </button>
+                          ><Calendar size={14} /></button>
                         </div>
                       )}
                     </td>
 
-                    {/* Botones Dar / Cortar servicio */}
+                    {/* Estado Mikrotik REAL */}
+                    <td className="p-4 text-center">
+                      {getServiceBadge(client.id)}
+                    </td>
+
+                    {/* Botones Dar / Cortar */}
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => handleEnableService(client.id)}
                           disabled={actionLoading === client.id}
                           title="Dar Servicio (sin dar de alta)"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200 transition-colors disabled:opacity-50"
                         >
-                          <Wifi size={14} /> Dar
+                          <Wifi size={13} /> Dar
                         </button>
                         <button
                           onClick={() => handleDisableService(client.id)}
                           disabled={actionLoading === client.id}
                           title="Cortar Servicio"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 border border-red-200 hover:bg-red-200 transition-colors disabled:opacity-50"
                         >
-                          <WifiOff size={14} /> Cortar
+                          <WifiOff size={13} /> Cortar
                         </button>
                       </div>
                     </td>
@@ -281,18 +329,10 @@ export default function RetirosList() {
                       <div className="flex justify-end gap-2">
                         {canManageClients && (
                           <>
-                            <button
-                              onClick={() => handleRestore(client.id)}
-                              title="Dar de alta nuevamente (ACTIVO)"
-                              className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-colors"
-                            >
+                            <button onClick={() => handleRestore(client.id)} title="Dar de alta (ACTIVO)" className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-colors">
                               <RotateCcw size={18} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(client.id)}
-                              title="Eliminar Cliente"
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
+                            <button onClick={() => handleDelete(client.id)} title="Eliminar Cliente" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-lg transition-colors">
                               <Trash2 size={18} />
                             </button>
                           </>

@@ -375,11 +375,45 @@ async function advancedDiagnosis(ipAddress, nodeName) {
   }
 }
 
+// Verifica múltiples IPs de un nodo para ver cuáles están en la lista de cortados
+async function checkIpsInCutoffList(ipAddresses, nodeName, listName = 'Morosos') {
+  let client = null;
+  try {
+    const conn = await connectToMikrotik(nodeName);
+    client = conn.client;
+    const api = conn.api.menu('/ip/firewall/address-list');
+    const records = await api.get();
+    
+    const cutoffIps = new Set();
+    (Array.isArray(records) ? records : []).forEach(r => {
+      if (!r || !r.address) return;
+      const rIp = r.address.split('/')[0].trim();
+      const rList = (r.list || '').toLowerCase();
+      if (rList === 'morosos' || rList === 'corte' || rList === 'cortados' || rList === 'moroso' || rList === listName.toLowerCase()) {
+        cutoffIps.add(rIp);
+      }
+    });
+
+    const results = {};
+    for (const ip of ipAddresses) {
+      const cleanIp = (ip || '').split('/')[0].trim();
+      results[cleanIp] = cutoffIps.has(cleanIp);
+    }
+    return results; // { "192.168.x.x": true (cortado), "192.168.x.y": false (con servicio) }
+  } catch (err) {
+    console.error(`❌ Mikrotik Error al consultar lista de corte (${nodeName}):`, err.message || err);
+    throw err;
+  } finally {
+    if (client) client.close();
+  }
+}
+
 module.exports = {
   addIpToCutoffList,
   removeIpFromCutoffList,
   pingIp,
   advancedDiagnosis,
   connectToMikrotik,
-  getMikrotikActiveClients
+  getMikrotikActiveClients,
+  checkIpsInCutoffList
 };
