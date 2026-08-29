@@ -18,6 +18,7 @@ import NodesList from './components/NodesList';
 import AltasWebList from './components/AltasWebList';
 import ContentApproval from './components/ContentApproval';
 import MpReconciliation from './components/MpReconciliation';
+import UnidentifiedPaymentsList from './components/UnidentifiedPaymentsList';
 import BroadcastList from './components/BroadcastList';
 import ChatCRM from './components/ChatCRM';
 import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle, RefreshCw, Megaphone, MessageCircle } from 'lucide-react';
@@ -184,10 +185,16 @@ function AppContent() {
 
           {/* 9. Conciliación MP */}
           {isAllowed('REPORTES') && (
-            <Link onClick={handleLinkClick} to="/mp-reconciliation" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/mp-reconciliation' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
-              <RefreshCw size={20} />
-              <span>Conciliación MP</span>
-            </Link>
+            <>
+              <Link onClick={handleLinkClick} to="/mp-reconciliation" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/mp-reconciliation' ? 'bg-blue-600/20 text-blue-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <RefreshCw size={20} />
+                <span>Conciliación MP</span>
+              </Link>
+              <Link onClick={handleLinkClick} to="/unidentified" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/unidentified' ? 'bg-amber-600/20 text-amber-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <AlertTriangle size={20} />
+                <span>Pagos No Reconocidos</span>
+              </Link>
+            </>
           )}
 
           {/* 10. Soporte Técnico */}
@@ -285,6 +292,7 @@ function AppContent() {
             <Route path="/retiros" element={isAllowed('BAJAS') ? <RetirosList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/pos" element={isAllowed('CAJA') ? <POSCaja /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/mp-reconciliation" element={isAllowed('REPORTES') ? <MpReconciliation /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/unidentified" element={isAllowed('REPORTES') ? <UnidentifiedPaymentsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/cash" element={isAllowed('CAJA') ? <DailyCash /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/tickets" element={isAllowed('SOPORTE') ? <TicketsList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/whatsapp" element={user.role === 'ADMIN' ? <WhatsAppStatus /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
