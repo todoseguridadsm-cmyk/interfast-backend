@@ -106,6 +106,7 @@ export default function BajasList() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500 uppercase tracking-wider">
+              <th className="p-4 font-medium">N° / TK</th>
               <th className="p-4 font-medium">Cliente</th>
               <th className="p-4 font-medium hidden md:table-cell">Motivo</th>
               <th className="p-4 font-medium">Fecha Solicitud</th>
@@ -126,6 +127,18 @@ export default function BajasList() {
                 const isConfirmed = baja.status === 'CONFIRMED';
                 return (
                   <tr key={baja.id} className={`transition-colors hover:bg-slate-50/50 ${isConfirmed ? 'bg-slate-100/50 text-slate-500' : ''}`}>
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full w-fit">
+                          #&nbsp;{baja.client?.id || '?'}
+                        </span>
+                        {baja.client?.tickets?.slice(0, 3).map(tk => (
+                          <span key={tk.id} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full w-fit">
+                            TK{tk.id} · {tk.title?.slice(0, 20)}{tk.title?.length > 20 ? '...' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="p-4">
                       <div className="font-medium text-slate-800">{baja.client?.name || 'Cliente Eliminado'}</div>
                       <div className="text-xs text-slate-500">{baja.client?.dni || ''}</div>

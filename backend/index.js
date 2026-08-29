@@ -1130,7 +1130,16 @@ app.post('/api/clients/bulk', async (req, res) => {
 app.get('/api/bajas', async (req, res) => {
   try {
     const bajas = await prisma.cancellationRequest.findMany({
-      include: { client: true },
+      include: {
+        client: {
+          include: {
+            tickets: {
+              orderBy: { createdAt: 'desc' },
+              take: 5
+            }
+          }
+        }
+      },
       orderBy: { requestedAt: 'desc' }
     });
     res.json(bajas);
