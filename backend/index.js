@@ -846,46 +846,39 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
   }
 });
 
-// Consultar estado real del servicio Mikrotik para múltiples clientes BAJA (batch por nodo)
+// Consultar estado del servicio usando la tabla CutoffList (instantáneo, sin consultar Mikrotik)
 app.get('/api/clients/bajas/service-status', async (req, res) => {
   try {
-    const clients = await prisma.client.findMany({
-      where: { status: 'BAJA', ipNumber: { not: null } },
-      select: { id: true, ipNumber: true, mainNode: true }
+    // Todos los clientes en BAJA
+    const bajaClients = await prisma.client.findMany({
+      where: { status: 'BAJA' },
+      select: { id: true }
     });
 
-    // Agrupar por nodo para hacer una sola conexión por nodo
-    const byNode = {};
-    for (const c of clients) {
-      if (!c.ipNumber || !c.mainNode) continue;
-      if (!byNode[c.mainNode]) byNode[c.mainNode] = [];
-      byNode[c.mainNode].push(c);
-    }
+    // Buscar cuáles están en la lista de corte (CutoffList con status PENDING = cortado)
+    const cutoffs = await prisma.cutoffList.findMany({
+      where: {
+        clientId: { in: bajaClients.map(c => c.id) },
+        status: 'PENDING'
+      },
+      select: { clientId: true }
+    });
 
-    const statusMap = {}; // { clientId: true/false (true=cortado, false=con servicio) }
-    for (const [nodeName, nodeClients] of Object.entries(byNode)) {
-      try {
-        const ips = nodeClients.map(c => c.ipNumber);
-        const result = await mikrotik.checkIpsInCutoffList(ips, nodeName);
-        for (const c of nodeClients) {
-          const cleanIp = (c.ipNumber || '').split('/')[0].trim();
-          statusMap[c.id] = result[cleanIp] === true; // true = cortado
-        }
-      } catch (err) {
-        console.error(`Error al consultar nodo ${nodeName}:`, err.message);
-        // Si falla un nodo, marcamos como desconocido (null)
-        for (const c of nodeClients) {
-          statusMap[c.id] = null;
-        }
-      }
+    const cutoffSet = new Set(cutoffs.map(c => c.clientId));
+
+    // { clientId: true(cortado) / false(con servicio) }
+    const statusMap = {};
+    for (const c of bajaClients) {
+      statusMap[c.id] = cutoffSet.has(c.id); // true = cortado
     }
 
     res.json(statusMap);
   } catch (error) {
     console.error('Error al consultar estado de servicio:', error);
-    res.status(500).json({ error: 'Error al consultar Mikrotik' });
+    res.status(500).json({ error: 'Error al consultar estado' });
   }
 });
+
 
 app.post('/api/clients', async (req, res) => {
   try {
