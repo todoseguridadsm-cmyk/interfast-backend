@@ -4625,7 +4625,7 @@ cron.schedule('*/10 * * * *', async () => {
         sort: 'date_created',
         criteria: 'desc',
         limit: 100,
-        begin_date: 'NOW-7DAYS',
+        begin_date: 'NOW-2DAYS',
         end_date: 'NOW',
         status: 'approved'
       }
