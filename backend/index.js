@@ -1177,7 +1177,8 @@ app.post('/api/bajas', async (req, res) => {
     const baja = await prisma.cancellationRequest.create({
       data: {
         clientId: cId,
-        reason
+        reason,
+        keepServiceUntil: req.body.keepServiceUntil ? new Date(req.body.keepServiceUntil) : null
       }
     });
     res.json(baja);
@@ -1187,15 +1188,36 @@ app.post('/api/bajas', async (req, res) => {
   }
 });
 
+// Actualizar fecha de servicio (keepServiceUntil) sin cambiar estado
+app.patch('/api/bajas/:id/service-date', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { keepServiceUntil } = req.body;
+    const updated = await prisma.cancellationRequest.update({
+      where: { id },
+      data: { keepServiceUntil: keepServiceUntil ? new Date(keepServiceUntil) : null }
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar fecha de servicio' });
+  }
+});
+
 app.put('/api/bajas/:id/confirm', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const { keepServiceUntil } = req.body;
     const baja = await prisma.cancellationRequest.update({
       where: { id },
-      data: { status: 'CONFIRMED', resolvedAt: new Date() },
+      data: {
+        status: 'CONFIRMED',
+        resolvedAt: new Date(),
+        keepServiceUntil: keepServiceUntil ? new Date(keepServiceUntil) : null
+      },
       include: { client: true }
     });
     if (baja.clientId) {
+      // Solo pone en BAJA el estado del cliente (para facturación), NO corta el servicio Mikrotik aquí
       await prisma.client.update({
         where: { id: baja.clientId },
         data: { status: 'BAJA' }
@@ -4624,7 +4646,7 @@ cron.schedule('* * * * *', async () => {
 // Sincronización periódica de Mercado Pago (cada 10 minutos)
 // Busca cobros acreditados sin webhook y los concilia por centavos o referencia
 cron.schedule('*/10 * * * *', async () => {
-  // return; // REACTIVADO CON VERIFICACION ESTRICTA
+  return; // DESACTIVADO TEMPORALMENTE: los pagos de MP se procesan solo via webhook para evitar duplicados con registros manuales previos
   if (!clientMP) return;
   try {
     console.log('[Cron MP Sync] Iniciando conciliación periódica de Mercado Pago...');

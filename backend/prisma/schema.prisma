@@ -186,13 +186,14 @@ model CutoffList {
 }
 
 model CancellationRequest {
-  id          Int       @id @default(autoincrement())
-  clientId    Int
-  reason      String?
-  status      String    @default("PENDING")
-  requestedAt DateTime  @default(now())
-  resolvedAt  DateTime?
-  client      Client    @relation(fields: [clientId], references: [id])
+  id                Int       @id @default(autoincrement())
+  clientId          Int
+  reason            String?
+  status            String    @default("PENDING")
+  requestedAt       DateTime  @default(now())
+  resolvedAt        DateTime?
+  keepServiceUntil  DateTime?
+  client            Client    @relation(fields: [clientId], references: [id])
 }
 
 model CatalogItem {
