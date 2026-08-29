@@ -82,7 +82,7 @@ export default function RetirosList() {
         <div>
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <UserMinus className="text-orange-500" />
-            Bajas / Retiros de Equipos
+            Bajas / Retiros de Antena
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             Base de datos de clientes inactivos o retirados.
@@ -108,6 +108,7 @@ export default function RetirosList() {
               <th className="p-4 font-medium">Cliente</th>
               <th className="p-4 font-medium hidden md:table-cell">Dirección</th>
               <th className="p-4 font-medium">Plan / IP</th>
+              <th className="p-4 font-medium text-center">Estado Mikrotik</th>
               <th className="p-4 font-medium text-right">Acciones</th>
             </tr>
           </thead>
@@ -132,6 +133,11 @@ export default function RetirosList() {
                   <td className="p-4 text-sm text-slate-600">
                     <div className="font-medium">{client.plan?.name || '-'}</div>
                     <div className="text-xs text-slate-500">{client.ipNumber || 'Sin IP'}</div>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                      <Power size={14} /> Cortado
+                    </span>
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">

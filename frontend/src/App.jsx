@@ -228,7 +228,7 @@ function AppContent() {
           {isAllowed('BAJAS') && (
             <Link onClick={handleLinkClick} to="/retiros" className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${location.pathname==='/retiros' ? 'bg-orange-600/20 text-orange-500 font-medium' : 'hover:bg-slate-800 hover:text-white'}`}>
               <UserMinus size={20} />
-              <span>Bajas / Retiros</span>
+              <span>Bajas / Retiros de Antena</span>
             </Link>
           )}
 

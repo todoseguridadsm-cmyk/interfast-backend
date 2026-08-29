@@ -361,26 +361,26 @@ export default function ClientsList() {
         </div>
         <div className="flex gap-3">
           {canManageClients && (
-            <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2 cursor-pointer" title="Importar Planilla Excel">
-              <Download className="rotate-180" size={18} />
+            <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer" title="Importar Planilla Excel">
+              <Download className="rotate-180" size={16} />
               Importar
               <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
             </label>
           )}
           <button 
             onClick={exportToExcel}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-1.5"
             title="Descargar Planilla Excel"
           >
-            <Download size={18} />
+            <Download size={16} />
             Excel
           </button>
           {canManageClients && (
             <button 
               onClick={() => { closeModal(); setIsModalOpen(true); }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-1.5"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               Nuevo Cliente
             </button>
           )}
@@ -391,7 +391,7 @@ export default function ClientsList() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text" 
               placeholder="Buscar por N°, DNI o Nombre..." 
@@ -402,17 +402,17 @@ export default function ClientsList() {
           </div>
         </div>
         <div className="overflow-auto w-full max-h-[calc(100vh-240px)] custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse ">
           <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-              <th className="px-6 py-4 font-medium">N° Cliente</th>
-              <th className="px-6 py-4 font-medium">Cliente</th>
-              <th className="px-6 py-4 font-medium">DNI</th>
-              <th className="px-6 py-4 font-medium">Plan Actual</th>
-              <th className="px-6 py-4 font-medium">Red IP</th>
-              <th className="px-6 py-4 font-medium">Billetera</th>
-              <th className="px-6 py-4 font-medium">Estado</th>
-              <th className="px-6 py-4 font-medium text-right">Acciones</th>
+              <th className="px-3 py-3 font-medium">N° Cliente</th>
+              <th className="px-3 py-3 font-medium">Cliente</th>
+              <th className="px-3 py-3 font-medium">DNI</th>
+              <th className="px-3 py-3 font-medium">Plan Actual</th>
+              <th className="px-3 py-3 font-medium">Red IP</th>
+              <th className="px-3 py-3 font-medium">Billetera</th>
+              <th className="px-3 py-3 font-medium">Estado</th>
+              <th className="px-3 py-3 font-medium text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
@@ -425,13 +425,13 @@ export default function ClientsList() {
             ) : (
               [...filteredClients].sort((a, b) => a.name.localeCompare(b.name)).map(client => (
                 <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 text-sm font-bold text-blue-600 tracking-wider">
+                  <td className="px-3 py-3 text-sm font-bold text-blue-600 tracking-wider">
                     {`TK${String(client.id).padStart(3, '0')}`}
                   </td>
-                  <td className="px-6 py-4 font-medium text-slate-900">{client.name}</td>
-                  <td className="px-6 py-4 text-slate-600">{client.dni}</td>
-                  <td className="px-6 py-4 text-slate-600">{client.plan?.name || "Sin Plan"}</td>
-                  <td className="px-6 py-4 text-xs font-mono text-slate-500">
+                  <td className="px-3 py-3 font-medium text-slate-900">{client.name}</td>
+                  <td className="px-3 py-3 text-slate-600">{client.dni}</td>
+                  <td className="px-3 py-3 text-slate-600">{client.plan?.name || "Sin Plan"}</td>
+                  <td className="px-3 py-3 text-xs font-mono text-slate-500">
                     <span className="font-bold block text-slate-700">{client.ipNumber || '---'}</span>
                     {client.mainNode && <span className="mt-1 block">{client.mainNode}</span>}
                     <div className="flex gap-1 mt-1">
@@ -440,67 +440,67 @@ export default function ClientsList() {
                       {client.debitoAutomatico && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"><CreditCard size={8} /> DÉB.AUT.</span>}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3">
                     {client.walletBalance > 0 ? (
                        <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold border border-emerald-200">
                          +${client.walletBalance.toLocaleString('es-AR', {minimumFractionDigits: 2})}
                        </span>
                     ) : ( <span className="text-slate-400 text-xs">$0.00</span> )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : client.status === 'PENDING' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
                       {client.status === 'PENDING' ? 'Pendiente' : client.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right flex justify-end gap-1">
+                  <td className="px-3 py-3 text-right flex justify-end gap-1">
                     {client.status === 'PENDING' && canManageClients && (
-                      <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
-                        <Check size={18} />
+                      <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
+                        <Check size={16} />
                       </button>
                     )}
                     {canManageClients && client.status !== 'BAJA' && client.status !== 'PENDING' && (
-                      <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-2 rounded-lg mr-1 ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
-                        <Power size={18} />
+                      <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-1.5 rounded-lg mr-1 ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
+                        <Power size={16} />
                       </button>
                     )}
                     {canManageClients && (
-                      <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar cliente">
-                        <Edit2 size={18} />
+                      <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-blue-50" title="Editar cliente">
+                        <Edit2 size={16} />
                       </button>
                     )}
                     {canManageClients && (
-                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
-                        {pingingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Activity size={18} />}
+                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
+                        {pingingId === client.id ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
                       </button>
                     )}
                     {canManageClients && (
-                      <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
-                        {diagnosingId === client.id ? <Loader2 size={18} className="animate-spin" /> : <Stethoscope size={18} />}
+                      <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
+                        {diagnosingId === client.id ? <Loader2 size={16} className="animate-spin" /> : <Stethoscope size={16} />}
                       </button>
                     )}
                     {canManageClients && (
                       <button
                         onClick={() => handleToggleDebitoAutomatico(client)}
-                        className={`transition-colors inline-flex items-center justify-center p-2 rounded-lg ${
+                        className={`transition-colors inline-flex items-center justify-center p-1.5 rounded-lg ${
                           client.debitoAutomatico
                             ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 bg-indigo-50'
                             : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
                         }`}
                         title={client.debitoAutomatico ? 'Débito Automático ACTIVO — clic para desactivar' : 'Activar Débito Automático'}
                       >
-                        <CreditCard size={18} />
+                        <CreditCard size={16} />
                       </button>
                     )}
-                    <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
-                      <MessageCircle size={18} />
+                    <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
+                      <MessageCircle size={16} />
                     </button>
                     {canManageClients && (
                       <>
-                        <button onClick={() => handleDarDeBaja(client.id)} className="text-orange-500 hover:text-orange-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-orange-50 mr-1" title="Dar de baja / Mover a Retiros">
-                          <UserMinus size={18} />
+                        <button onClick={() => handleDarDeBaja(client.id)} className="text-orange-500 hover:text-orange-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-orange-50 mr-1" title="Dar de baja / Mover a Retiros">
+                          <UserMinus size={16} />
                         </button>
-                        <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar cliente">
-                          <Trash2 size={18} />
+                        <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-red-50" title="Eliminar cliente">
+                          <Trash2 size={16} />
                         </button>
                       </>
                     )}
@@ -719,7 +719,7 @@ export default function ClientsList() {
                 'bg-red-50/50 border-red-200'
               }`}>
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={`w-3 h-3 rounded-full ${
                       diagModalData.pingStats.status === 'OPTIMO' ? 'bg-emerald-500' :
                       diagModalData.pingStats.status === 'OBSERVADO' ? 'bg-amber-500' :
@@ -734,7 +734,7 @@ export default function ClientsList() {
                   }`}>{diagModalData.pingStats.status}</span>
                 </div>
                 <p className="text-sm text-slate-600 mt-2 font-medium">{diagModalData.pingStats.message}</p>
-                <div className="flex gap-4 mt-3 text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700">
+                <div className="flex gap-4 mt-3 text-xs bg-white p-1.5.5 rounded-lg border border-slate-100 text-slate-700">
                   <div><strong>Estado:</strong> {diagModalData.pingStats.isOnline ? 'Online 🟢' : 'Offline 🔴'}</div>
                   <div><strong>Latencia (RTT):</strong> {diagModalData.pingStats.avgRtt}</div>
                   <div><strong>Pérdida Paquetes:</strong> {diagModalData.pingStats.packetLoss}%</div>
@@ -747,7 +747,7 @@ export default function ClientsList() {
                 'bg-red-50/50 border-red-200'
               }`}>
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={`w-3 h-3 rounded-full ${
                       diagModalData.arpStats.layer2Status === 'OPTIMO' ? 'bg-emerald-500' :
                       'bg-red-500 animate-pulse'
@@ -760,7 +760,7 @@ export default function ClientsList() {
                   }`}>{diagModalData.arpStats.layer2Status}</span>
                 </div>
                 <p className="text-sm text-slate-600 mt-2 font-medium">{diagModalData.arpStats.message}</p>
-                <div className="flex gap-4 mt-3 text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700">
+                <div className="flex gap-4 mt-3 text-xs bg-white p-1.5.5 rounded-lg border border-slate-100 text-slate-700">
                   <div><strong>MAC Address:</strong> {diagModalData.arpStats.macAddress}</div>
                   <div><strong>Interfaz Nodo:</strong> {diagModalData.arpStats.interface}</div>
                   <div><strong>Estado ARP:</strong> {diagModalData.arpStats.status}</div>
@@ -773,7 +773,7 @@ export default function ClientsList() {
                 'bg-amber-50/50 border-amber-200'
               }`}>
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <span className={`w-3 h-3 rounded-full ${
                       diagModalData.dhcpStats.status === 'OPTIMO' ? 'bg-emerald-500' :
                       'bg-amber-500'
@@ -791,7 +791,7 @@ export default function ClientsList() {
               {/* Tarjeta 4: Señal Inalámbrica y Cable UTP */}
               <div className="p-4 rounded-xl border bg-slate-50 border-slate-200">
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <Info size={16} className="text-slate-500" />
                     <h4 className="font-bold text-slate-700">Señal Inalámbrica (-dBm) y Cable UTP</h4>
                   </div>
