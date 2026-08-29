@@ -3034,33 +3034,174 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
 });
 
 // 6. Mercado Pago Webhook
-app.post('/api/mercadopago/webhook', async (req, res) => {
-  // Respondemos 200 rápido a MercadoPago para que no reintente
-  res.sendStatus(200);
 
+const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentIdStr, mpFee = 0, mpTax = 0) => {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { client: true }
+  });
+
+  if (!invoice || invoice.status === 'PAID') {
+    console.log(`⚠️ Imputación: La factura ${invoiceId} ya estaba PAGADA o no existe.`);
+    return false;
+  }
+
+  const today = new Date();
+  let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
+  let activeTierName = "Vencimiento 1";
+
+  if (invoice.dueDate1) {
+    const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
+    const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
+    const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
+    const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
+
+    if (today > d3 && invoice.priceV4) {
+      expectedAmountForDate = invoice.priceV4;
+      activeTierName = "Vencimiento 4";
+    } else if (today > d2 && invoice.priceV3) {
+      expectedAmountForDate = invoice.priceV3;
+      activeTierName = "Vencimiento 3";
+    } else if (today > d1 && invoice.priceV2) {
+      expectedAmountForDate = invoice.priceV2;
+      activeTierName = "Vencimiento 2";
+    }
+  }
+
+  const expectedTotalForDate = expectedAmountForDate;
+
+  const updatedInvoice = await prisma.invoice.updateMany({
+    where: { id: invoiceId, status: 'PENDING' },
+    data: { status: 'PAID', paymentDate: new Date(), paymentMethod: 'MERCADOPAGO' }
+  });
+
+  if (updatedInvoice.count === 0) return false;
+
+  await prisma.payment.create({
+    data: {
+      invoiceId: invoiceId,
+      method: 'MERCADOPAGO',
+      amountPaid: transactionAmount,
+      mpFee: mpFee,
+      mpTax: mpTax,
+      lateFeeApplied: 0,
+      mpPaymentId: mpPaymentIdStr
+    }
+  });
+
+  await prisma.cashMovement.create({
+    data: {
+      type: 'IN',
+      amount: transactionAmount,
+      category: 'PAGO_FACTURA',
+      description: `Cobro MP - Factura #${invoiceId} (${invoice.client?.name || 'Cliente'})`,
+      userId: 1
+    }
+  });
+
+  await prisma.cutoffList.deleteMany({
+    where: { invoiceId: invoiceId }
+  });
+
+  if (invoice.clientId) {
+    await prisma.client.update({
+      where: { id: invoice.clientId },
+      data: { status: 'ACTIVE' }
+    });
+  }
+
+  const difference = expectedTotalForDate - transactionAmount;
+  
+  // Regla de $200 de diferencia para DEUDA
+  if (difference > 200.0) {
+    console.log(`⚠️ Imputación: Diferencia detectada para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Diferencia: $${difference}`);
+    
+    await prisma.invoice.create({
+      data: {
+        clientId: invoice.clientId,
+        month: invoice.month,
+        year: invoice.year,
+        originalAmount: difference,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        status: 'PENDING',
+        priceV1: difference,
+        priceV2: difference,
+        priceV3: difference,
+        priceV4: difference,
+        dueDate1: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        dueDate2: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        dueDate3: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        dueDate4: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      }
+    });
+
+    if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
+      const phoneClean = invoice.client.phone.replace(/\D/g, '');
+      const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+      const diffMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n⚠️ *Aviso de Diferencia:* Como tu pago fue registrado el día ${new Date().toLocaleDateString('es-AR')}, el total correspondiente a la fecha era de *$${expectedTotalForDate.toFixed(2)}* (${activeTierName}).\n\nPor este motivo, se ha generado automáticamente una factura pendiente por la diferencia de *$${difference.toFixed(2)}* en tu cuenta, la cual podrás abonar más adelante.\n\nTu servicio de Internet ya se encuentra activo. ¡Muchas gracias!`;
+      
+      await waSocket.sendMessage(targetPhone, { text: diffMsg }).catch(console.error);
+    }
+  } 
+  // Regla de $200 de diferencia para SALDO A FAVOR
+  else if (difference < -200.0) {
+    const excessCredit = -difference;
+    console.log(`💳 Imputación: Pago en exceso detectado para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Crédito a favor: $${excessCredit}`);
+    if (invoice.clientId) {
+      await prisma.client.update({
+        where: { id: invoice.clientId },
+        data: { walletBalance: { increment: excessCredit } }
+      });
+
+      if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
+        const phoneClean = invoice.client.phone.replace(/\D/g, '');
+        const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+        const creditMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n🎉 *Crédito a Favor:* Como el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}*, registramos un saldo a favor en tu cuenta de *$${excessCredit.toFixed(2)}*, el cual se aplicará automáticamente como descuento en tu próxima factura mensual.\n\n¡Muchas gracias!`;
+        
+        await waSocket.sendMessage(targetPhone, { text: creditMsg }).catch(console.error);
+      }
+    }
+  }
+
+  if (afip && typeof emitAfipInvoiceHelper === 'function') {
+    emitAfipInvoiceHelper(invoiceId, afip)
+      .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
+      .catch(e => {
+        console.error('[Auto-ARCA] Error:', e.message);
+        sendAutomaticPaidInvoiceNotification(invoiceId);
+      });
+  } else {
+    sendAutomaticPaidInvoiceNotification(invoiceId);
+  }
+
+  if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
+    try {
+      await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+    } catch (err) {
+      console.error(`Error removiendo IP del Mikrotik (Imputación):`, err.message);
+    }
+  }
+
+  console.log(`✅ Imputación: Factura N°${invoiceId} cobrada exitosamente ($${transactionAmount}).`);
+  return true;
+};
+
+app.post('/api/mercadopago/webhook', async (req, res) => {
+  res.sendStatus(200);
   try {
-    // Extracción ultra-robusta de los IDs sin importar la versión del SDK
     const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
     let paymentId = req.query['data.id'] || req.query.id || req.body?.data?.id;
     if (!paymentId && req.body?.id && topic === 'payment.created') paymentId = req.body.id;
 
-    console.log(`🔔 Webhook MP DISPARADO: topic=${topic}, ID detectado=${paymentId}`);
-
     if (paymentId && clientMP) {
-      // 0. Validar si el pago ya fue procesado
       const existingPayment = await prisma.payment.findUnique({
         where: { mpPaymentId: String(paymentId) }
       });
-      if (existingPayment) {
-        console.log(`⚠️ Webhook MP: El pago ${paymentId} ya fue procesado anteriormente (Pago ID: ${existingPayment.id}). Ignorando para evitar duplicados.`);
-        return;
-      }
+      if (existingPayment) return;
 
-      // 1. Ir a MP y preguntar los detalles reales del pago por seguridad sin importar el string exacto de topic
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
-      console.log(`⏳ Webhook MP: Leyendo status del pago en la API -> Estado: ${mpPayment.status}, Referencia: ${mpPayment.external_reference}, Descripción: ${mpPayment.description || mpPayment.reason}`);
-
+      
       if (mpPayment.status === 'approved') {
         const ref = (mpPayment.external_reference || mpPayment.metadata?.external_reference || '').toString().trim();
         const description = (mpPayment.description || mpPayment.reason || '').toString();
@@ -3070,78 +3211,59 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           invoiceIdsToProcess = ref.replace('MULTI-', '').split('-').map(id => parseInt(id)).filter(id => !isNaN(id));
         } else if (ref.startsWith('SUB-') || description.includes('SUB-') || /TK\d+/.test(description)) {
           let subClientId = NaN;
-          if (ref.startsWith('SUB-')) {
-            subClientId = parseInt(ref.replace('SUB-', ''));
-          } else {
+          if (ref.startsWith('SUB-')) subClientId = parseInt(ref.replace('SUB-', ''));
+          else {
             const match = description.match(/SUB-(\d+)/) || description.match(/TK0*(\d+)/);
             if (match && match[1]) subClientId = parseInt(match[1]);
           }
-
           if (!isNaN(subClientId)) {
             const pendingInv = await prisma.invoice.findFirst({
               where: { clientId: subClientId, status: 'PENDING' },
               orderBy: [{ year: 'asc' }, { month: 'asc' }]
             });
-            if (pendingInv) {
-              console.log(`🔔 Webhook MP (Débito Automático/Suscripción): Imputando pago a factura pendiente #${pendingInv.id} del cliente #${subClientId}`);
-              invoiceIdsToProcess.push(pendingInv.id);
-            } else {
-              console.log(`⚠️ Webhook MP (Débito Automático/Suscripción): El cliente #${subClientId} pagó suscripción pero no tiene facturas pendientes.`);
-            }
+            if (pendingInv) invoiceIdsToProcess.push(pendingInv.id);
           }
         } else if (ref && ref.trim() !== '') {
           const singleId = parseInt(ref);
           if (!isNaN(singleId)) {
-            // Verificar si el ID en external_reference corresponde a una factura pendiente real de la DB
             const validInvoice = await prisma.invoice.findFirst({
               where: { id: singleId, status: 'PENDING' }
             });
-            if (validInvoice) {
-              invoiceIdsToProcess.push(validInvoice.id);
-            } else {
-              console.log(`⚠️ Webhook MP: La referencia (${ref}) no es una factura pendiente válida. Pasando a conciliación por centavos...`);
-            }
+            if (validInvoice) invoiceIdsToProcess.push(validInvoice.id);
           }
         }
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+        let mpFee = 0;
+        let mpTax = 0;
+        if (mpPayment.fee_details && Array.isArray(mpPayment.fee_details)) {
+          mpPayment.fee_details.forEach(fee => {
+            if (fee.type === 'mercadopago_fee') mpFee += parseFloat(fee.amount) || 0;
+            else mpTax += parseFloat(fee.amount) || 0;
+          });
+        }
 
-                if (invoiceIdsToProcess.length === 0) {
-          console.log(`ℹ️ Webhook MP: Sin referencia válida. Intentando conciliación por Nombre, Alias, DNI/CUIL, o Email para pago de $${transactionAmount}...`);
-          
+        if (invoiceIdsToProcess.length === 0) {
           const pendingInvoices = await prisma.invoice.findMany({
             where: { status: 'PENDING' },
-            include: { client: { select: { id: true, name: true, email: true, dni: true, phone: true, observation: true } } },
+            include: { client: { select: { id: true, name: true, observation: true, dni: true, phone: true } } },
             orderBy: [{ year: 'asc' }, { month: 'asc' }]
           });
+
+          const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
+          const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+          const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
           
           let matchedInvoice = null;
 
-          const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
-          const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-          const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
-          const payerEmailRaw = (mpPayment.payer?.email || '').toLowerCase().trim();
-          const cleanDni = (d) => d && d.length >= 7;
-
-          // Función para validar si una factura cumple con el monto (margen de $5)
-          const isValidAmount = (inv) => {
-            const possibleBaseAmounts = [
-              inv.originalAmount,
-              inv.priceV1,
-              inv.priceV2,
-              inv.priceV3,
-              inv.priceV4
-            ].filter(a => a !== null && a > 0);
-            return possibleBaseAmounts.some(amt => Math.abs(transactionAmount - amt) < 5.0);
+          const checkAmountTolerance = (inv) => {
+            const possible = [inv.originalAmount, inv.priceV1, inv.priceV2, inv.priceV3, inv.priceV4].filter(a => a);
+            return possible.some(amt => Math.abs(transactionAmount - amt) < 5.0);
           };
 
-          // --- PASO 1: Buscar coincidencias por Nombre o Alias en Observaciones ---
           for (const inv of pendingInvoices) {
-            if (!isValidAmount(inv)) continue; // Solo nos interesan clientes con montos parecidos
-            
             let isNameMatch = false;
 
-            // 1.a Prioridad: Alias en Observaciones
             const obs = (inv.client?.observation || '');
             const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
             for (const alias of rawAliases) {
@@ -3149,144 +3271,71 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
               const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
               const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
               if (aliasTokens.length > 0 && (payerClean.includes(aliasClean) || matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
-                console.log(`🏷️ Webhook MP: MATCH POR ALIAS EN OBSERVACIONES ("${alias}") → cliente ${inv.client?.name}`);
-                isNameMatch = true;
-                break;
+                isNameMatch = true; break;
               }
             }
 
-            // 1.b Prioridad: Nombre del Cliente
             if (!isNameMatch) {
               const clientRaw = (inv.client?.name || '');
               const clientClean = clientRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
               const clientTokens = clientClean.split(/\s+/).filter(w => w.length >= 3);
               const matchingTokens = clientTokens.filter(tok => payerClean.includes(tok)).length;
               if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
-                console.log(`🏷️ Webhook MP: MATCH POR NOMBRE DE CLIENTE ("${clientRaw}")`);
                 isNameMatch = true;
               }
             }
 
-            if (isNameMatch) {
+            if (isNameMatch && checkAmountTolerance(inv)) {
+              console.log(`🎯 Webhook MP: MATCH POR NOMBRE/ALIAS. Cliente ${inv.client?.name}`);
               matchedInvoice = inv;
               break;
             }
           }
 
-          // --- PASO 2: Buscar coincidencias por DNI / CUIL / Email ---
-          if (!matchedInvoice && (cleanDni(payerDniRaw) || (payerEmailRaw && payerEmailRaw.length > 5))) {
+          if (!matchedInvoice && payerDniRaw.length >= 7) {
             for (const inv of pendingInvoices) {
-              if (!isValidAmount(inv)) continue;
-
               const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
-              const cEmail = (inv.client?.email || '').toLowerCase().trim();
-
-              const dniMatches = cleanDni(cDni) && cleanDni(payerDniRaw) && (payerDniRaw.includes(cDni) || cDni.includes(payerDniRaw));
-              const emailMatches = cEmail && payerEmailRaw && cEmail === payerEmailRaw;
-
-              if (dniMatches || emailMatches) {
-                console.log(`🎯 Webhook MP: MATCH POR DNI/EMAIL. Cliente ${inv.client?.name}`);
-                matchedInvoice = inv;
-                break;
-              }
-            }
-          }
-
-          // --- PASO 3: Búsqueda por Suma Total Agrupada ---
-          if (!matchedInvoice) {
-            const today = new Date();
-            const getActiveAmount = (inv) => {
-              let expected = inv.priceV1 || inv.originalAmount;
-              if (inv.dueDate1) {
-                const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-                const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-                const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-                if (today > d3 && inv.priceV4) expected = inv.priceV4;
-                else if (today > d2 && inv.priceV3) expected = inv.priceV3;
-                else if (today > d1 && inv.priceV2) expected = inv.priceV2;
-              }
-              return expected;
-            };
-
-            const invoicesByClient = {};
-            for (const inv of pendingInvoices) {
-              if (!invoicesByClient[inv.clientId]) invoicesByClient[inv.clientId] = [];
-              invoicesByClient[inv.clientId].push(inv);
-            }
-
-            for (const clientId in invoicesByClient) {
-              const clientInvs = invoicesByClient[clientId];
-              if (clientInvs.length > 1) {
-                const totalActive = clientInvs.reduce((acc, inv) => acc + getActiveAmount(inv), 0);
-                if (Math.round(transactionAmount * 100) === Math.round(totalActive * 100)) {
-                  console.log(`🎯 Webhook MP: ¡ÉXITO MULTIPLE! El cliente #${clientId} pagó la suma exacta de sus facturas.`);
-                  invoiceIdsToProcess = clientInvs.map(inv => inv.id);
-                  break; // found grouping match
+              if (cDni.length >= 7 && (payerDniRaw.includes(cDni) || cDni.includes(payerDniRaw))) {
+                if (checkAmountTolerance(inv)) {
+                  console.log(`🎯 Webhook MP: MATCH POR DNI/CUIL. Cliente ${inv.client?.name}`);
+                  matchedInvoice = inv;
+                  break;
                 }
               }
             }
           }
 
-          // --- PASO 4: Fallback a comprobantes de WhatsApp recientes ---
-          if (!matchedInvoice && invoiceIdsToProcess.length === 0 && global.recentReceipts && global.recentReceipts.length > 0) {
-             for (const receipt of global.recentReceipts) {
-               const client = await prisma.client.findFirst({ where: { phone: { contains: receipt.phone } } });
-               if (client) {
-                 const cInvs = pendingInvoices.filter(i => i.clientId === client.id && isValidAmount(i));
-                 if (cInvs.length > 0) {
-                   matchedInvoice = cInvs[0];
-                   console.log(`🎯 Webhook MP: MATCH por comprobante reciente enviado por WhatsApp.`);
-                   break;
-                 }
-               }
-             }
-          }
-
-          // --- PASO 5: Validación de Centavos (SOLO COMO SUGERENCIA) ---
-          let suggestedClientName = '';
-          if (!matchedInvoice && invoiceIdsToProcess.length === 0) {
+          if (matchedInvoice) {
+            invoiceIdsToProcess.push(matchedInvoice.id);
+          } else {
+            let suggestedClientName = '';
             const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+            
             for (const inv of pendingInvoices) {
               const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
               const centsVal = getCents999(cId);
-
               const possibleAmounts = [
                 (inv.priceV1 || inv.originalAmount) + centsVal,
                 inv.priceV2 ? inv.priceV2 + centsVal : null,
                 inv.priceV3 ? inv.priceV3 + centsVal : null,
                 inv.priceV4 ? inv.priceV4 + centsVal : null
-              ].filter(a => a !== null && a > 0);
+              ].filter(a => a);
 
-              const matchesCentsAndAmount = possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05);
-              if (matchesCentsAndAmount) {
-                console.log(`⚠️ Webhook MP: Match por centavos con cliente ${inv.client?.name}. Guardando como Pagos No Registrados con sugerencia.`);
+              if (possibleAmounts.some(amt => Math.abs(transactionAmount - amt) < 0.05)) {
                 suggestedClientName = inv.client?.name;
                 break;
               }
             }
-          }
 
-          const existingUnidentified = await prisma.unidentifiedPayment.findFirst({
-            where: { mpPaymentId: String(paymentId) }
-          });
-
-          if (matchedInvoice) {
-            if (invoiceIdsToProcess.length === 0) invoiceIdsToProcess.push(matchedInvoice.id);
-            if (existingUnidentified) {
-               await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
-            }
-          } else if (invoiceIdsToProcess.length > 0) {
-            if (existingUnidentified) {
-               await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
-            }
-          } else {
             console.error(`❌ Webhook MP: Pago guardado en Pagos No Identificados. Monto $${transactionAmount}.`);
-            
             let finalPayerName = payerRaw.trim();
             if (suggestedClientName) {
-              finalPayerName = `[SUGERENCIA CENTAVOS: ${suggestedClientName}] ` + finalPayerName;
+              finalPayerName = `[POSIBLE CLIENTE: ${suggestedClientName} POR COINCIDENCIA DE CENTAVOS] ` + finalPayerName;
             }
 
+            const existingUnidentified = await prisma.unidentifiedPayment.findFirst({
+              where: { mpPaymentId: String(paymentId) }
+            });
             if (!existingUnidentified) {
               await prisma.unidentifiedPayment.create({
                 data: {
@@ -3298,198 +3347,20 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
                   payerDni: String(mpPayment.payer?.identification?.number || '')
                 }
               });
-            } else if (suggestedClientName && !existingUnidentified.payerName.includes('SUGERENCIA')) {
-              await prisma.unidentifiedPayment.update({
-                where: { id: existingUnidentified.id },
-                data: { payerName: finalPayerName }
-              });
             }
             return;
           }
         }
 
-        
+        const existingUnidentified = await prisma.unidentifiedPayment.findFirst({
+          where: { mpPaymentId: String(paymentId) }
+        });
+        if (existingUnidentified) {
+           await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
+        }
 
         for (const invoiceId of invoiceIdsToProcess) {
-          const invoice = await prisma.invoice.findUnique({
-            where: { id: invoiceId },
-            include: { client: true }
-          });
-
-          if (!invoice || invoice.status === 'PAID') {
-            console.log(`⚠️ Webhook MP: La factura ${invoiceId} ya estaba PAGADA o no existe.`);
-            continue;
-          }
-
-          const today = new Date();
-          let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
-          let activeTierName = "Vencimiento 1";
-
-          if (invoice.dueDate1) {
-            const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-            const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-            const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-            const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
-
-            if (today > d3 && invoice.priceV4) {
-              expectedAmountForDate = invoice.priceV4;
-              activeTierName = "Vencimiento 4";
-            } else if (today > d2 && invoice.priceV3) {
-              expectedAmountForDate = invoice.priceV3;
-              activeTierName = "Vencimiento 3";
-            } else if (today > d1 && invoice.priceV2) {
-              expectedAmountForDate = invoice.priceV2;
-              activeTierName = "Vencimiento 2";
-            }
-          }
-
-          const expectedTotalForDate = expectedAmountForDate;
-
-          const updatedInvoice = await prisma.invoice.updateMany({
-            where: { id: invoiceId, status: 'PENDING' },
-            data: { status: 'PAID' }
-          });
-
-          if (updatedInvoice.count === 0) continue;
-
-          let mpFee = 0;
-          let mpTax = 0;
-          if (mpPayment.fee_details && Array.isArray(mpPayment.fee_details)) {
-            mpPayment.fee_details.forEach(fee => {
-              if (fee.type === 'mercadopago_fee') {
-                mpFee += parseFloat(fee.amount) || 0;
-              } else {
-                mpTax += parseFloat(fee.amount) || 0;
-              }
-            });
-          }
-
-          await prisma.payment.create({
-            data: {
-              invoiceId: invoiceId,
-              method: 'MERCADOPAGO',
-              amountPaid: transactionAmount,
-              mpFee: mpFee,
-              mpTax: mpTax,
-              lateFeeApplied: 0,
-              mpPaymentId: String(paymentId)
-            }
-          });
-
-          await prisma.cashMovement.create({
-            data: {
-              type: 'IN',
-              amount: transactionAmount,
-              category: 'PAGO_FACTURA',
-              description: `Cobro Automático Web/Webhook - Factura #${invoiceId} (${invoice.client?.name || 'Cliente'})`,
-              userId: 1
-            }
-          });
-
-          if (expectedTotalForDate - transactionAmount > 10) {
-            const diffAmount = Math.round((expectedTotalForDate - transactionAmount) * 100) / 100;
-            await prisma.invoice.create({
-              data: {
-                clientId: invoice.clientId,
-                month: invoice.month,
-                year: invoice.year,
-                originalAmount: diffAmount,
-                priceV1: diffAmount,
-                priceV2: diffAmount,
-                priceV3: diffAmount,
-                priceV4: diffAmount,
-                dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                dueDate1: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                status: 'PENDING'
-              }
-            });
-            console.log(`⚠️ [MP Webhook] Pago menor al recargo activo ($${transactionAmount} vs $${expectedTotalForDate}). Generada factura de diferencia por $${diffAmount} al cliente #${invoice.clientId}`);
-          }
-
-          await prisma.cutoffList.deleteMany({
-            where: { invoiceId: invoiceId }
-          });
-
-          if (invoice.clientId) {
-            await prisma.client.update({
-              where: { id: invoice.clientId },
-              data: { status: 'ACTIVE' }
-            });
-            // await ensureCurrentMonthInvoice(invoice.clientId); // Desactivado por solicitud del usuario
-          }
-
-          const difference = expectedTotalForDate - transactionAmount;
-          if (difference > 5.0) {
-            console.log(`⚠️ Webhook MP: Diferencia de pago detectada para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Diferencia: $${difference}`);
-            
-            await prisma.invoice.create({
-              data: {
-                clientId: invoice.clientId,
-                month: invoice.month,
-                year: invoice.year,
-                originalAmount: difference,
-                dueDate: new Date(),
-                status: 'PENDING',
-                priceV1: difference,
-                priceV2: difference,
-                priceV3: difference,
-                priceV4: difference,
-                dueDate1: new Date(),
-                dueDate2: new Date(),
-                dueDate3: new Date(),
-                dueDate4: new Date()
-              }
-            });
-
-            if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
-              const phoneClean = invoice.client.phone.replace(/\D/g, '');
-              const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-              const diffMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n⚠️ *Aviso de Diferencia:* Como tu pago fue registrado el día ${new Date().toLocaleDateString('es-AR')}, el total correspondiente a la fecha era de *$${expectedTotalForDate.toFixed(2)}* (${activeTierName}).\n\nPor este motivo, se ha generado automáticamente una factura pendiente por la diferencia de *$${difference.toFixed(2)}* en tu cuenta, la cual podrás abonar más adelante.\n\nTu servicio de Internet ya se encuentra activo. ¡Muchas gracias!`;
-              
-              await waSocket.sendMessage(targetPhone, { text: diffMsg });
-              console.log(`✉️ WhatsApp de diferencia enviado a ${invoice.client.name}`);
-            }
-          } else if (difference < -5.0) {
-            const excessCredit = -difference;
-            console.log(`💳 Webhook MP: Pago en exceso detectado para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Crédito a favor: $${excessCredit}`);
-            if (invoice.clientId) {
-              await prisma.client.update({
-                where: { id: invoice.clientId },
-                data: { walletBalance: { increment: excessCredit } }
-              });
-
-              if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
-                const phoneClean = invoice.client.phone.replace(/\D/g, '');
-                const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-                const creditMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n🎉 *Crédito a Favor:* Como el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}*, registramos un saldo a favor en tu cuenta de *$${excessCredit.toFixed(2)}*, el cual se aplicará automáticamente como descuento en tu próxima factura mensual.\n\n¡Muchas gracias!`;
-                
-                await waSocket.sendMessage(targetPhone, { text: creditMsg });
-                console.log(`✉️ WhatsApp de saldo a favor enviado a ${invoice.client.name}`);
-              }
-            }
-          }
-
-          if (afip && typeof emitAfipInvoiceHelper === 'function') {
-            emitAfipInvoiceHelper(invoiceId, afip)
-              .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
-              .catch(e => {
-                console.error('[Auto-ARCA Webhook MP] Error:', e.message);
-                sendAutomaticPaidInvoiceNotification(invoiceId);
-              });
-          } else {
-            sendAutomaticPaidInvoiceNotification(invoiceId);
-          }
-
-          if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
-            try {
-              await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
-            } catch (err) {
-              const msg = err.message || JSON.stringify(err);
-              console.error(`Error removiendo IP del Mikrotik (Webhook MP):`, msg);
-            }
-          }
-
-          console.log(`✅ Webhook MP: Factura N°${invoiceId} cobrada, registrada como MERCADOPAGO y cerrada.`);
+          await processInvoiceImputation(invoiceId, transactionAmount, String(paymentId), mpFee, mpTax);
         }
       }
     }
@@ -3498,7 +3369,31 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
   }
 });
 
-// --- REPORTS AND ANALYTICS ---
+app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
+  try {
+    const { invoiceId } = req.body;
+    const paymentId = parseInt(req.params.id);
+
+    const payment = await prisma.unidentifiedPayment.findUnique({ where: { id: paymentId } });
+    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
+
+    const invoice = await prisma.invoice.findUnique({ where: { id: parseInt(invoiceId) }, include: { client: true } });
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    const success = await processInvoiceImputation(invoice.id, payment.amount, payment.mpPaymentId || String(paymentId), 0, 0);
+
+    if (success) {
+      await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
+      res.json({ success: true, message: 'Pago asignado y procesado exitosamente' });
+    } else {
+      res.status(400).json({ error: 'La factura ya estaba pagada o hubo un error en la imputación.' });
+    }
+  } catch (error) {
+    console.error('Error al asignar pago no identificado:', error);
+    res.status(500).json({ error: 'Error interno al asignar pago' });
+  }
+});
+
 app.get('/api/reports/sales', async (req, res) => {
   try {
     const payments = await prisma.payment.findMany({
