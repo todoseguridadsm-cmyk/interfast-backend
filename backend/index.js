@@ -136,9 +136,22 @@ const getRandomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1))
 
 // Utilidad centralizada para enviar mensajes a través de WAHA (Sofi)
 async function sendWhatsAppMessage(phone, text) {
+  const phoneClean = phone.replace(/\D/g, '');
+  
+  // Priorizar el socket interno de Baileys (Sofi) para no depender de n8n/waha
+  if (waSocket && waStatus === 'CONNECTED') {
+    const targetPhoneBaileys = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+    try {
+      await waSocket.sendMessage(targetPhoneBaileys, { text: text });
+      return true;
+    } catch (e) {
+      console.error('Error enviando por Baileys interno, cayendo a WAHA:', e.message);
+    }
+  }
+
+  // Fallback a WAHA si Baileys no está conectado
   const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
   const apiKey = process.env.WAHA_API_KEY || 'interfast2024';
-  const phoneClean = phone.replace(/\D/g, '');
   const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
 
   try {
