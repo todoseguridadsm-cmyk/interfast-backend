@@ -351,19 +351,19 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     if (inv.afipCae) {
       doc.text(`Tipo / Ref: ${cbteTipoStr} (Int: F-${inv.id})`, 110, 74);
       doc.text(`Período: ${String(inv.month).padStart(2, '0')}/${inv.year}`, 110, 80);
-      const paidDate = inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+      const paidDate = (inv.status === 'PAID' || inv.status === 'PARTIAL') && inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
       doc.text(`Fecha de Pago: ${paidDate}`, 110, 86);
       doc.text(`CAE ARCA: ${inv.afipCae}`, 110, 92);
     } else {
       doc.text(`Período de Servicio: ${String(inv.month).padStart(2, '0')}/${inv.year}`, 110, 74);
-      const paidDate = inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+      const paidDate = (inv.status === 'PAID' || inv.status === 'PARTIAL') && inv.payments && inv.payments.length > 0 ? new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
       doc.text(`Fecha de Pago: ${paidDate}`, 110, 80);
       doc.text(`Estado: ${inv.status === 'PAID' ? 'CANCELADA (PAGO TOTAL)' : 'PAGO PARCIAL A CUENTA'}`, 110, 86);
     }
 
     // Tabla de Conceptos
     const originalAmountRounded = inv.originalAmount ? inv.originalAmount.toFixed(2) : '0.00';
-    const amountPaid = inv.payments && inv.payments.length > 0 ? inv.payments.reduce((acc, p) => acc + p.amountPaid, 0) : inv.totalAmount;
+    const amountPaid = (inv.status === 'PAID' || inv.status === 'PARTIAL') && inv.payments && inv.payments.length > 0 ? inv.payments.reduce((acc, p) => acc + p.amountPaid, 0) : inv.totalAmount;
     
     const lateFee = amountPaid > parseFloat(originalAmountRounded) ? amountPaid - parseFloat(originalAmountRounded) : 0;
     
@@ -468,7 +468,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
         'Mora ($)': inv.calculatedLateFee || 0,
         'Total a Pagar ($)': inv.totalAmount,
         'Estado': estado,
-        'Monto Abonado ($)': inv.payments && inv.payments.length > 0 
+        'Monto Abonado ($)': (inv.status === 'PAID' || inv.status === 'PARTIAL') && inv.payments && inv.payments.length > 0 
           ? inv.payments.reduce((acc, p) => acc + p.amountPaid, 0) 
           : (inv.status === 'PAID' ? inv.totalAmount : 0)
       };
@@ -822,7 +822,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                         </div>
                       </td>
                         <td className="px-2 py-2 text-center text-slate-600 text-xs leading-tight">
-                          {inv.payments && inv.payments.length > 0 
+                          {(inv.status === 'PAID' || inv.status === 'PARTIAL') && inv.payments && inv.payments.length > 0 
                             ? (
                               <>
                                 <div className="font-semibold">{new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR')}</div>
@@ -840,7 +840,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 className="text-green-500 hover:text-green-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-green-50 bg-white border border-green-200 flex items-center gap-1 font-bold text-xs" 
                                 title={`Notificar ${activeV}`}
                               >
-                                <MessageCircle size={14} /> <span className="hidden xl:inline">Notificar {activeV}</span>
+                                <MessageCircle size={14} /> <span className="hidden 2xl:inline">Notificar {activeV}</span>
                               </button>
                             )}
                             {!isDebito && inv.status === 'PENDING' && !isUpToDateNotified && (
@@ -849,7 +849,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 className="text-orange-500 hover:text-orange-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-orange-50 bg-white border border-orange-200 flex items-center gap-1 font-bold text-xs" 
                                 title="Aviso de Corte"
                               >
-                                <AlertCircle size={14} /> <span className="hidden xl:inline">Avisar Corte</span>
+                                <AlertCircle size={14} /> <span className="hidden 2xl:inline">Avisar Corte</span>
                               </button>
                             )}
                             {!isDebito && inv.status === 'PENDING' && (
@@ -858,7 +858,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 className="text-sky-500 hover:text-sky-700 transition-colors p-1.5 px-2 rounded-lg hover:bg-sky-50 bg-white border border-sky-200 flex items-center gap-1 font-bold text-xs" 
                                 title="Link MercadoPago"
                               >
-                                <CreditCard size={14} /> <span className="hidden xl:inline">Link MP</span>
+                                <CreditCard size={14} /> <span className="hidden 2xl:inline">Link MP</span>
                               </button>
                             )}
                             {inv.status === 'PENDING' && (
