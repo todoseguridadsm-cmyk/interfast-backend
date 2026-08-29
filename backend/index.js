@@ -807,12 +807,42 @@ app.get('/api/clients/bajas', async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
       where: { status: 'BAJA' },
-      include: { plan: true },
+      include: { plan: true, tickets: { orderBy: { createdAt: 'desc' }, take: 3 }, cancellationRequests: { orderBy: { requestedAt: 'desc' }, take: 1 } },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(clients);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener clientes de baja' });
+  }
+});
+
+// Dar servicio Mikrotik a un cliente en BAJA (sin darlo de alta)
+app.put('/api/clients/:id/enable-service', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const client = await prisma.client.findUnique({ where: { id } });
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+    if (!client.ipNumber) return res.status(400).json({ error: 'Cliente sin IP asignada' });
+    await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode);
+    res.json({ success: true, message: `Servicio habilitado para ${client.name} (${client.ipNumber})` });
+  } catch (error) {
+    console.error('Error al habilitar servicio:', error);
+    res.status(500).json({ error: 'Error al habilitar servicio en Mikrotik' });
+  }
+});
+
+// Cortar servicio Mikrotik a un cliente en BAJA
+app.put('/api/clients/:id/disable-service', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const client = await prisma.client.findUnique({ where: { id } });
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+    if (!client.ipNumber) return res.status(400).json({ error: 'Cliente sin IP asignada' });
+    await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name} (ID: ${client.id}) - Corte por BAJA`);
+    res.json({ success: true, message: `Servicio cortado para ${client.name} (${client.ipNumber})` });
+  } catch (error) {
+    console.error('Error al cortar servicio:', error);
+    res.status(500).json({ error: 'Error al cortar servicio en Mikrotik' });
   }
 });
 
