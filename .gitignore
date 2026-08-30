@@ -55,3 +55,4 @@ REGLA DE ORO/
 *.pdf
 *.doc
 *.docx
+.render_env
