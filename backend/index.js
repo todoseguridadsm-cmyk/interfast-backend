@@ -63,6 +63,47 @@ app.get('/api/admin/clear-last-10', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+app.get('/api/admin/restore-20', async (req, res) => {
+  try {
+    const names = [
+      "ADRIAN LEONEL GAVIOLA",
+      "ALDANA BELEN SANCHEZ",
+      "ALTAMIRANO MIGUEL",
+      "ANDREA MICAELA BENZONI",
+      "ALTAMIRANO NADIA",
+      "AMBROSIO RAUL CESAR ",
+      "ANA ROCIO CHIMENDO",
+      "ANGLADA HILDA DEL CARMEN",
+      "ADRIANA ELISA PETIOT",
+      "ACEBEDO ELISABETH ESMERALDA ",
+      "FERNANDO SEBASTIAN GONZALEZ",
+      "ALLISIARDI FEDERICO MARTIN",
+      "ADARO RAUL",
+      "ALEJANDRO IRAÑETA",
+      "DELACOURT MONICA MARISA ",
+      "ARROJO MELINA",
+      "COMPLEJO EL OLIVO ",
+      "GENTILE CECILIA",
+      "PATRICIA GOMEZ",
+      "ZALAZAR AILEN"
+    ];
+    let restored = [];
+    for (const n of names) {
+      const cl = await prisma.client.findFirst({ where: { name: { contains: n.trim(), mode: 'insensitive' } } });
+      if (cl) {
+        await prisma.invoice.updateMany({
+          where: { clientId: cl.id, status: 'PENDING' },
+          data: { notifiedAt: new Date() }
+        });
+        restored.push(n);
+      }
+    }
+    res.json({ message: 'Restored', clients: restored });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 const prisma = new PrismaClient({
   datasources: {
     db: {
