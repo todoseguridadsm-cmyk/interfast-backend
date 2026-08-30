@@ -43,6 +43,26 @@ try {
 }
 
 const app = express();
+
+app.get('/api/admin/clear-last-10', async (req, res) => {
+  try {
+    const recent = await prisma.invoice.findMany({
+      where: { status: 'PENDING', notifiedAt: { not: null } },
+      orderBy: { notifiedAt: 'desc' },
+      take: 10,
+      include: { client: true }
+    });
+    for (const inv of recent) {
+      await prisma.invoice.update({
+        where: { id: inv.id },
+        data: { notifiedAt: null }
+      });
+    }
+    res.json({ message: 'Cleared last 10', clients: recent.map(r => r.client?.name) });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 const prisma = new PrismaClient({
   datasources: {
     db: {
