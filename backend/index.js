@@ -44,62 +44,28 @@ try {
 
 const app = express();
 
-app.get('/api/admin/clear-last-10', async (req, res) => {
-  try {
-    const recent = await prisma.invoice.findMany({
-      where: { status: 'PENDING', notifiedAt: { not: null } },
-      orderBy: { notifiedAt: 'desc' },
-      take: 10,
-      include: { client: true }
-    });
-    for (const inv of recent) {
-      await prisma.invoice.update({
-        where: { id: inv.id },
-        data: { notifiedAt: null }
-      });
-    }
-    res.json({ message: 'Cleared last 10', clients: recent.map(r => r.client?.name) });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get('/api/admin/restore-20', async (req, res) => {
+app.get('/api/admin/clear-6', async (req, res) => {
   try {
     const names = [
-      "ADRIAN LEONEL GAVIOLA",
-      "ALDANA BELEN SANCHEZ",
-      "ALTAMIRANO MIGUEL",
-      "ANDREA MICAELA BENZONI",
-      "ALTAMIRANO NADIA",
-      "AMBROSIO RAUL CESAR ",
-      "ANA ROCIO CHIMENDO",
-      "ANGLADA HILDA DEL CARMEN",
-      "ADRIANA ELISA PETIOT",
-      "ACEBEDO ELISABETH ESMERALDA ",
-      "FERNANDO SEBASTIAN GONZALEZ",
-      "ALLISIARDI FEDERICO MARTIN",
-      "ADARO RAUL",
       "ALEJANDRO IRAÑETA",
-      "DELACOURT MONICA MARISA ",
-      "ARROJO MELINA",
-      "COMPLEJO EL OLIVO ",
-      "GENTILE CECILIA",
-      "PATRICIA GOMEZ",
-      "ZALAZAR AILEN"
+      "ADRIANA ELISA PETIOT",
+      "ACEBEDO ELISABETH ESMERALDA",
+      "ADARO RAUL",
+      "ALLISIARDI FEDERICO MARTIN",
+      "FERNANDO SEBASTIAN GONZALEZ"
     ];
-    let restored = [];
+    let cleared = [];
     for (const n of names) {
       const cl = await prisma.client.findFirst({ where: { name: { contains: n.trim(), mode: 'insensitive' } } });
       if (cl) {
         await prisma.invoice.updateMany({
           where: { clientId: cl.id, status: 'PENDING' },
-          data: { notifiedAt: new Date() }
+          data: { notifiedAt: null }
         });
-        restored.push(n);
+        cleared.push(n);
       }
     }
-    res.json({ message: 'Restored', clients: restored });
+    res.json({ message: 'Cleared', clients: cleared });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
