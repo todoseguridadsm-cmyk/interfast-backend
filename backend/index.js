@@ -44,9 +44,9 @@ try {
 
 const app = express();
 
-app.get('/api/admin/clear-6', async (req, res) => {
+app.get('/api/admin/fix-inverse', async (req, res) => {
   try {
-    const names = [
+    const toNotify = [
       "ALEJANDRO IRAÑETA",
       "ADRIANA ELISA PETIOT",
       "ACEBEDO ELISABETH ESMERALDA",
@@ -54,18 +54,44 @@ app.get('/api/admin/clear-6', async (req, res) => {
       "ALLISIARDI FEDERICO MARTIN",
       "FERNANDO SEBASTIAN GONZALEZ"
     ];
-    let cleared = [];
-    for (const n of names) {
+    const toClear = [
+      "ADRIAN LEONEL GAVIOLA",
+      "ALDANA BELEN SANCHEZ",
+      "ALTAMIRANO MIGUEL",
+      "ANDREA MICAELA BENZONI",
+      "ALTAMIRANO NADIA",
+      "AMBROSIO RAUL CESAR ",
+      "ANA ROCIO CHIMENDO",
+      "ANGLADA HILDA DEL CARMEN",
+      "DELACOURT MONICA MARISA ",
+      "ARROJO MELINA",
+      "COMPLEJO EL OLIVO ",
+      "GENTILE CECILIA",
+      "PATRICIA GOMEZ",
+      "ZALAZAR AILEN"
+    ];
+
+    for (const n of toNotify) {
+      const cl = await prisma.client.findFirst({ where: { name: { contains: n.trim(), mode: 'insensitive' } } });
+      if (cl) {
+        await prisma.invoice.updateMany({
+          where: { clientId: cl.id, status: 'PENDING' },
+          data: { notifiedAt: new Date() }
+        });
+      }
+    }
+
+    for (const n of toClear) {
       const cl = await prisma.client.findFirst({ where: { name: { contains: n.trim(), mode: 'insensitive' } } });
       if (cl) {
         await prisma.invoice.updateMany({
           where: { clientId: cl.id, status: 'PENDING' },
           data: { notifiedAt: null }
         });
-        cleared.push(n);
       }
     }
-    res.json({ message: 'Cleared', clients: cleared });
+
+    res.json({ message: 'Fixed inverse' });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
