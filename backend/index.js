@@ -312,18 +312,26 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
 }
 
 
-function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
+function formatArgentineJid(phone) {
   if (!phone) throw new Error("Número no proporcionado");
   phone = String(phone);
   
-  // Respetar formatos de enlace especiales como @lid
-  if (phone.includes('@lid')) return phone.replace('@c.us', '');
+  // 1. Limpiar todo lo que no sea número
+  let cleaned = phone.replace(/[^0-9]/g, '');
   
-  let clean = phone.replace(/\D/g, '');
-  if (clean.startsWith('549')) return clean + suffix;
-  if (clean.startsWith('54')) return '549' + clean.slice(2) + suffix;
-  if (clean.startsWith('0')) return '549' + clean.slice(1) + suffix;
-  return '549' + clean + suffix;
+  // 2. Regla de Oro: Si tiene 15 dígitos o más, es un @lid de Meta.
+  if (cleaned.length >= 15) {
+    return cleaned + '@lid'; // PROHIBIDO agregar 549 o @s.whatsapp.net
+  }
+  
+  // 3. Lógica normal para números argentinos reales
+  if (cleaned.startsWith('54') && !cleaned.startsWith('549')) {
+    cleaned = '549' + cleaned.substring(2);
+  } else if (!cleaned.startsWith('549')) {
+    cleaned = '549' + cleaned;
+  }
+  
+  return cleaned + '@s.whatsapp.net';
 }
 
 async function sendWhatsAppMessage(phone, text) {
