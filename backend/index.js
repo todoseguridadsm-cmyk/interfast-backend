@@ -17,6 +17,8 @@ const pino = require('pino');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mikrotik = require('./mikrotik');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 require('dotenv').config();
 
 const { createClient } = require('@supabase/supabase-js');
@@ -405,8 +407,14 @@ async function connectToWhatsApp() {
 
     if (qr) {
       waStatus = 'QR_READY';
-      waQrCode = qr; // Baileys produces raw strings for QR, perfectly compatible with our react QRCodeSVG
+      waQrCode = qr;
       console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
+      qrcodeTerminal.generate(qr, { small: true });
+      if (global.io) {
+        QRCode.toDataURL(qr).then(url => {
+          global.io.emit('whatsapp_qr', url);
+        }).catch(err => console.error(err));
+      }
     }
 
     if (connection === 'close') {
@@ -898,8 +906,16 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 0. WhatsApp Robot Status
-app.get('/api/whatsapp/status', (req, res) => {
-  res.json({ status: waStatus, qr: waQrCode });
+app.get('/api/whatsapp/status', async (req, res) => {
+  try {
+    let qrUrl = null;
+    if (waQrCode) {
+      qrUrl = await QRCode.toDataURL(waQrCode);
+    }
+    res.json({ status: waStatus, qrCode: qrUrl });
+  } catch (err) {
+    res.json({ status: waStatus, qrCode: null });
+  }
 });
 
 // 0.1 AFIP Test Route
