@@ -209,7 +209,9 @@ app.use('/api', (req, res, next) => {
 // WhatsApp Headless Client variables
 let waStatus = 'DISCONNECTED';
 let waQrCode = null;
-let waSocket = null;
+let waSocketInstance = null;
+function getSocket() { return waSocketInstance; }
+function setSocket(sock) { waSocketInstance = sock; global.waSocket = sock; }
 global.recentReceipts = []; // Store { phone, timestamp }
 global.recentChats = new Map(); // Store { phone, name, lastMessageTime }
 
@@ -323,13 +325,14 @@ function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
 async function sendWhatsAppMessage(phone, text) {
   let success = false;
   let phoneClean = '';
+  const socket = getSocket();
   
   // Priorizar el socket interno de Baileys (Sofi) y remover fallback a WAHA
-  if (global.waSocket && waStatus === 'CONNECTED') {
+  if (socket && waStatus === 'CONNECTED') {
     try {
       const targetPhoneBaileys = formatArgentineJid(phone, '@s.whatsapp.net');
       phoneClean = String(phone).replace(/\D/g, '');
-      await global.waSocket.sendMessage(targetPhoneBaileys, { text: text });
+      await socket.sendMessage(targetPhoneBaileys, { text: text });
       success = true;
     } catch (e) {
       console.error('[Error Crítico Envío Manual]:', e.message, e.stack);
@@ -435,8 +438,13 @@ async function connectToWhatsApp() {
           try {
             const { default: axios } = require('axios');
             const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
+            
+            const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+            const from = msg.key.remoteJid;
+            const wahaPayload = { body: { event: "message", payload: { fromMe: msg.key.fromMe, from: from, body: texto, type: "chat" } } };
+            
             console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
-            await axios.post(n8nWebhook, { message: msg });
+            await axios.post(n8nWebhook, wahaPayload);
           } catch (n8nErr) {
             if (n8nErr.response && n8nErr.response.status === 404) {
               console.log('[Alerta] n8n devolvió 404. El flujo está apagado o se está usando una URL de prueba (/webhook-test/) sin estar en modo escucha.');
@@ -474,7 +482,7 @@ async function connectToWhatsApp() {
     }
   });
 
-  waSocket = sock;
+  setSocket(sock);
 }
 
 connectToWhatsApp().catch(err => console.log("Error FATAL Baileys:", err));
@@ -4001,7 +4009,9 @@ function handleVerificarAtencion(req, res) {
     const phone = q.phone || b.phone || '';
     
     // Ignorar estados de WhatsApp (status@broadcast) o extracciones fallidas de N8N
-    if (phone.includes('@broadcast') || phone === 'status@broadcast' || phone === 'error_extraccion') {
+    if (phone.includes('@lid') || phone.includes('@s.whatsapp.net')) {
+      // PERMITIDO EXPLÍCITAMENTE (Bypass anti-filtro)
+    } else if (phone.includes('@broadcast') || phone === 'status@broadcast' || phone === 'error_extraccion') {
       return res.json({
         canRespond: false,
         shouldIgnore: true,
@@ -5385,7 +5395,8 @@ app.post('/api/chat/messages/:phone/read', async (req, res) => {
 
 app.post('/api/chat/send', async (req, res) => {
   console.log('Intentando enviar mensaje. Body recibido:', req.body);
-  if (!global.waSocket) {
+  const socket = getSocket();
+  if (!socket) {
     console.error('El socket global está indefinido');
     return res.status(500).json({ error: 'Socket no inicializado' });
   }
