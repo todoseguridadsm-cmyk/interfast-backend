@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 
 export default function InvoicesList() {
   const [invoices, setInvoices] = useState([]);
+  const [massStatus, setMassStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
   const [paymentFilter, setPaymentFilter] = useState('ALL');
@@ -155,8 +156,26 @@ export default function InvoicesList() {
       const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/mass-reminder', {
         invoiceIds: idsToSend
       });
-      alert(res.data.message);
       setSelectedInvoices([]);
+      setMassStatus(`Iniciando envío a ${count} facturas...`);
+
+      // Mecanismo de sondeo (polling) sin bloquear la navegación
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await axios.get('https://interfast-backend-95ww.onrender.com/api/invoices/mass-reminder/status');
+          if (statusRes.data && statusRes.data.isSending) {
+            setMassStatus(`Difusión en progreso: ${statusRes.data.sent} de ${statusRes.data.total} enviados...`);
+          } else if (statusRes.data && !statusRes.data.isSending && statusRes.data.total > 0) {
+            clearInterval(pollInterval);
+            await fetchInvoices(); // Refresca las filas a 'Notificado V1'
+            setMassStatus(`✅ Difusión completada: ${statusRes.data.sent}/${statusRes.data.total} notificados.`);
+            setTimeout(() => setMassStatus(null), 8000); // Ocultar toast después de 8 segundos
+          }
+        } catch (e) {
+          console.error("Error sondeando estado:", e);
+        }
+      }, 3500);
+
     } catch(err) {
       console.error(err);
       alert('Error en el envío masivo: ' + (err.response?.data?.error || err.message));
@@ -590,6 +609,12 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
 
   return (
     <div className="space-y-6 relative">
+      {massStatus && (
+        <div className="fixed top-4 right-4 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl z-[9999] font-bold text-sm flex items-center gap-3">
+          <MessageCircle size={18} />
+          {massStatus}
+        </div>
+      )}
       <header className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-4 bg-white p-4 2xl:p-6 rounded-2xl shadow-sm border border-slate-100">
         <div className="w-full 2xl:w-auto">
           <h2 className="text-2xl 2xl:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">

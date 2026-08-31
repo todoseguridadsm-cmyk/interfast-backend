@@ -2784,10 +2784,10 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
       else { expirationDate = null; totalAmount = invoice.priceV4 || invoice.originalAmount; }
     }
 
-    if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
-      return res.redirect(`https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${invoice.id}`);
-    }
+    const unitPrice = parseFloat(totalAmount) * 1.10;
+    if (isNaN(unitPrice) || unitPrice <= 0) throw new Error('Monto inválido para cobrar');
 
+    const { Preference } = require('mercadopago');
     const preference = new Preference(clientMP);
     const prefBody = {
       items: [
@@ -2795,12 +2795,12 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
           id: `INV-${invoice.id}`,
           title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
           quantity: 1,
-          unit_price: Math.round(parseFloat(totalAmount) * 1.10 * 100) / 100
+          unit_price: Math.round(unitPrice * 100) / 100
         }
       ],
       payer: {
         name: invoice.client.name,
-        email: invoice.client.email || 'test@test.com',
+        email: invoice.client.email && invoice.client.email.includes('@') ? invoice.client.email : 'pagos@interfast.com.ar',
       },
       external_reference: invoice.id.toString(),
       notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
@@ -2873,6 +2873,11 @@ app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
   }
 });
 
+let currentMassReminder = { isSending: false, total: 0, sent: 0 };
+app.get('/api/invoices/mass-reminder/status', (req, res) => {
+  res.json(currentMassReminder);
+});
+
 app.post('/api/invoices/mass-reminder', async (req, res) => {
   try {
     const { invoiceIds } = req.body;
@@ -2885,6 +2890,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
       include: { client: true }
     });
 
+    currentMassReminder = { isSending: true, total: invoices.length, sent: 0 };
     res.json({ message: 'Envío masivo iniciado en segundo plano. Se enviarán mensajes progresivamente.' });
 
     // Proceso asincrono
@@ -2964,6 +2970,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         }
         
         notifiedCount++;
+        currentMassReminder.sent = notifiedCount;
         if (notifiedCount % 40 === 0) {
           console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
           await sleep(90000);
@@ -2972,6 +2979,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           await sleep(delay);
         }
       }
+      currentMassReminder.isSending = false;
     })();
   } catch (error) {
     console.error('Error inicio mass reminder:', error);
