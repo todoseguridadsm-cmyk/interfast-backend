@@ -439,14 +439,18 @@ async function connectToWhatsApp() {
         for (const msg of m.messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid === 'status@broadcast') continue;
           
+          let realFrom = msg.key.participant || msg.participant || msg.key.remoteJid;
+          if (realFrom.includes('@lid') && msg.pushName) {
+            // Lógica de fallback si es necesario, pero priorizar participant
+          }
+
           // ---- INYECCIÓN N8N (SOFI) ----
           try {
             const { default: axios } = require('axios');
             const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
             
             const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-            const from = msg.key.remoteJid;
-            const wahaPayload = { event: "message", payload: { fromMe: msg.key.fromMe, from: from, body: texto, type: "chat" } };
+            const wahaPayload = { event: "message", payload: { fromMe: msg.key.fromMe, from: realFrom, body: texto, type: "chat" } };
             
             console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
             await axios.post(n8nWebhook, wahaPayload);
@@ -466,7 +470,7 @@ async function connectToWhatsApp() {
           else if (msg.message.documentMessage) text = '[Documento adjunto]';
           else continue;
 
-          const phone = msg.key.remoteJid.replace('@s.whatsapp.net', '');
+          const phone = realFrom.replace('@s.whatsapp.net', '').replace('@c.us', '');
           const name = msg.pushName || 'Desconocido';
           
           await prisma.whatsAppMessage.create({
