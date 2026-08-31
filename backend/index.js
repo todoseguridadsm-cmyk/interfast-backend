@@ -315,6 +315,10 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
 function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
   if (!phone) throw new Error("Número no proporcionado");
   phone = String(phone);
+  
+  // Respetar formatos de enlace especiales como @lid
+  if (phone.includes('@lid')) return phone.replace('@c.us', '');
+  
   let clean = phone.replace(/\D/g, '');
   if (clean.startsWith('549')) return clean + suffix;
   if (clean.startsWith('54')) return '549' + clean.slice(2) + suffix;
@@ -332,7 +336,8 @@ async function sendWhatsAppMessage(phone, text) {
     try {
       const targetPhoneBaileys = formatArgentineJid(phone, '@s.whatsapp.net');
       phoneClean = String(phone).replace(/\D/g, '');
-      await socket.sendMessage(targetPhoneBaileys, { text: text });
+      const response = await socket.sendMessage(targetPhoneBaileys, { text: text });
+      console.log(`[WhatsApp Salida] Baileys entregó el mensaje a ${targetPhoneBaileys}. Respuesta:`, !!response);
       success = true;
     } catch (e) {
       console.error('[Error Crítico Envío Manual]:', e.message, e.stack);
@@ -5401,9 +5406,9 @@ app.post('/api/chat/send', async (req, res) => {
     return res.status(500).json({ error: 'Socket no inicializado' });
   }
   try {
-    const { phone, text, message } = req.body;
-    const finalMessage = text || message;
-    const success = await sendWhatsAppMessage(phone, finalMessage);
+    const messageText = req.body.text || req.body.message;
+    const phone = req.body.phone;
+    const success = await sendWhatsAppMessage(phone, messageText);
     if (success) {
       res.json({ message: 'Mensaje enviado' });
     } else {
