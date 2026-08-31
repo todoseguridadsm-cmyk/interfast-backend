@@ -435,9 +435,14 @@ async function connectToWhatsApp() {
           try {
             const { default: axios } = require('axios');
             const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
+            console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
             await axios.post(n8nWebhook, { message: msg });
           } catch (n8nErr) {
-            console.error('Error reenviando mensaje entrante a n8n:', n8nErr.message);
+            if (n8nErr.response && n8nErr.response.status === 404) {
+              console.log('[Alerta] n8n devolvió 404. El flujo está apagado o se está usando una URL de prueba (/webhook-test/) sin estar en modo escucha.');
+            } else {
+              console.error('Error reenviando mensaje entrante a n8n:', n8nErr.message);
+            }
           }
           // -------------------------------
           
