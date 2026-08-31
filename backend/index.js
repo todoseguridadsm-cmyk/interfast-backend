@@ -114,13 +114,18 @@ if (process.env.MP_ACCESS_TOKEN) {
 
 // Crypto Settings
 const JWT_SECRET = process.env.JWT_SECRET || 'TKIP_SUPER_PRIVATE_KEY_2026';
+if (!process.env.JWT_SECRET) {
+  console.log('ℹ️ [JWT] Variable process.env.JWT_SECRET no encontrada, usando clave de fallback.');
+}
 
 // Seed Admin User
 async function seedAdmin() {
   try {
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Bran5570';
+    const hash = await bcrypt.hash(adminPassword, 10);
     const defaultAdmin = await prisma.user.findUnique({ where: { username: 'tkip' } });
+
     if (!defaultAdmin) {
-      const hash = await bcrypt.hash('Bran5570', 10);
       await prisma.user.create({
         data: {
           username: 'tkip',
@@ -130,6 +135,13 @@ async function seedAdmin() {
         }
       });
       console.log('🔒 Superusuario maestro (tkip) creado y encriptado.');
+    } else {
+      // Sincronizar hash para permitir el login si se configuró ADMIN_PASSWORD o si se mantiene por defecto
+      await prisma.user.update({
+        where: { username: 'tkip' },
+        data: { passwordHash: hash }
+      });
+      console.log('🔒 Superusuario maestro (tkip) verificado y hash sincronizado.');
     }
   } catch (err) {
     console.error('Error seeding admin', err);
@@ -161,7 +173,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook') || req.path.includes('/mercadopago/redirect') || req.path.startsWith('/admin/fix-invoices') || req.path.startsWith('/mikrotik/test') || req.path.startsWith('/leads') || req.path.startsWith('/bot')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook') || req.path.includes('/mercadopago/redirect') || req.path.startsWith('/leads') || req.path.startsWith('/bot')) return next();
   return authenticateToken(req, res, next);
 });
 
@@ -824,23 +836,36 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
+
+    const maskedPass = password ? `${password.substring(0, 2)}***${password.substring(password.length - 1)}` : 'N/A';
+    console.log(`🔑 [LOGIN INTENT] Usuario: "${username}", Clave recibida: "${maskedPass}"`);
+    console.log(`🔑 [JWT_SECRET]: ${process.env.JWT_SECRET ? 'Leído correctamente de process.env' : 'No definido en env (usando fallback)'}`);
+
     const user = await prisma.user.findUnique({ where: { username } });
 
-    if (!user) return res.status(401).json({ error: 'Credenciales incorrectas' });
+    if (!user) {
+      console.log(`❌ [LOGIN FAILED] Usuario "${username}" no existe en la base de datos.`);
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
 
     const validPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!validPassword) return res.status(401).json({ error: 'Credenciales incorrectas' });
+    if (!validPassword) {
+      console.log(`❌ [LOGIN FAILED] La contraseña provista no coincide con el hash almacenado para "${username}".`);
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
 
-    // Generate JWT
+    console.log(`✅ [LOGIN SUCCESS] Usuario "${username}" autenticado con éxito.`);
+
+    // Generate JWT (12h expiration)
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role, permissions: user.permissions },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '12h' }
     );
 
     res.json({ token, user: { username: user.username, role: user.role, permissions: JSON.parse(user.permissions) } });
   } catch (err) {
-    console.error(err);
+    console.error('Error en /api/auth/login:', err);
     res.status(500).json({ error: 'Error del servidor en el login' });
   }
 });
@@ -1654,7 +1679,7 @@ app.get('/api/invoices', async (req, res) => {
 app.post('/api/invoices/generate', async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', isVip: false },
       include: { plan: true }
     });
 
@@ -1672,16 +1697,9 @@ app.post('/api/invoices/generate', async (req, res) => {
     }
 
     let generatedCount = 0;
-    const vipClients = ['VICTOR CASA', 'MATIAS BRANDI', 'HUMBERTO MONTALDI'];
 
     for (const client of clients) {
-      if (!client.plan) continue;
-      
-      if (client.name) {
-        const clientName = client.name.toUpperCase();
-        const isVip = vipClients.some(vip => clientName.includes(vip));
-        if (isVip) continue; // No generar facturas a los VIP
-      }
+      if (!client.plan || client.isVip) continue;
 
       const existing = await prisma.invoice.findFirst({
         where: { clientId: client.id, month: currentMonth, year: currentYear }

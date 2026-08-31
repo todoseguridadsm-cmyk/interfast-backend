@@ -37,6 +37,7 @@ model Client {
   phone2               String?
   debitoAutomatico     Boolean               @default(false)
   uniqueVariation      Float?                @default(0.0)
+  isVip                Boolean               @default(false)
   cancellationRequests CancellationRequest[]
   plan                 Plan?                 @relation(fields: [planId], references: [id])
   cutoffLists          CutoffList[]
