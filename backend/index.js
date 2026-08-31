@@ -332,7 +332,7 @@ async function sendWhatsAppMessage(phone, text) {
       await global.waSocket.sendMessage(targetPhoneBaileys, { text: text });
       success = true;
     } catch (e) {
-      console.error(`[Error WhatsApp] Falló envío interno. Detalles:`, e.message);
+      console.error('[Error Crítico Envío Manual]:', e.message, e.stack);
     }
   }
 
@@ -5384,6 +5384,11 @@ app.post('/api/chat/messages/:phone/read', async (req, res) => {
 });
 
 app.post('/api/chat/send', async (req, res) => {
+  console.log('Intentando enviar mensaje. Body recibido:', req.body);
+  if (!global.waSocket) {
+    console.error('El socket global está indefinido');
+    return res.status(500).json({ error: 'Socket no inicializado' });
+  }
   try {
     const { phone, text, message } = req.body;
     const finalMessage = text || message;
@@ -5394,6 +5399,7 @@ app.post('/api/chat/send', async (req, res) => {
       res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
     }
   } catch (error) {
+    console.error('[Error Crítico Envío Manual]:', error.message, error.stack);
     res.status(500).json({ error: 'Hubo un error al enviar el WhatsApp.' });
   }
 });
