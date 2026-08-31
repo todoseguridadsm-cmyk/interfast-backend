@@ -12,7 +12,7 @@ export default function WhatsAppControlCenter() {
     const interval = setInterval(async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get('/api/whatsapp/status', {
+        const res = await axios.get(`/api/whatsapp/status?t=${Date.now()}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setStatus(res.data.status);
@@ -81,7 +81,7 @@ export default function WhatsAppControlCenter() {
           
           <div className="text-center animate-fade-in">
             <div className="bg-white p-4 rounded-xl shadow-sm inline-block mb-4">
-              <img src={qrCode} alt="Código QR WhatsApp" style={{ width: '250px', height: '250px' }} />
+              <img src={qrCode} alt="Código QR" style={{ width: '300px', height: '300px', objectFit: 'contain', backgroundColor: 'white', padding: '10px', borderRadius: '8px' }} />
             </div>
             <h3 className="text-lg font-bold text-slate-800">Escaneá este código</h3>
             <p className="text-sm text-slate-500 mt-1">Abre WhatsApp en tu teléfono {'>'} Dispositivos Vinculados</p>

@@ -402,18 +402,21 @@ async function connectToWhatsApp() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      waStatus = 'QR_READY';
-      waQrCode = qr;
-      console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
-      qrcodeTerminal.generate(qr, { small: true });
-      if (global.io) {
-        QRCode.toDataURL(qr).then(url => {
-          global.io.emit('whatsapp_qr', url);
-        }).catch(err => console.error(err));
+      try {
+        const qrImage = await QRCode.toDataURL(qr);
+        waStatus = 'QR_READY';
+        waQrCode = qrImage;
+        console.log('📱 WhatsApp Web requiere escanear nuevo Código QR.');
+        qrcodeTerminal.generate(qr, { small: true });
+        if (global.io) {
+          global.io.emit('whatsapp_qr', qrImage);
+        }
+      } catch (err) {
+        console.error('Error al generar QR:', err);
       }
     }
 
@@ -906,16 +909,8 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 0. WhatsApp Robot Status
-app.get('/api/whatsapp/status', async (req, res) => {
-  try {
-    let qrUrl = null;
-    if (waQrCode) {
-      qrUrl = await QRCode.toDataURL(waQrCode);
-    }
-    res.json({ status: waStatus, qrCode: qrUrl });
-  } catch (err) {
-    res.json({ status: waStatus, qrCode: null });
-  }
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({ status: waStatus, qrCode: waQrCode });
 });
 
 // 0.1 AFIP Test Route
@@ -5755,6 +5750,14 @@ io.on('connection', (socket) => {
 });
 
 // --- SERVICIO ESTÁTICO Y CATCH-ALL (Despliegue Monolítico) ---
+app.use((req, res, next) => {
+  if (req.path === '/' || req.path === '/index.html') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
