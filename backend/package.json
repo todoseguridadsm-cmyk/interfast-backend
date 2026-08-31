@@ -128,6 +128,7 @@
     "simple-concat": "^1.0.1",
     "simple-get": "^4.0.1",
     "smart-buffer": "^4.2.0",
+    "socket.io": "^4.8.3",
     "socks": "^2.8.7",
     "socks-proxy-agent": "^8.0.5",
     "sqlite3": "^6.0.1",

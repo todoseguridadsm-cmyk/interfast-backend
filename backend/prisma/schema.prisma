@@ -19,11 +19,18 @@ model Client {
   province             String?
   mainNode             String?
   panelId              String?
+
+  nodeRefId            Int?
+  panelRefId           Int?
+  nodeRef              Node?     @relation(fields: [nodeRefId], references: [id])
+  panelRef             Panel?    @relation(fields: [panelRefId], references: [id])
   ipNumber             String?
   cuit                 String?
   taxCondition         String                @default("CONSUMIDOR_FINAL")
   status               String                @default("ACTIVE")
   planId               Int?
+  regularPlanId        Int?
+  promoEndDate         DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   walletBalance        Float                 @default(0.0)
@@ -43,6 +50,7 @@ model Client {
   cutoffLists          CutoffList[]
   invoices             Invoice[]
   tickets              Ticket[]
+  botPausedUntil       DateTime?
 }
 
 model Plan {
@@ -107,6 +115,7 @@ model Payment {
   operator       String?
   invoice        Invoice  @relation(fields: [invoiceId], references: [id])
   user           User?    @relation(fields: [userId], references: [id])
+  externalTransactionId  String?  @unique
 }
 
 model User {
@@ -131,6 +140,7 @@ model CashMovement {
   category    String   @default("GASTO_GENERAL")
   operator    String?
   user        User     @relation(fields: [userId], references: [id])
+  externalTransactionId  String?  @unique
 }
 
 model Ticket {
@@ -237,6 +247,9 @@ model Node {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  panels    Panel[]
+  clients   Client[]
 }
 
 model WhatsAppMessage {
@@ -1938,4 +1951,45 @@ model workflow_publication_outbox {
   errorMessage       String?
   createdAt          DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
   updatedAt          DateTime @default(dbgenerated("CURRENT_TIMESTAMP(3)")) @db.Timestamptz(3)
+}
+
+model Panel {
+  id          Int      @id @default(autoincrement())
+  name        String
+  ipAddress   String?
+  user        String?
+  password    String?
+  frequency   String?
+  ssid        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  nodeId      Int
+  node        Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  clients     Client[]
+}
+
+model ReconciliationLog {
+  id          Int       @id @default(autoincrement())
+  gateway     String
+  fileName    String
+  periodStart DateTime?
+  periodEnd   DateTime?
+  totalRows   Int
+  operator    String
+  createdAt   DateTime  @default(now())
+}
+
+model ChatMessage {
+  id          Int      @id @default(autoincrement())
+  phone       String
+  name        String?
+  text        String?
+  mediaType   String?
+  mediaUrl    String?
+  isFromMe    Boolean  @default(false)
+  isRead      Boolean  @default(false)
+  operator    String?
+  timestamp   DateTime @default(now())
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info, CreditCard, UserMinus } from 'lucide-react';
+import { Search, Plus, MessageCircle, X, Trash2, Edit2, Download, Check, Power, Activity, Loader2, Stethoscope, AlertTriangle, CheckCircle2, XCircle, Info, CreditCard, UserMinus, Server } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ClientsList() {
@@ -205,6 +205,18 @@ export default function ClientsList() {
     } catch (error) {
       console.error(error);
       alert('Error al confirmar el alta');
+    }
+  };
+
+  const handlePauseBot = async (clientId) => {
+    try {
+      await axios.post('/api/bot/pausar-chat', { clientId }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      alert('Sofi ha sido pausada para este cliente por 2 horas.');
+      fetchClients(); // Refrescamos la UI para que aparezca el badge rojo
+    } catch (err) {
+      alert('Error al intentar silenciar al bot.');
     }
   };
 
@@ -452,7 +464,26 @@ export default function ClientsList() {
                       {client.status === 'PENDING' ? 'Pendiente' : client.status}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-right flex justify-end gap-1">
+                  <td className="px-3 py-3 text-right flex justify-end gap-1 items-center">
+                    {/* ACCESO DIRECTO A WINBOX (Regla 22) */}
+                    {client.ipNumber ? (
+                      <a 
+                        href={`winbox://${client.ipNumber}`}
+                        className="text-slate-400 hover:text-cyan-600 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-cyan-50 mr-2 border border-transparent hover:border-cyan-200"
+                        title={`Conectar vía Winbox (${client.ipNumber})`}
+                      >
+                        <Server size={16} />
+                      </a>
+                    ) : (
+                      <button 
+                        disabled
+                        className="text-slate-200 inline-flex items-center justify-center p-1.5 rounded-lg cursor-not-allowed mr-2"
+                        title="Requiere IP Asignada"
+                      >
+                        <Server size={16} />
+                      </button>
+                    )}
+                    
                     {client.status === 'PENDING' && canManageClients && (
                       <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
                         <Check size={16} />
@@ -629,23 +660,74 @@ export default function ClientsList() {
                   <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Datos de Conexión (Red)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-4">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Nodo (mainNode)</label>
-                      <select name="mainNode" value={formData.mainNode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Nodo Matriz</label>
+                      <select 
+                        name="nodeRefId" 
+                        value={formData.nodeRefId || ''} 
+                        onChange={(e) => {
+                          setFormData({ ...formData, nodeRefId: parseInt(e.target.value), panelRefId: '' });
+                        }} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      >
                         <option value="">Seleccione un nodo...</option>
                         {nodes.map(node => (
-                          <option key={node.id} value={node.name}>{node.name}</option>
+                          <option key={node.id} value={node.id}>{node.name}</option>
                         ))}
                       </select>
                     </div>
                     <div className="md:col-span-4">
-                      <label className="block text-xs font-medium text-slate-500 mb-1">ID del Panel Sectorial</label>
-                      <input type="text" name="panelId" value={formData.panelId} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ej: P-04" />
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Panel Sectorial</label>
+                      <select 
+                        name="panelRefId" 
+                        value={formData.panelRefId || ''} 
+                        onChange={(e) => setFormData({ ...formData, panelRefId: parseInt(e.target.value) })} 
+                        disabled={!formData.nodeRefId} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">Seleccione un panel...</option>
+                        {/* Se asume que la variable 'panels' está en el estado superior */}
+                        {(window.panels || []).filter(p => p.nodeId === formData.nodeRefId).map(panel => (
+                          <option key={panel.id} value={panel.id}>{panel.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="md:col-span-4">
                       <label className="block text-xs font-medium text-slate-500 mb-1">Número de IP Asignada</label>
-                      <input type="text" name="ipNumber" value={formData.ipNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm font-bold border-l-4 border-l-blue-500" placeholder="192.168.1.50" />
+                      <input type="text" name="ipNumber" value={formData.ipNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono text-sm font-bold border-l-4 border-l-blue-500" placeholder="192.168.1.50" />
                     </div>
                   </div>
+                  
+                  {/* Integración Winbox/WebFig para acceso rápido al Panel (Regla 8) */}
+                  {formData.panelRef && (
+                    <div className="flex flex-wrap items-center gap-3 mt-4">
+                      <a 
+                        href={`winbox://${formData.panelRef.ipAddress}?user=${formData.panelRef.user}&pass=${formData.panelRef.password}`}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                        title="Lanzar aplicación nativa Winbox"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                          <line x1="8" y1="21" x2="16" y2="21"></line>
+                          <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        Abrir en Winbox
+                      </a>
+                      <a 
+                        href={`http://${formData.panelRef.ipAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                        title="Abrir interfaz web del equipo"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="2" y1="12" x2="22" y2="12"></line>
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        WebFig
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">

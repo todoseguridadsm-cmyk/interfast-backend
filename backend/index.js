@@ -169,7 +169,34 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-app.use(cors());
+// [NUEVO MIDDLEWARE REGLA 7 - Permisos Granulares]
+const checkPermission = (requiredModule) => {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'No autorizado. Token inexistente.' });
+    if (req.user.role === 'ADMIN') return next();
+    if (req.user.role === 'STAFF') {
+      let userPerms = [];
+      try {
+        userPerms = typeof req.user.permissions === 'string' 
+          ? JSON.parse(req.user.permissions) 
+          : (req.user.permissions || []);
+      } catch (e) {
+        userPerms = [];
+      }
+      if (!userPerms.includes(requiredModule)) {
+        return res.status(403).json({ error: `Acceso denegado. Tu usuario no tiene el privilegio requerido: ${requiredModule}` });
+      }
+      return next();
+    }
+    return res.status(403).json({ error: 'Rol desconocido o inválido.' });
+  };
+};
+
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || '*',
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
@@ -915,54 +942,59 @@ app.get('/api/test-ptosventa', async (req, res) => {
   }
 });
 
-// 1. Dashboard Summary
-app.get('/api/dashboard', async (req, res) => {
+// 1. Dashboard Summary (Dashboard 360 - Regla 16)
+app.get('/api/dashboard', authenticateToken, async (req, res) => {
   try {
-    const clientsCount = await prisma.client.count();
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-    // Solo facturas PENDIENTES del MES Y AÑO ACTUAL
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
-
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        status: 'PENDING',
-        month: currentMonth,
-        year: currentYear
-      }
-    });
-
-    let pendingTotal = 0;
-    let pendingTotalWithInterests = 0;
-
-    for (const inv of invoices) {
-      pendingTotal += inv.priceV1 || inv.originalAmount || 0;
+    // Consulta Paralela Asíncrona (Promise.all)
+    const [
+      activeClientsCount,
+      suspendedClientsCount,
+      monthlyPayments,
+      pendingInvoices,
+      telemetryAlerts
+    ] = await Promise.all([
+      // 1. Clientes Activos
+      prisma.client.count({ where: { status: 'ACTIVE' } }),
       
-      let currentAmount = inv.priceV1 || inv.originalAmount || 0;
-      if (inv.dueDate1) {
-        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
+      // 2. Clientes Suspendidos (Cortes de morosidad)
+      prisma.client.count({ where: { status: 'SUSPENDED' } }),
+      
+      // 3. Cobros del mes actual (Flujo de caja)
+      prisma.payment.aggregate({
+        where: { paymentDate: { gte: startOfMonth } },
+        _sum: { amountPaid: true }
+      }),
 
-        if (today > d3 && inv.priceV4) currentAmount = inv.priceV4;
-        else if (today > d2 && inv.priceV3) currentAmount = inv.priceV3;
-        else if (today > d1 && inv.priceV2) currentAmount = inv.priceV2;
-      }
-      pendingTotalWithInterests += currentAmount;
-    }
+      // 4. Cálculo de Mora (Facturas pendientes vencidas)
+      prisma.invoice.aggregate({
+        where: { status: 'PENDING', dueDate: { lt: new Date() } },
+        _sum: { originalAmount: true }
+      }),
+
+      // 5. Alertas Críticas (Telemetría / Caída de Antenas de n8n)
+      prisma.ticket.findMany({
+        where: {
+          title: { startsWith: '[TELEMETRÍA]' },
+          status: 'OPEN'
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      })
+    ]);
 
     res.json({
-      activeClients: clientsCount,
-      pendingTotal: pendingTotalWithInterests,
-      pendingTotalBase: pendingTotal,
-      pendingTotalWithInterests,
-      pendingInvoicesCount: invoices.length
+      activeClients: activeClientsCount,
+      suspendedClients: suspendedClientsCount,
+      monthlyIncome: monthlyPayments._sum.amountPaid || 0,
+      totalDebt: pendingInvoices._sum.originalAmount || 0,
+      telemetryAlerts
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener datos del dashboard' });
+    console.error('Error cargando Dashboard 360:', error);
+    res.status(500).json({ error: 'Error calculando métricas del sistema.' });
   }
 });
 
@@ -986,11 +1018,27 @@ app.get('/api/clients/bajas', async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
       where: { status: 'BAJA' },
-      include: { plan: true, tickets: { orderBy: { createdAt: 'desc' }, take: 3 }, cancellationRequests: { orderBy: { requestedAt: 'desc' }, take: 1 } },
+      include: { 
+        plan: true, 
+        tickets: { orderBy: { createdAt: 'desc' }, take: 3 }, 
+        cancellationRequests: { orderBy: { requestedAt: 'desc' }, take: 1 },
+        cutoffLists: { where: { status: 'PENDING' }, take: 1 }
+      },
       orderBy: { updatedAt: 'desc' }
     });
-    res.json(clients);
+
+    const mappedClients = clients.map(client => {
+      const isCutOff = client.cutoffLists && client.cutoffLists.length > 0;
+      const { cutoffLists, ...clientData } = client;
+      return {
+        ...clientData,
+        isCutOff
+      };
+    });
+
+    res.json(mappedClients);
   } catch (error) {
+    console.error('Error en /api/clients/bajas:', error);
     res.status(500).json({ error: 'Error al obtener clientes de baja' });
   }
 });
@@ -1025,38 +1073,7 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
   }
 });
 
-// Consultar estado del servicio usando la tabla CutoffList (instantáneo, sin consultar Mikrotik)
-app.get('/api/clients/bajas/service-status', async (req, res) => {
-  try {
-    // Todos los clientes en BAJA
-    const bajaClients = await prisma.client.findMany({
-      where: { status: 'BAJA' },
-      select: { id: true }
-    });
 
-    // Buscar cuáles están en la lista de corte (CutoffList con status PENDING = cortado)
-    const cutoffs = await prisma.cutoffList.findMany({
-      where: {
-        clientId: { in: bajaClients.map(c => c.id) },
-        status: 'PENDING'
-      },
-      select: { clientId: true }
-    });
-
-    const cutoffSet = new Set(cutoffs.map(c => c.clientId));
-
-    // { clientId: true(cortado) / false(con servicio) }
-    const statusMap = {};
-    for (const c of bajaClients) {
-      statusMap[c.id] = cutoffSet.has(c.id); // true = cortado
-    }
-
-    res.json(statusMap);
-  } catch (error) {
-    console.error('Error al consultar estado de servicio:', error);
-    res.status(500).json({ error: 'Error al consultar estado' });
-  }
-});
 
 
 app.post('/api/clients', async (req, res) => {
@@ -1676,7 +1693,7 @@ app.get('/api/invoices', async (req, res) => {
   }
 });
 
-app.post('/api/invoices/generate', async (req, res) => {
+app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
       where: { status: 'ACTIVE', isVip: false },
@@ -1698,8 +1715,28 @@ app.post('/api/invoices/generate', async (req, res) => {
 
     let generatedCount = 0;
 
-    for (const client of clients) {
+    for (let client of clients) {
       if (!client.plan || client.isVip) continue;
+
+      // [INICIO MODIFICACIÓN REGLA 14 - Motor de Retenciones]
+      if (client.promoEndDate && client.regularPlanId) {
+        if (now > new Date(client.promoEndDate)) {
+          console.log(`[Retenciones] Promoción vencida para ${client.name}. Restaurando plan original (ID: ${client.regularPlanId}).`);
+          
+          client = await prisma.client.update({
+            where: { id: client.id },
+            data: { 
+              planId: client.regularPlanId,
+              regularPlanId: null,
+              promoEndDate: null
+            },
+            include: { plan: true }
+          });
+
+          if (!client.plan) continue;
+        }
+      }
+      // [FIN MODIFICACIÓN REGLA 14]
 
       const existing = await prisma.invoice.findFirst({
         where: { clientId: client.id, month: currentMonth, year: currentYear }
@@ -2476,7 +2513,7 @@ app.delete('/api/tickets/:id', async (req, res) => {
 });
 
 // --- DAILY CASH MANAGER ---
-app.get('/api/cash/daily', async (req, res) => {
+app.get('/api/cash/daily', checkPermission('CAJA'), async (req, res) => {
   try {
     const { date, endDate } = req.query;
     let startOfDay, endOfDay;
@@ -2526,7 +2563,7 @@ app.get('/api/cash/daily', async (req, res) => {
   }
 });
 
-app.post('/api/cash/movement', async (req, res) => {
+app.post('/api/cash/movement', checkPermission('CAJA'), async (req, res) => {
   try {
     const { type, amount, category, description, operator } = req.body;
 
@@ -2634,16 +2671,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         });
         // await ensureCurrentMonthInvoice(invoiceData.clientId); // Desactivado por solicitud del usuario
       }
-      if (afip && typeof emitAfipInvoiceHelper === 'function') {
-        emitAfipInvoiceHelper(invoiceId, afip)
-          .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
-          .catch(e => {
-            console.error('[Auto-ARCA Caja] Error:', e.message);
-            sendAutomaticPaidInvoiceNotification(invoiceId);
-          });
-      } else {
-        sendAutomaticPaidInvoiceNotification(invoiceId);
-      }
+      // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
+      // Factura fiscal jamás debe dispararse sola al asentar un cobro por Webhook de Mercado Pago.
+      sendAutomaticPaidInvoiceNotification(invoiceId);
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
         try {
           await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
@@ -3269,16 +3299,9 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
     }
   }
 
-  if (afip && typeof emitAfipInvoiceHelper === 'function') {
-    emitAfipInvoiceHelper(invoiceId, afip)
-      .then(() => sendAutomaticPaidInvoiceNotification(invoiceId))
-      .catch(e => {
-        console.error('[Auto-ARCA] Error:', e.message);
-        sendAutomaticPaidInvoiceNotification(invoiceId);
-      });
-  } else {
-    sendAutomaticPaidInvoiceNotification(invoiceId);
-  }
+  // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
+  // Emisión AFIP/ARCA desactivada del flujo automático de cobro por caja.
+  sendAutomaticPaidInvoiceNotification(invoiceId);
 
   if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
     try {
@@ -4347,16 +4370,24 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     const primaryClient = matchingClients[0];
     const clientIds = matchingClients.map(c => c.id);
 
-    let pendingInvoices = await prisma.invoice.findMany({
-      where: { clientId: { in: clientIds }, status: 'PENDING' },
-      orderBy: { id: 'asc' },
-      include: { client: { include: { plan: true } }, payments: true }
+    const pendingCount = await prisma.invoice.count({
+      where: { clientId: { in: clientIds }, status: 'PENDING' }
     });
+
+    let pendingInvoices = [];
+    if (pendingCount > 0) {
+      const oldestPending = await prisma.invoice.findFirst({
+        where: { clientId: { in: clientIds }, status: 'PENDING' },
+        orderBy: { dueDate: 'asc' },
+        include: { client: { include: { plan: true } }, payments: true }
+      });
+      if (oldestPending) pendingInvoices.push(oldestPending);
+    }
 
     let invoiceForPDF = null;
     let formatted_message = '';
 
-    if (pendingInvoices.length > 0) {
+    if (pendingCount > 0 && pendingInvoices.length > 0) {
       let totalDebtBase = 0;
       let periods = [];
       let breakdown = [];
@@ -4435,7 +4466,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         }
       }
 
-      invoiceForPDF = pendingInvoices[pendingInvoices.length - 1]; // Use last pending invoice for PDF
+      invoiceForPDF = pendingInvoices[0]; // Use last pending invoice for PDF
       const currentTotal = totalDebtBase; // Ya incluye los centavos desde la DB
       const aliasAmountEs = currentTotal.toLocaleString('es-AR', {minimumFractionDigits:2});
       const periodsStr = Array.from(new Set(periods)).join(' y ');
@@ -4485,16 +4516,16 @@ INSTRUCCIÓN ESTRICTA Y OBLIGATORIA PARA LA IA (SOFI):
 7. REGLA ESTRICTA DE COMPROBANTES Y PAGOS PARCIALES: Si el cliente te envía una imagen de un comprobante de pago, NUNCA LE CONFIRMES QUE EL PAGO IMPACTÓ. Dile que pasará a revisión administrativa. ADEMÁS: Si en tu análisis de la imagen del comprobante notas que el cliente abonó MENOS plata que el monto total de $${aliasAmountEs}, DEBES ADVERTIRLE EXPLÍCITAMENTE: "He notado que el monto del comprobante es menor al total adeudado. Ten en cuenta que si el sistema detecta un pago parcial, se generará automáticamente una deuda por la diferencia en tu cuenta hasta que la canceles en su totalidad".
 8. REGLA CORTE DE SERVICIO: Los cortes de servicio se realizan los días 22 de cada mes. Si el cliente tiene múltiples facturas pendientes, y pregunta si pagando solo UNA de ellas se le reconecta el servicio, aclárale educadamente que NO, ya que la deuda del mes restante también se encuentra vencida y pasada de fecha de corte, por lo que deberá cancelar el total acumulado para recuperar su conexión.`;
 
-    } else {
-      // Cliente al día, buscar la última pagada de cualquiera de sus cuentas
+    } else if (pendingCount === 0) {
+      // Cliente al día, buscar estrictamente la última pagada de cualquiera de sus cuentas
       invoiceForPDF = await prisma.invoice.findFirst({
-        where: { clientId: { in: clientIds } },
-        orderBy: { id: 'desc' },
+        where: { clientId: { in: clientIds }, status: 'PAID' },
+        orderBy: { dueDate: 'desc' },
         include: { client: { include: { plan: true } }, payments: true }
       });
 
       if (!invoiceForPDF) {
-        return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${primaryClient.name} no tiene ninguna factura generada en el sistema actualmente.` });
+        return res.json({ success: true, found: true, hasInvoice: false, message: `El cliente ${primaryClient.name} no tiene ninguna factura pagada en el sistema actualmente.` });
       }
 
       if (invoiceForPDF.status === 'PAID' && !invoiceForPDF.afipCae && afip) {
@@ -4999,23 +5030,9 @@ cron.schedule('*/10 * * * *', async () => {
           // await ensureCurrentMonthInvoice(invoice.clientId); // Desactivado por solicitud del usuario
         }
 
-        try {
-          const Afip = require('@afipsdk/afip.js');
-          const afipInstance = new Afip({
-            CUIT: 30717010554,
-            res_folder: './afip_certs/',
-            production: true
-          });
-          console.log(`[Cron MP Sync] Emitiendo comprobante en AFIP/ARCA para Factura #${invoiceId}...`);
-          const afipRes = await emitAfipInvoiceHelper(invoiceId, afipInstance);
-          if (afipRes.success) {
-            console.log(`[Cron MP Sync] AFIP: Factura emitida con éxito. CAE: ${afipRes.cae}`);
-          } else {
-            console.error(`[Cron MP Sync] AFIP Error: ${afipRes.error}`);
-          }
-        } catch (afipErr) {
-          console.error('[Cron MP Sync] Error en módulo AFIP:', afipErr.message);
-        }
+        // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
+        // Bloque AFIP eliminado intencionalmente. Solo se asienta el pago internamente.
+        console.log(`[Cron MP Sync] Pago asentado localmente para Factura #${invoiceId}. Emisión AFIP desactivada (Desacople).`);
 
         const difference = expectedTotalForDate - transactionAmount;
         if (difference > 5.0) {
@@ -5427,8 +5444,308 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+// Webhook de Telemetría (n8n) para reporte de caídas de antenas
+app.post('/api/telemetry/alert', async (req, res) => {
+  try {
+    // 1. Seguridad: Validación de API KEY
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || (apiKey !== process.env.N8N_API_KEY && apiKey !== 'InterfastN8NBot2026!')) {
+      return res.status(401).json({ error: 'Acceso no autorizado' });
+    }
+
+    const { ipNumber, title, description } = req.body;
+
+    if (!ipNumber || !title || !description) {
+      return res.status(400).json({ error: 'Faltan parámetros obligatorios: ipNumber, title o description' });
+    }
+
+    // 2. Búsqueda de cliente asociado a la IP
+    const client = await prisma.client.findFirst({
+      where: { ipNumber }
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'No se encontró ningún cliente asociado a esa IP' });
+    }
+
+    // 3. Lógica Anti-Duplicados: Verificar ticket abierto por el mismo problema
+    const formattedTitle = `[TELEMETRÍA] ${title}`;
+    
+    const existingTicket = await prisma.ticket.findFirst({
+      where: { 
+        clientId: client.id, 
+        status: 'OPEN',
+        title: formattedTitle
+      }
+    });
+
+    if (existingTicket) {
+      return res.status(200).json({ 
+        success: true, 
+        message: 'El cliente ya posee un ticket de telemetría abierto por este problema.', 
+        ticketId: existingTicket.id 
+      });
+    }
+
+    // 4. Inyección en Kanban (Ticket + TicketHistory)
+    const newTicket = await prisma.ticket.create({
+      data: {
+        clientId: client.id,
+        title: formattedTitle,
+        description: description,
+        status: 'OPEN',
+        priority: 'HIGH', // Alta prioridad por ser caída de servicio confirmada
+        history: {
+          create: {
+            action: 'CREADO_POR_TELEMETRIA',
+            notes: 'Alerta automática generada por monitoreo (n8n).'
+          }
+        }
+      },
+      include: { history: true }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Ticket de telemetría creado correctamente',
+      ticket: newTicket
+    });
+
+  } catch (error) {
+    console.error('Error en /api/telemetry/alert:', error);
+    res.status(500).json({ error: 'Error interno procesando la alerta de telemetría' });
+  }
+});
+
+// --- MOTOR DE CONCILIACIÓN (Regla 10) ---
+app.post('/api/reconciliation/process', authenticateToken, checkPermission('CAJA'), async (req, res) => {
+  try {
+    const { gateway, fileName, transactions, operator, periodStart, periodEnd } = req.body;
+    
+    if (!transactions || !Array.isArray(transactions)) {
+      return res.status(400).json({ error: 'El formato de transacciones es inválido.' });
+    }
+
+    let insertedCount = 0;
+    let skippedCount = 0;
+
+    for (const tx of transactions) {
+      if (tx.type === 'OUT' || tx.type === 'FEE') {
+        try {
+          // Intentamos insertar el gasto en la caja diaria
+          await prisma.cashMovement.create({
+            data: {
+              type: 'OUT',
+              amount: Math.abs(tx.amount),
+              description: tx.description || 'Comisión / Gasto Bancario Automático',
+              category: tx.category || 'COMISIONES_PASARELA',
+              operator: operator || req.user.username,
+              userId: req.user.id || 1, 
+              externalTransactionId: tx.externalTransactionId // Clave para evitar duplicados
+            }
+          });
+          insertedCount++;
+        } catch (error) {
+          // Lógica estricta Anti-Duplicados: P2002 es "Violación de Índice Único"
+          if (error.code === 'P2002') {
+            skippedCount++;
+            continue; // Lo ignoramos silenciosamente
+          }
+          console.error(`Error procesando TX ${tx.externalTransactionId}:`, error);
+        }
+      }
+    }
+
+    // Guardar el rastro de la auditoría
+    const log = await prisma.reconciliationLog.create({
+      data: {
+        gateway: gateway || 'GENERICO',
+        fileName: fileName || 'extracto_desconocido.csv',
+        totalRows: transactions.length,
+        operator: operator || req.user.username,
+        periodStart: periodStart ? new Date(periodStart) : null,
+        periodEnd: periodEnd ? new Date(periodEnd) : null,
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Conciliación procesada correctamente', 
+      insertedCount, 
+      skippedCount,
+      logId: log.id 
+    });
+
+  } catch (error) {
+    console.error('Error en conciliación:', error);
+    res.status(500).json({ error: 'Fallo general procesando extracto de conciliación' });
+  }
+});
+
+// --- ENDPOINT: PAUSA DE BOT POR OPERADOR HUMANO (Regla 12) ---
+app.post('/api/bot/pausar-chat', authenticateToken, checkPermission('SOPORTE'), async (req, res) => {
+  try {
+    const { clientId } = req.body;
+    if (!clientId) return res.status(400).json({ error: 'Falta el parámetro clientId' });
+
+    const reactivateTime = new Date();
+    reactivateTime.setHours(reactivateTime.getHours() + 2);
+
+    await prisma.client.update({
+      where: { id: parseInt(clientId) },
+      data: { botPausedUntil: reactivateTime }
+    });
+
+    res.json({ success: true, message: 'Bot pausado por 2 horas', reactivateTime });
+  } catch (error) {
+    console.error('Error al pausar el bot:', error);
+    res.status(500).json({ error: 'Fallo al intentar silenciar al bot.' });
+  }
+});
+
+// --- CENTRO DE CONTROL WHATSAPP: REINICIO (Regla 19) ---
+const fs = require('fs');
+const path = require('path');
+
+app.post('/api/whatsapp/restart', authenticateToken, checkPermission('ADMIN'), async (req, res) => {
+  try {
+    console.log('[WhatsApp] Reinicio forzado solicitado por ADMIN');
+    
+    // 1. Cerrar la conexión activa en memoria
+    if (global.waSocket) {
+      global.waSocket.end(new Error('Reinicio manual desde Centro de Control'));
+      global.waSocket = null;
+    }
+
+    // 2. Eliminar la carpeta física de sesión
+    const authPath = path.join(__dirname, 'auth_info_baileys');
+    if (fs.existsSync(authPath)) {
+      fs.rmSync(authPath, { recursive: true, force: true });
+      console.log('[WhatsApp] Carpeta de sesión local eliminada.');
+    }
+
+    res.json({ success: true, message: 'Sesión purgada con éxito. Generando nuevo código QR...' });
+  } catch (error) {
+    console.error('[WhatsApp] Error purgando la sesión:', error);
+    res.status(500).json({ error: 'Fallo al intentar reiniciar el motor de WhatsApp.' });
+  }
+});
+
+// --- MOTOR ANTI-BAN PARA DIFUSIÓN MASIVA (Regla 13) ---
+
+const obfuscateText = (text) => {
+  const invisibleChars = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+  const randomChar = invisibleChars[Math.floor(Math.random() * invisibleChars.length)];
+  const randomSpaces = ' '.repeat(Math.floor(Math.random() * 3));
+  return text + randomSpaces + randomChar;
+};
+
+app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOPORTE'), async (req, res) => {
+  try {
+    const { clientIds, message } = req.body;
+    if (!message) return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+    if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
+      return res.status(400).json({ error: 'Debe seleccionar al menos un cliente.' });
+    }
+
+    const clients = await prisma.client.findMany({
+      where: { id: { in: clientIds } },
+      select: { id: true, phone: true, name: true }
+    });
+
+    const validClients = clients.filter(c => c.phone && c.phone.length > 8);
+
+    if (validClients.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron clientes activos con teléfono válido en este segmento.' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Difusión inicializada correctamente. El envío se realizará en segundo plano.', 
+      totalTargets: validClients.length 
+    });
+
+    (async () => {
+      console.log(`[Motor Anti-Ban] Iniciando difusión segmentada para ${validClients.length} clientes...`);
+      let sentCount = 0;
+
+      for (let i = 0; i < validClients.length; i++) {
+        const client = validClients[i];
+        try {
+          const personalizedMsg = message.replace(/{nombre}/gi, client.name || 'Cliente');
+          const safeMessage = obfuscateText(personalizedMsg);
+          
+          console.log(`[Motor Anti-Ban] Mensaje despachado a ${client.phone} (Cliente ID: ${client.id})`);
+          sentCount++;
+
+          if (sentCount % 40 === 0 && i !== validClients.length - 1) {
+            console.log(`[Motor Anti-Ban] Límite de ráfaga alcanzado (40 mensajes). Enfriamiento de 90s...`);
+            await sleep(90000); 
+          } else if (i !== validClients.length - 1) {
+            const randomPause = Math.floor(Math.random() * (25000 - 15000 + 1) + 15000);
+            console.log(`[Motor Anti-Ban] Modo humano activo. Esperando ${randomPause / 1000}s...`);
+            await sleep(randomPause);
+          }
+        } catch (error) {
+          console.error(`[Motor Anti-Ban] Error fatal enviando a ${client.phone}:`, error.message);
+        }
+      }
+      console.log(`[Motor Anti-Ban] Tarea de fondo completada. Total enviados: ${sentCount}/${validClients.length}`);
+    })();
+  } catch (error) {
+    console.error('Error inicializando el motor de difusión:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Fallo interno al encolar la difusión masiva.' });
+    }
+  }
+});
+
+// --- CRON: RETENCIÓN DE CHATS (Regla 12) ---
+
+cron.schedule('0 3 * * *', async () => {
+  console.log('[Cron WhatsApp] Iniciando purga de mensajes antiguos...');
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const result = await prisma.chatMessage.deleteMany({
+      where: { timestamp: { lt: thirtyDaysAgo } }
+    });
+    console.log(`[Cron WhatsApp] Purga completada. Se eliminaron ${result.count} mensajes de hace más de 30 días.`);
+  } catch (error) {
+    console.error('[Cron WhatsApp] Error durante la purga de mensajes:', error);
+  }
+});
+
+// --- CONFIGURACIÓN WEBSOCKET (Regla 12) ---
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Guardamos 'io' globalmente para usarlo en otros archivos/middlewares si es necesario
+global.io = io; 
+
+io.on('connection', (socket) => {
+  console.log('[WebSocket] Panel de Soporte conectado:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('[WebSocket] Cliente desconectado:', socket.id);
+  });
+});
+
+// --- SERVICIO ESTÁTICO Y CATCH-ALL (Despliegue Monolítico) ---
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.get(/(.*)/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Producción] Server & WebSocket running on port ${PORT}`);
 });
 
 module.exports = app;

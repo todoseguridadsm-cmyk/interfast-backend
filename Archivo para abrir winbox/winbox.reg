@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+[-HKEY_CLASSES_ROOT\winbox]
+
+[HKEY_CURRENT_USER\Software\Classes\winbox]
+@="URL:Winbox Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\winbox\shell\open\command]
+@="\"D:\\PROYECTOS ANTIGRABITY\\INTERFAST\\Archivo para abrir winbox\\lanzador_winbox.bat\" \"%1\""

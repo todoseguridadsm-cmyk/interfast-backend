@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Clock } from 'lucide-react';
 
-export default function BroadcastList() {
+export default function BroadcastPanel() {
   const [scope, setScope] = useState('ALL');
   const [targetId, setTargetId] = useState('');
   const [message, setMessage] = useState('');

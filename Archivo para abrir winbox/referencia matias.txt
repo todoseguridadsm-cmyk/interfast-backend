@@ -1,0 +1,11 @@
+el archivo se tiene que llamar WinBox.exe respetando mayusculas y luego el archivo .reg tiene que tener la direccion exacta. ejemplo en el escritorio
+Windows Registry Editor Version 5.00
+
+[-HKEY_CLASSES_ROOT\winbox]
+
+[HKEY_CURRENT_USER\Software\Classes\winbox]
+@="URL:Winbox Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\winbox\shell\open\command]
+@="\"C:\\Users\\MATIAS BRANDI\\Desktop\\lanzador_winbox.bat\" \"%1\""
