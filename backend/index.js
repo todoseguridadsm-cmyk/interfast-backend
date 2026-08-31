@@ -311,6 +311,8 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
 
 
 function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
+  if (!phone) throw new Error("Número no proporcionado");
+  phone = String(phone);
   let clean = phone.replace(/\D/g, '');
   if (clean.startsWith('549')) return clean + suffix;
   if (clean.startsWith('54')) return '549' + clean.slice(2) + suffix;
@@ -319,41 +321,18 @@ function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
 }
 
 async function sendWhatsAppMessage(phone, text) {
-  const phoneClean = phone.replace(/\D/g, '');
   let success = false;
+  let phoneClean = '';
   
-  // Priorizar el socket interno de Baileys (Sofi) para no depender de n8n/waha
-  if (waSocket && waStatus === 'CONNECTED') {
-    const targetPhoneBaileys = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
+  // Priorizar el socket interno de Baileys (Sofi) y remover fallback a WAHA
+  if (global.waSocket && waStatus === 'CONNECTED') {
     try {
-      await waSocket.sendMessage(targetPhoneBaileys, { text: text });
+      const targetPhoneBaileys = formatArgentineJid(phone, '@s.whatsapp.net');
+      phoneClean = String(phone).replace(/\D/g, '');
+      await global.waSocket.sendMessage(targetPhoneBaileys, { text: text });
       success = true;
     } catch (e) {
-      console.error('Error enviando por Baileys interno, cayendo a WAHA:', e.message);
-    }
-  }
-
-  // Fallback a WAHA si Baileys no está conectado
-  if (!success) {
-    const wahaUrl = process.env.WAHA_API_URL || 'https://waha-67bs.onrender.com';
-    const apiKey = process.env.WAHA_API_KEY || 'interfast2024';
-    const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@c.us` : `549${phoneClean}@c.us`;
-
-    try {
-      const { default: axios } = require('axios');
-      await axios.post(`${wahaUrl}/api/sendText`, {
-        chatId: targetPhone,
-        text: text,
-        session: 'waha-sofi'
-      }, {
-        headers: {
-          'X-Api-Key': apiKey,
-          'Content-Type': 'application/json'
-        }
-      });
-      success = true;
-    } catch (error) {
-      console.error('Error enviando mensaje vía WAHA:', error.message);
+      console.error(`[Error WhatsApp] Falló envío interno. Detalles:`, e.message);
     }
   }
 
@@ -451,6 +430,16 @@ async function connectToWhatsApp() {
       if (m.type === 'notify') {
         for (const msg of m.messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid === 'status@broadcast') continue;
+          
+          // ---- INYECCIÓN N8N (SOFI) ----
+          try {
+            const { default: axios } = require('axios');
+            const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
+            await axios.post(n8nWebhook, { message: msg });
+          } catch (n8nErr) {
+            console.error('Error reenviando mensaje entrante a n8n:', n8nErr.message);
+          }
+          // -------------------------------
           
           let text = '';
           if (msg.message.conversation) text = msg.message.conversation;
@@ -5391,8 +5380,9 @@ app.post('/api/chat/messages/:phone/read', async (req, res) => {
 
 app.post('/api/chat/send', async (req, res) => {
   try {
-    const { phone, text } = req.body;
-    const success = await sendWhatsAppMessage(phone, text);
+    const { phone, text, message } = req.body;
+    const finalMessage = text || message;
+    const success = await sendWhatsAppMessage(phone, finalMessage);
     if (success) {
       res.json({ message: 'Mensaje enviado' });
     } else {
