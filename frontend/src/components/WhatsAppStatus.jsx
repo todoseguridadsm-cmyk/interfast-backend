@@ -81,7 +81,7 @@ export default function WhatsAppControlCenter() {
           
           <div className="text-center animate-fade-in">
             <div className="bg-white p-4 rounded-xl shadow-sm inline-block mb-4">
-              <img src={qrCode} alt="WhatsApp QR" className="w-64 h-64" />
+              <img src={qrCode} alt="Código QR WhatsApp" style={{ width: '250px', height: '250px' }} />
             </div>
             <h3 className="text-lg font-bold text-slate-800">Escaneá este código</h3>
             <p className="text-sm text-slate-500 mt-1">Abre WhatsApp en tu teléfono {'>'} Dispositivos Vinculados</p>
