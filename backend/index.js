@@ -1025,6 +1025,32 @@ app.get('/api/clients', async (req, res) => {
   }
 });
 
+app.post('/api/clients/filter', async (req, res) => {
+  try {
+    const { nodeId, panelId } = req.body;
+    let whereClause = { status: { not: 'BAJA' } };
+    
+    if (nodeId) {
+      whereClause.nodeRefId = parseInt(nodeId);
+      // Panel es estrictamente opcional, si viene vacío no lo usamos.
+      if (panelId) {
+        whereClause.panelRefId = parseInt(panelId);
+      }
+    } else if (panelId) {
+      whereClause.panelRefId = parseInt(panelId);
+    }
+
+    const clients = await prisma.client.findMany({
+      where: whereClause,
+      include: { plan: true },
+      orderBy: { name: 'asc' },
+    });
+    res.json(clients);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al filtrar clientes' });
+  }
+});
+
 app.get('/api/clients/bajas', async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
@@ -5762,6 +5788,25 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
+
+// --- MIGRACIÓN RÁPIDA DE CLIENTES (Ejecutado al arrancar) ---
+async function assignClientsToFirstNode() {
+  try {
+    const firstNode = await prisma.node.findFirst({ orderBy: { id: 'asc' } });
+    if (firstNode) {
+      const result = await prisma.client.updateMany({
+        where: { nodeRefId: null },
+        data: { nodeRefId: firstNode.id, mainNode: firstNode.name }
+      });
+      if (result.count > 0) {
+        console.log(`[Migración] ${result.count} clientes asignados automáticamente al nodo: ${firstNode.name}`);
+      }
+    }
+  } catch (e) {
+    console.error('Error en migración de clientes:', e);
+  }
+}
+assignClientsToFirstNode();
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Producción] Server & WebSocket running on port ${PORT}`);

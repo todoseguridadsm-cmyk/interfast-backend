@@ -4,11 +4,11 @@ import { Clock } from 'lucide-react';
 
 export default function BroadcastList() {
   const [scope, setScope] = useState('ALL');
-  const [targetId, setTargetId] = useState('');
+  const [selectedNode, setSelectedNode] = useState('');
+  const [selectedPanel, setSelectedPanel] = useState('');
   const [message, setMessage] = useState('');
   const [nodes, setNodes] = useState([]);
   const [panels, setPanels] = useState([]);
-  const [allClients, setAllClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState([]);
   const [selectedClientIds, setSelectedClientIds] = useState(new Set());
   const [isSending, setIsSending] = useState(false);
@@ -17,28 +17,47 @@ export default function BroadcastList() {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token');
-        const [resNodes, resPanels, resClients] = await Promise.all([
+        const [resNodes, resPanels] = await Promise.all([
           axios.get('/api/nodes', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('/api/panels', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('/api/clients', { headers: { Authorization: `Bearer ${token}` } })
+          axios.get('/api/panels', { headers: { Authorization: `Bearer ${token}` } })
         ]);
         setNodes(resNodes.data);
         setPanels(resPanels.data);
-        setAllClients(resClients.data.filter(c => c.status === 'ACTIVE' && c.phone && c.phone.length > 8));
-      } catch (error) { console.error("Error cargando datos", error); }
+      } catch (error) { console.error("Error cargando nodos/paneles", error); }
     };
     fetchData();
   }, []);
 
   useEffect(() => {
-    let currentFilter = [...allClients];
-    if (scope === 'NODE' && targetId) currentFilter = currentFilter.filter(c => c.nodeRefId === parseInt(targetId));
-    else if (scope === 'PANEL' && targetId) currentFilter = currentFilter.filter(c => c.panelRefId === parseInt(targetId));
-    else if (scope !== 'ALL') currentFilter = [];
-    
-    setFilteredClients(currentFilter);
-    setSelectedClientIds(new Set(currentFilter.map(c => c.id)));
-  }, [scope, targetId, allClients]);
+    const fetchFilteredClients = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        let res;
+        
+        if (scope === 'ALL') {
+          res = await axios.get('/api/clients', { headers: { Authorization: `Bearer ${token}` } });
+        } else if (scope === 'SEGMENTED') {
+          if (!selectedNode && !selectedPanel) {
+            setFilteredClients([]);
+            setSelectedClientIds(new Set());
+            return;
+          }
+          res = await axios.post('/api/clients/filter', 
+            { nodeId: selectedNode, panelId: selectedPanel }, 
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+
+        if (res && res.data) {
+          const validClients = res.data.filter(c => c.status === 'ACTIVE' && c.phone && c.phone.length > 8);
+          setFilteredClients(validClients);
+          setSelectedClientIds(new Set(validClients.map(c => c.id)));
+        }
+      } catch (error) { console.error("Error filtrando clientes", error); }
+    };
+
+    fetchFilteredClients();
+  }, [scope, selectedNode, selectedPanel]);
 
   const toggleClientSelection = (id) => {
     const newSelection = new Set(selectedClientIds);
@@ -69,24 +88,42 @@ export default function BroadcastList() {
     try {
       await axios.post('/api/bot/broadcast-segmented', { clientIds: Array.from(selectedClientIds), message }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       alert('¡Campaña iniciada!');
-      setMessage(''); setScope('ALL'); setTargetId('');
+      setMessage(''); setScope('ALL'); setSelectedNode(''); setSelectedPanel('');
     } catch (error) { alert('Error al enviar'); } 
     finally { setIsSending(false); }
   };
+
+  const availablePanels = selectedNode ? panels.filter(p => p.nodeId === parseInt(selectedNode)) : panels;
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
       <form onSubmit={handleBroadcast} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <label className="block text-sm font-semibold text-slate-700">Segmentación</label>
-            <select value={scope} onChange={(e) => {setScope(e.target.value); setTargetId('');}} className="w-full p-3 border rounded-xl mb-2">
-              <option value="ALL">Toda la Red</option>
-              <option value="NODE">Por Nodo</option>
-              <option value="PANEL">Por Panel</option>
+            <label className="block text-sm font-semibold text-slate-700">Alcance de la Campaña</label>
+            <select value={scope} onChange={(e) => {setScope(e.target.value); setSelectedNode(''); setSelectedPanel('');}} className="w-full p-3 border rounded-xl mb-2">
+              <option value="ALL">Toda la Red (Global)</option>
+              <option value="SEGMENTED">Segmentado (Por Nodo/Panel)</option>
             </select>
-            {scope === 'NODE' && <select value={targetId} onChange={(e) => setTargetId(e.target.value)} className="w-full p-3 border rounded-xl"><option value="">Seleccionar Nodo...</option>{nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}</select>}
-            {scope === 'PANEL' && <select value={targetId} onChange={(e) => setTargetId(e.target.value)} className="w-full p-3 border rounded-xl"><option value="">Seleccionar Panel...</option>{panels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+            
+            {scope === 'SEGMENTED' && (
+              <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Nodo (Requerido para segmentar)</label>
+                  <select value={selectedNode} onChange={(e) => {setSelectedNode(e.target.value); setSelectedPanel('');}} className="w-full p-2 border rounded-lg text-sm">
+                    <option value="">Seleccionar Nodo...</option>
+                    {nodes.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Panel (Opcional)</label>
+                  <select value={selectedPanel} onChange={(e) => setSelectedPanel(e.target.value)} disabled={!selectedNode} className="w-full p-2 border rounded-lg text-sm disabled:opacity-50">
+                    <option value="">Todos los paneles del nodo...</option>
+                    {availablePanels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
           <div className="space-y-4">
             <label className="block text-sm font-semibold text-slate-700">Mensaje a Enviar</label>
@@ -113,7 +150,13 @@ export default function BroadcastList() {
           </div>
         )}
 
-        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
+        {scope === 'SEGMENTED' && filteredClients.length === 0 && selectedNode && (
+          <div className="text-center p-4 text-slate-500 text-sm border border-slate-200 rounded-xl bg-slate-50">
+            No se encontraron clientes activos con números de teléfono válidos en esta segmentación.
+          </div>
+        )}
+
+        <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4">
           <span className="text-sm text-slate-600 flex items-center gap-2"><Clock size={16}/> Tiempo est.: <b>{estimateTimeStr()}</b></span>
           <button type="submit" disabled={isSending || estimatedClients === 0} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50">
             {isSending ? 'Enviando...' : 'Iniciar Difusión'}
