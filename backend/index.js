@@ -309,6 +309,15 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
   }
 }
 
+
+function formatArgentineJid(phone, suffix = '@s.whatsapp.net') {
+  let clean = phone.replace(/\D/g, '');
+  if (clean.startsWith('549')) return clean + suffix;
+  if (clean.startsWith('54')) return '549' + clean.slice(2) + suffix;
+  if (clean.startsWith('0')) return '549' + clean.slice(1) + suffix;
+  return '549' + clean + suffix;
+}
+
 async function sendWhatsAppMessage(phone, text) {
   const phoneClean = phone.replace(/\D/g, '');
   let success = false;
