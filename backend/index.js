@@ -2295,14 +2295,16 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       let message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* (para tarjetas o efectivo en Rapipago/PagoFácil) o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
       message = obfuscateMessage(message);
 
-      if (waSocket) await waSocket.sendMessage(targetPhone, { text: message });
-      
-      await prisma.invoice.update({
-        where: { id: inv.id },
-        data: { notifiedAt: new Date() } // using same notifiedAt field or we could add a new one, but this is fine.
-      });
-      
-      notifiedCount++;
+      const isSent = await sendWhatsAppMessage(targetPhone, message);
+      if (isSent) {
+        await prisma.invoice.update({
+          where: { id: inv.id },
+          data: { notifiedAt: new Date() } // using same notifiedAt field or we could add a new one, but this is fine.
+        });
+        notifiedCount++;
+      } else {
+        console.error(`[Aviso] Falló la entrega del corte a ${inv.client.name}, no se marcará como notificado.`);
+      }
 
       if (notifiedCount % 40 === 0) {
         console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
@@ -2958,18 +2960,16 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `¡Muchas gracias!`;
         msg = obfuscateMessage(msg);
 
-        try {
-          await sendWhatsAppMessage(targetPhone, msg);
-          // Update notifiedAt
+        const isSent = await sendWhatsAppMessage(targetPhone, msg);
+        if (isSent) {
           await prisma.invoice.update({
             where: { id: invoice.id },
             data: { notifiedAt: new Date() }
           });
-        } catch(err) {
-          console.error(`Error enviando WA masivo a ${invoice.client.name}:`, err.message);
+          notifiedCount++;
+        } else {
+          console.error(`[Aviso] Falló la entrega masiva a ${invoice.client.name}, no se marcará como notificado.`);
         }
-        
-        notifiedCount++;
         currentMassReminder.sent = notifiedCount;
         if (notifiedCount % 40 === 0) {
           console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
