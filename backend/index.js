@@ -441,7 +441,7 @@ async function connectToWhatsApp() {
             
             const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
             const from = msg.key.remoteJid;
-            const wahaPayload = { body: { event: "message", payload: { fromMe: msg.key.fromMe, from: from, body: texto, type: "chat" } } };
+            const wahaPayload = { event: "message", payload: { fromMe: msg.key.fromMe, from: from, body: texto, type: "chat" } };
             
             console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
             await axios.post(n8nWebhook, wahaPayload);
