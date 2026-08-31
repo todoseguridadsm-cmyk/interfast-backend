@@ -479,12 +479,12 @@ async function connectToWhatsApp() {
           else continue;
 
           const phone = realFrom.replace('@s.whatsapp.net', '').replace('@c.us', '');
-          const name = msg.pushName || 'Desconocido';
+          const senderName = msg.pushName || msg.message?.pushName || 'Desconocido';
           
           await prisma.whatsAppMessage.create({
             data: {
               phone: phone,
-              name: name,
+              name: senderName,
               text: text,
               isFromMe: false,
               isRead: false,
@@ -4018,8 +4018,19 @@ app.post('/api/bot/reanudar-chat', (req, res) => {
 
 const lastMessageMap = new Map();
 
-function handleVerificarAtencion(req, res) {
+async function handleVerificarAtencion(req, res) {
   try {
+    const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
+    const isEnabled = setting ? setting.value === 'true' : true;
+    if (!isEnabled) {
+      return res.json({
+        canRespond: false,
+        shouldIgnore: true,
+        reason: 'Sofi está apagada desde el interruptor global del CRM.',
+        code: 'BOT_GLOBALLY_DISABLED'
+      });
+    }
+
     const q = req.query || {};
     const b = req.body || {};
 
