@@ -3850,7 +3850,6 @@ function buildBotClientSearchWhere(query) {
   const isNumeric = /^\d+$/.test(cleanQuery);
 
   if (isNumeric || cleanQuery.length >= 4) {
-    const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
     const cuitWithHyphens = cleanQuery.length === 11 ? `${cleanQuery.slice(0, 2)}-${cleanQuery.slice(2, 10)}-${cleanQuery.slice(10)}` : rawQuery;
     
     let dottedQuery = rawQuery;
@@ -3861,19 +3860,25 @@ function buildBotClientSearchWhere(query) {
     }
 
     const orConditions = [
-      { dni: { contains: cleanQuery } },
-      { dni: { contains: rawQuery } },
-      { dni: { contains: dottedQuery } },
-      { cuit: { contains: cleanQuery } },
-      { cuit: { contains: rawQuery } },
-      { cuit: { contains: cuitWithHyphens } },
-      { phone: { contains: cleanQuery } },
-      { phone: { contains: rawQuery } },
-      { phone: { contains: shortQuery } },
-      { phone2: { contains: cleanQuery } },
-      { phone2: { contains: shortQuery } },
+      { dni: { equals: cleanQuery } },
+      { dni: { equals: rawQuery } },
+      { dni: { equals: dottedQuery } },
+      { cuit: { equals: cleanQuery } },
+      { cuit: { equals: rawQuery } },
+      { cuit: { equals: cuitWithHyphens } },
       { name: { contains: rawQuery, mode: 'insensitive' } }
     ];
+
+    if (cleanQuery.length >= 6) {
+      const shortQuery = cleanQuery.length > 8 ? cleanQuery.slice(-8) : cleanQuery;
+      orConditions.push(
+        { phone: { contains: cleanQuery } },
+        { phone: { contains: rawQuery } },
+        { phone: { contains: shortQuery } },
+        { phone2: { contains: cleanQuery } },
+        { phone2: { contains: shortQuery } }
+      );
+    }
 
     return { OR: orConditions };
   } else {
