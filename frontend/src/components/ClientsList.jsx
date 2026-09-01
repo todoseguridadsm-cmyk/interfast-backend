@@ -476,22 +476,9 @@ export default function ClientsList() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1 items-center">
-                    {/* ACCESO DIRECTO A WINBOX (Regla 22) */}
-                    {client.ipNumber ? (
-                      <button 
-                        onClick={() => window.location.assign(`winbox://${client.ipNumber}`)}
-                        className="text-slate-400 hover:text-cyan-600 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-cyan-50 mr-2 border border-transparent hover:border-cyan-200"
-                        title={`Conectar vía Winbox (${client.ipNumber})`}
-                      >
+                    {client.ipNumber && (
+                      <button onClick={() => window.location.assign(`winbox://${client.ipNumber}`)} title="Abrir en Winbox" className="hover:opacity-80 transition-opacity ml-2">
                         <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 rounded-full" />
-                      </button>
-                    ) : (
-                      <button 
-                        disabled
-                        className="text-slate-200 inline-flex items-center justify-center p-1.5 rounded-lg cursor-not-allowed mr-2"
-                        title="Requiere IP Asignada"
-                      >
-                        <Server size={16} />
                       </button>
                     )}
                     
