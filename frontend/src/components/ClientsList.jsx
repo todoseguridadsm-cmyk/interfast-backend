@@ -483,7 +483,7 @@ export default function ClientsList() {
                         className="text-slate-400 hover:text-cyan-600 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-cyan-50 mr-2 border border-transparent hover:border-cyan-200"
                         title={`Conectar vía Winbox (${client.ipNumber})`}
                       >
-                        <Server size={16} />
+                        <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 rounded-full" />
                       </a>
                     ) : (
                       <button 
@@ -722,11 +722,7 @@ export default function ClientsList() {
                         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                         title="Lanzar aplicación nativa Winbox"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                          <line x1="8" y1="21" x2="16" y2="21"></line>
-                          <line x1="12" y1="17" x2="12" y2="21"></line>
-                        </svg>
+                        <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 inline-block mr-2 rounded-full" />
                         Abrir en Winbox
                       </a>
                       <a 
