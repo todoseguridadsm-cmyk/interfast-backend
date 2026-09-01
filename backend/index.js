@@ -2741,9 +2741,10 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
       // Factura fiscal jamás debe dispararse sola al asentar un cobro por Webhook de Mercado Pago.
       sendAutomaticPaidInvoiceNotification(invoiceId);
-      if (invoiceData && invoiceData.client && invoiceData.client.ipNumber && invoiceData.client.mainNode) {
+      if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
         try {
-          await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, invoiceData.client.mainNode);
+          const targetNode = invoiceData.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
+          if (targetNode) await mikrotik.removeIpFromCutoffList(invoiceData.client.ipNumber, targetNode);
         } catch (err) {
           const msg = err.message || JSON.stringify(err);
           console.error(`Error removiendo IP del Mikrotik al pagar la factura:`, msg);
@@ -3081,9 +3082,10 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
       data: { status: 'PAID', paymentMethod: 'MERCADOPAGO', paymentDate: payment.date }
     });
     
-    if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
+    if (invoice.client && invoice.client.ipNumber) {
       try {
-        await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+        const targetNode = invoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
+        if (targetNode) await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, targetNode);
       } catch(e) {}
     }
 
@@ -3402,9 +3404,10 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
   // Emisión AFIP/ARCA desactivada del flujo automático de cobro por caja.
   sendAutomaticPaidInvoiceNotification(invoiceId);
 
-  if (invoice.client && invoice.client.ipNumber && invoice.client.mainNode) {
+  if (invoice.client && invoice.client.ipNumber) {
     try {
-      await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, invoice.client.mainNode);
+      const targetNode = invoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
+      if (targetNode) await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, targetNode);
     } catch (err) {
       console.error(`Error removiendo IP del Mikrotik (Imputación):`, err.message);
     }
