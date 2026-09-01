@@ -16,6 +16,7 @@ export default function ClientsList() {
   const [formData, setFormData] = useState({
     dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', 
     city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
+    nodeRefId: '', panelRefId: '',
     cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,6 +87,8 @@ export default function ClientsList() {
       province: client.province || '',
       zipCode: client.zipCode || '',
       mainNode: client.mainNode || '',
+      nodeRefId: client.nodeRefId || '',
+      panelRefId: client.panelRefId || '',
       panelId: client.panelId || '',
       ipNumber: client.ipNumber || '',
       planId: client.planId || '',
@@ -101,7 +104,7 @@ export default function ClientsList() {
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
+    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', nodeRefId: '', panelRefId: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
     setIsModalOpen(false);
   };
 
