@@ -109,6 +109,7 @@ const { emitAfipInvoiceHelper, generateInvoicePDFStream, generateInvoicePDFBuffe
 const PORT = process.env.PORT || 4000;
 
 // Mercado Pago Auth
+const { MercadoPagoConfig } = require('mercadopago');
 let clientMP = null;
 if (process.env.MP_ACCESS_TOKEN) {
   clientMP = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
@@ -2791,6 +2792,10 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
     
     const unitPrice = finalPrice * 1.10;
     if (isNaN(unitPrice) || unitPrice <= 0) throw new Error('Monto inválido para cobrar');
+
+    if (!clientMP || !process.env.MP_ACCESS_TOKEN) {
+      throw new Error('Falta inicializar MP_ACCESS_TOKEN en Render');
+    }
 
     const { Preference } = require('mercadopago');
     const preference = new Preference(clientMP);
