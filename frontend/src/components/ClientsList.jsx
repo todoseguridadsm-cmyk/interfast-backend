@@ -17,7 +17,7 @@ export default function ClientsList() {
     dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', 
     city: '', province: '', zipCode: '', mainNode: '', panelId: '', ipNumber: '', planId: '',
     nodeRefId: '', panelRefId: '',
-    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: ''
+    cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '', isVip: false
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -97,14 +97,15 @@ export default function ClientsList() {
       status: client.status || 'ACTIVE',
       hasRouter: client.hasRouter || false,
       hasMast: client.hasMast || false,
-      registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : ''
+      registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : '',
+      isVip: client.isVip || false
     });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', nodeRefId: '', panelRefId: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '' });
+    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', nodeRefId: '', panelRefId: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '', isVip: false });
     setIsModalOpen(false);
   };
 
@@ -443,7 +444,14 @@ export default function ClientsList() {
                   <td className="px-3 py-3 text-sm font-bold text-blue-600 tracking-wider">
                     {`TK${String(client.id).padStart(3, '0')}`}
                   </td>
-                  <td className="px-3 py-3 font-medium text-slate-900">{client.name}</td>
+                  <td className="px-3 py-3 font-medium text-slate-900">
+                    <div className="flex items-center gap-2">
+                      {client.name}
+                      {client.isVip && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200" title="Cliente VIP - Exento de Cortes">VIP</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-3 text-slate-600">{client.dni}</td>
                   <td className="px-3 py-3 text-slate-600">{client.plan?.name || "Sin Plan"}</td>
                   <td className="px-3 py-3 text-xs font-mono text-slate-500">
@@ -605,7 +613,13 @@ export default function ClientsList() {
                         <option value="PENDING" className="text-blue-600">Pendiente de Alta</option>
                         <option value="ACTIVE" className="text-emerald-700">Activo</option>
                         <option value="SUSPENDED" className="text-orange-600">Suspendido</option>
-                        <option value="BAJA" className="text-red-600">Baja (No factura)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Categoría</label>
+                      <select name="isVip" value={formData.isVip} onChange={(e) => setFormData({ ...formData, isVip: e.target.value === 'true' })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white font-bold">
+                        <option value="false">Clásico</option>
+                        <option value="true" className="text-amber-600">VIP - Sin Cortes</option>
                       </select>
                     </div>
                   </div>

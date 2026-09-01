@@ -518,17 +518,13 @@ async function generateCutoffList(autoCutoff = false) {
     });
     const existingSet = new Set(existingCutoffs.map(c => c.clientId));
 
-    const vipClients = ['VICTOR CASA', 'MATIAS BRANDI', 'HUMBERTO MONTALDI'];
-
     let count = 0;
     const toCreate = [];
 
     for (const inv of pendingInvoices) {
       if (!inv.client || !inv.client.name) continue;
       
-      const clientName = inv.client.name.toUpperCase();
-      const isVip = vipClients.some(vip => clientName.includes(vip));
-      if (isVip) continue; // Saltear clientes VIP
+      if (inv.client.isVip) continue; // Saltear clientes VIP
 
       if (!existingSet.has(inv.clientId)) {
         if (autoCutoff) {
@@ -1143,7 +1139,7 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
 
 app.post('/api/clients', async (req, res) => {
   try {
-    const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;
+    const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate, isVip } = req.body;
 
     // Buscar si hay un número/ID disponible por eliminación (huecos en la secuencia)
     const activeClients = await prisma.client.findMany({
@@ -1174,7 +1170,7 @@ app.post('/api/clients', async (req, res) => {
       if(!exists) break;
     }
 
-    const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, uniqueVariation: variation };
+    const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, uniqueVariation: variation, isVip: isVip || false };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -1264,7 +1260,7 @@ app.delete('/api/clients/:id', async (req, res) => {
 
 app.put('/api/clients/:id', async (req, res) => {
   try {
-    const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate } = req.body;
+    const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate, isVip } = req.body;
     
     let parsedRegistrationDate = null;
     if (registrationDate) {
@@ -1273,7 +1269,7 @@ app.put('/api/clients/:id', async (req, res) => {
 
     const client = await prisma.client.update({
       where: { id: parseInt(req.params.id) },
-      data: { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate: parsedRegistrationDate },
+      data: { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate: parsedRegistrationDate, isVip: isVip || false },
     });
     res.json(client);
   } catch (error) {
