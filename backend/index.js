@@ -2786,7 +2786,10 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
       else { expirationDate = null; totalAmount = invoice.priceV4 || invoice.originalAmount; }
     }
 
-    const unitPrice = parseFloat(totalAmount) * 1.10;
+    let finalPrice = parseFloat(totalAmount);
+    if (isNaN(finalPrice) || finalPrice <= 0) finalPrice = parseFloat(invoice.originalAmount);
+    
+    const unitPrice = finalPrice * 1.10;
     if (isNaN(unitPrice) || unitPrice <= 0) throw new Error('Monto inválido para cobrar');
 
     const { Preference } = require('mercadopago');
@@ -2801,8 +2804,8 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
         }
       ],
       payer: {
-        name: invoice.client.name,
-        email: invoice.client.email && invoice.client.email.includes('@') ? invoice.client.email : 'pagos@interfast.com.ar',
+        name: invoice.client.name || 'Cliente Interfast',
+        email: invoice.client.email && invoice.client.email.includes('@') && !invoice.client.email.toLowerCase().includes('interfast') ? invoice.client.email : 'cliente@anonimo.com',
       },
       external_reference: invoice.id.toString(),
       notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
@@ -2816,8 +2819,30 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
     const prefs = await preference.create({ body: prefBody });
     res.redirect(prefs.init_point);
   } catch (error) {
-    console.error('Error MP Redirect:', error);
-    res.status(500).send('Error al generar link de Mercado Pago');
+    console.error('Rechazo MP:', error.response?.data || error.message);
+    res.status(500).send(`
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+            .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 400px; width: 100%; }
+            .icon { font-size: 3rem; margin-bottom: 1rem; }
+            h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #0f172a; }
+            p { color: #64748b; line-height: 1.5; margin-bottom: 1.5rem; }
+            .alias { background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-weight: bold; font-size: 1.25rem; color: #0284c7; letter-spacing: 1px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="icon">⚠️</div>
+            <h1>Link no disponible temporalmente</h1>
+            <p>Tuvimos un problema al generar tu enlace de pago automático con Mercado Pago. Para regularizar tu servicio de forma inmediata, por favor transferí el monto exacto por Mercado Pago al siguiente Alias:</p>
+            <div class="alias">INTERFASTSM</div>
+          </div>
+        </body>
+      </html>
+    `);
   }
 });
 
