@@ -10,7 +10,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { PrismaClient } = require('@prisma/client');
-const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
+const { MercadoPagoConfig, Preference, Payment, PreApprovalPlan } = require('mercadopago');
 const cron = require('node-cron');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
@@ -109,7 +109,6 @@ const { emitAfipInvoiceHelper, generateInvoicePDFStream, generateInvoicePDFBuffe
 const PORT = process.env.PORT || 4000;
 
 // Mercado Pago Auth
-const { MercadoPagoConfig } = require('mercadopago');
 let clientMP = null;
 if (process.env.MP_ACCESS_TOKEN) {
   clientMP = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
@@ -2797,7 +2796,6 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
       throw new Error('Falta inicializar MP_ACCESS_TOKEN en Render');
     }
 
-    const { Preference } = require('mercadopago');
     const preference = new Preference(clientMP);
     const prefBody = {
       items: [
@@ -2865,7 +2863,6 @@ app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
     
     if (clientMP) {
       try {
-        const { PreApprovalPlan, Preference } = require('mercadopago');
         const preapprovalPlan = new PreApprovalPlan(clientMP);
         const sub = await preapprovalPlan.create({
           body: {
@@ -2885,7 +2882,6 @@ app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
       } catch (err) {
         console.error('Error generando PreApprovalPlan MP en redirect:', err?.message || err);
         try {
-          const { Preference } = require('mercadopago');
           const preference = new Preference(clientMP);
           const prefBody = {
             items: [{ id: `SUB-${invoice.clientId}`, title: `Adhesión Débito Automático Internet - TK${String(invoice.clientId).padStart(3, '0')}`, quantity: 1, unit_price: parseFloat(planAmount) }],
@@ -4730,7 +4726,6 @@ app.get('/api/bot/debito-automatico', async (req, res) => {
     let subscriptionLink = null;
     if (clientMP) {
       try {
-        const { PreApprovalPlan } = require('mercadopago');
         const preapprovalPlan = new PreApprovalPlan(clientMP);
         const sub = await preapprovalPlan.create({
           body: {
