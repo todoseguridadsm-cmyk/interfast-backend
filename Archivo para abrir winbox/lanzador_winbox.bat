@@ -1,5 +1,15 @@
 @echo off
 set "URL=%~1"
-set "IP=%URL:winbox://=%"
-set "IP=%IP:/=%"
-start "" "C:\Users\MATIAS BRANDI\Desktop\winBox.exe" %IP% admin Bran5570
+powershell -NoProfile -WindowStyle Hidden -Command ^
+  "$raw = '%URL%'.Replace('winbox://', '').Trim('/'); "^
+  "$parts = $raw -split '\?'; "^
+  "$ip = $parts[0]; "^
+  "$user = 'admin'; $pass = 'Bran5570'; "^
+  "if ($parts.Length -gt 1) { "^
+  "  $qs = $parts[1] -split '&'; "^
+  "  foreach ($q in $qs) { "^
+  "    if ($q -match 'user=(.*)') { $user = $matches[1] } "^
+  "    if ($q -match 'pass=(.*)') { $pass = $matches[1] } "^
+  "  } "^
+  "} "^
+  "Start-Process -FilePath 'C:\Users\MATIAS BRANDI\Desktop\winBox.exe' -ArgumentList $ip, $user, $pass"

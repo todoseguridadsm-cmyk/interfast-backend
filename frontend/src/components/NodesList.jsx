@@ -132,12 +132,9 @@ export default function NodesList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">
-                    <a href={`winbox://${node.host}?user=${node.user}&pass=${node.password}`} className="text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-blue-200" title="Abrir en Winbox de Escritorio">
+                    <button onClick={() => window.location.assign(`winbox://${node.host}:${node.webPort}?user=${node.user}&pass=${node.password}`)} className="text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-blue-200" title="Abrir en Winbox de Escritorio">
                       🎛️ Winbox
-                    </a>
-                    <a href={`http://${node.host}:${node.webPort || 80}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-emerald-200" title="Abrir en WebFig">
-                      🌐 WebFig
-                    </a>
+                    </button>
                     <button onClick={() => handleOpenModal(node)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar">
                       <Edit2 size={18} />
                     </button>
