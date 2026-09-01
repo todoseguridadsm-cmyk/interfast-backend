@@ -242,6 +242,7 @@ model Node {
   name      String   @unique
   host      String
   port      Int      @default(8728)
+  webPort   Int      @default(80)
   user      String
   password  String
   isActive  Boolean  @default(true)

@@ -11,6 +11,7 @@ export default function NodesList() {
     name: '',
     host: '',
     port: 8728,
+    webPort: 80,
     user: '',
     password: '',
     isActive: true
@@ -40,13 +41,14 @@ export default function NodesList() {
         name: node.name,
         host: node.host,
         port: node.port,
+        webPort: node.webPort || 80,
         user: node.user,
         password: node.password,
         isActive: node.isActive
       });
     } else {
       setEditingNode(null);
-      setFormData({ name: '', host: '', port: 8728, user: '', password: '', isActive: true });
+      setFormData({ name: '', host: '', port: 8728, webPort: 80, user: '', password: '', isActive: true });
     }
     setIsModalOpen(true);
   };
@@ -129,8 +131,11 @@ export default function NodesList() {
                       {node.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => handleOpenModal(node)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 mr-2" title="Editar">
+                  <td className="px-6 py-4 text-right flex justify-end gap-2">
+                    <a href={`http://${node.host}:${node.webPort || 80}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-emerald-200" title="Abrir en WebFig">
+                      🌐 WebFig
+                    </a>
+                    <button onClick={() => handleOpenModal(node)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50" title="Editar">
                       <Edit2 size={18} />
                     </button>
                     <button onClick={() => handleDelete(node.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-2 rounded-lg hover:bg-red-50" title="Eliminar">
@@ -195,6 +200,17 @@ export default function NodesList() {
                   placeholder="8728"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Puerto WebFig</label>
+                <input 
+                  type="number" 
+                  required
+                  value={formData.webPort}
+                  onChange={e => setFormData({...formData, webPort: parseInt(e.target.value)})}
+                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="80"
+                />
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Usuario de Mikrotik*</label>
@@ -208,9 +224,9 @@ export default function NodesList() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña de Mikrotik*</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña*</label>
                 <input 
-                  type="text" 
+                  type="password" 
                   required
                   value={formData.password}
                   onChange={e => setFormData({...formData, password: e.target.value})}
