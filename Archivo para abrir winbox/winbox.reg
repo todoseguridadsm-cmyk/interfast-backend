@@ -1,10 +1,10 @@
-Windows Registry Editor Version 5.00
+@echo off
+set "URL=%~1"
 
-[-HKEY_CLASSES_ROOT\winbox]
-
-[HKEY_CURRENT_USER\Software\Classes\winbox]
-@="URL:Winbox Protocol"
-"URL Protocol"=""
-
-[HKEY_CURRENT_USER\Software\Classes\winbox\shell\open\command]
-@="\"D:\\PROYECTOS ANTIGRABITY\\INTERFAST\\Archivo para abrir winbox\\lanzador_winbox.bat\" \"%1\""
+:: Invocamos PowerShell de forma silenciosa para decodificar y ejecutar
+powershell -NoProfile -WindowStyle Hidden -Command ^
+  "$payload = '%URL%'.Replace('winbox://', '').Trim('/'); "^
+  "$decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($payload)); "^
+  "$parts = $decoded.Split('|'); "^
+  "$exe = 'C:\Users\MATIAS BRANDI\Desktop\winBox.exe'; "^
+  "Start-Process -FilePath $exe -ArgumentList $parts;"
