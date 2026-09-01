@@ -478,12 +478,8 @@ export default function ClientsList() {
                   <td className="px-3 py-3 text-right flex justify-end gap-1 items-center">
                     {/* ACCESO DIRECTO A WINBOX (Regla 22) */}
                     {client.ipNumber ? (
-                      <a 
-                        href={`winbox://${client.ipNumber}`}
-                        className="text-slate-400 hover:text-cyan-600 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-cyan-50 mr-2 border border-transparent hover:border-cyan-200"
-                        title={`Conectar vía Winbox (${client.ipNumber})`}
-                      >
-                        <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 rounded-full inline-block" />
+                      <a href={`winbox://${client.ipNumber || client.ip || client.redIp || ''}`} title="Abrir Winbox" className="inline-flex items-center justify-center hover:opacity-80 transition-opacity mr-2" style={{ width: '24px', height: '24px' }}>
+                        <img src="/winbox.jpg" alt="Winbox" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
                       </a>
                     ) : (
                       <button 

@@ -4,7 +4,7 @@ powershell -NoProfile -WindowStyle Hidden -Command ^
   "$raw = '%URL%'.Replace('winbox://', ''); "^
   "$parts = $raw -split '\?'; "^
   "$ip = $parts[0].Replace('/', ''); "^
-  "if (-not $ip.Contains(':')) { $ip = $ip + ':8293' }; "^
+  "if ((-not $ip.Contains(':')) -and ($ip -match '[a-zA-Z]')) { $ip = $ip + ':8293' }; "^
   "$user = 'admin'; $pass = 'Bran5570'; "^
   "if ($parts.Length -gt 1) { "^
   "  $qs = $parts[1] -split '&'; "^
