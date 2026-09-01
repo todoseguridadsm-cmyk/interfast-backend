@@ -476,11 +476,9 @@ export default function ClientsList() {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right flex justify-end gap-1 items-center">
-                    {client.ipNumber && (
-                      <button onClick={() => window.location.assign(`winbox://${client.ipNumber}`)} title="Abrir en Winbox" className="hover:opacity-80 transition-opacity ml-2">
+                      <button onClick={() => window.location.assign(`winbox://${client.ipNumber || ''}`)} title="Abrir en Winbox" className="hover:opacity-80 transition-opacity ml-2">
                         <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 rounded-full" />
                       </button>
-                    )}
                     
                     {client.status === 'PENDING' && canManageClients && (
                       <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
