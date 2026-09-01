@@ -132,7 +132,7 @@ export default function NodesList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">
-                    <button onClick={() => window.location.assign(`winbox://${node.host}:${node.webPort}?user=${node.user}&pass=${node.password}`)} className="text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-blue-200" title="Abrir en Winbox de Escritorio">
+                    <button onClick={() => window.location.assign(`winbox://${node.host}?user=${node.user}&pass=${node.password}`)} className="text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm border border-blue-200" title="Abrir en Winbox de Escritorio">
                       <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 inline-block mr-2 rounded-full" />
                       Winbox
                     </button>
