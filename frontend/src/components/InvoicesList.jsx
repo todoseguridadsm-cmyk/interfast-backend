@@ -36,19 +36,19 @@ export default function InvoicesList() {
   };
 
   const handleOpenSingleModal = async () => {
-    setSingleModal(prev => ({
-      ...prev,
+    setSingleModal({
       show: true,
       month: new Date().getMonth() + 1,
       year: new Date().getFullYear(),
-      searchQuery: searchTerm || '',
+      searchQuery: '',
       clientId: ''
-    }));
+    });
     if (availableClients.length === 0) {
       setLoadingClients(true);
       try {
         const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/clients');
-        setAvailableClients(res.data);
+        const list = Array.isArray(res.data) ? res.data : (res.data?.clients || []);
+        setAvailableClients(list);
       } catch (err) {
         console.error('Error cargando clientes:', err);
       } finally {
@@ -1079,74 +1079,113 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
             </div>
 
             <form onSubmit={handleGenerateSingle} className="p-6 space-y-4">
-              {/* Buscador de Cliente */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Buscar Abonado (Nombre o DNI)
-                </label>
-                <div className="relative">
-                  <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Escribe para filtrar la lista (ej: Davire)..."
-                    value={singleModal.searchQuery}
-                    onChange={e => setSingleModal(prev => ({ ...prev, searchQuery: e.target.value }))}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
+              {/* Selector / Buscador Interactivo de Abonado */}
+              {(() => {
+                const selectedClient = singleModal.clientId 
+                  ? availableClients.find(c => c.id === parseInt(singleModal.clientId))
+                  : null;
 
-              {/* Selector de Cliente */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Seleccionar Cliente {loadingClients && <span className="text-emerald-600 font-normal">(Cargando...)</span>}
-                </label>
-                <select
-                  required
-                  value={singleModal.clientId}
-                  onChange={e => setSingleModal(prev => ({ ...prev, clientId: e.target.value }))}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-                >
-                  <option value="">-- Selecciona un abonado --</option>
-                  {availableClients
-                    .filter(c => {
-                      if (!singleModal.searchQuery) return true;
-                      const q = singleModal.searchQuery.toLowerCase();
-                      return (c.name || '').toLowerCase().includes(q) || (c.dni || '').includes(q);
-                    })
-                    .map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} (DNI: {c.dni || 'S/D'}) - {c.plan?.name || 'Sin Plan'}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Ficha rápida del cliente seleccionado */}
-              {singleModal.clientId && (() => {
-                const c = availableClients.find(item => item.id === parseInt(singleModal.clientId));
-                if (!c) return null;
-                return (
-                  <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl space-y-1.5 text-xs text-slate-700">
-                    <div className="flex justify-between items-center font-bold text-sm text-emerald-950">
-                      <span>{c.name}</span>
-                      <span className="bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-md text-[11px]">
-                        ID #{c.id}
-                      </span>
+                if (selectedClient) {
+                  return (
+                    <div className="p-4 bg-emerald-50 border-2 border-emerald-300/80 rounded-2xl animate-in fade-in duration-200">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-md">
+                            Abonado Seleccionado
+                          </span>
+                          <h4 className="text-base font-black text-slate-900 mt-1">{selectedClient.name}</h4>
+                          <p className="text-xs text-slate-600 font-medium mt-0.5">
+                            DNI: <span className="font-bold">{selectedClient.dni || 'S/D'}</span> • Tel: {selectedClient.phone || 'S/T'} • Nodo: {selectedClient.mainNode || 'Principal'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSingleModal(prev => ({ ...prev, clientId: '', searchQuery: '' }))}
+                          className="text-xs font-bold text-slate-600 hover:text-emerald-700 bg-white border border-slate-200 hover:border-emerald-300 px-3 py-1.5 rounded-xl shadow-sm transition-all flex items-center gap-1"
+                        >
+                          <X size={14} /> Cambiar
+                        </button>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-emerald-200/70 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-500">Plan:</span> <span className="font-bold text-slate-800">{selectedClient.plan?.name || 'No asignado'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Tarifa V1:</span> <span className="font-black text-emerald-700">${(selectedClient.plan?.priceV1 || selectedClient.plan?.totalPrice || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <span className="text-slate-500">Plan:</span> <span className="font-semibold">{c.plan?.name || 'No asignado'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Tarifa V1:</span> <span className="font-black text-emerald-700">${(c.plan?.priceV1 || c.plan?.totalPrice || 0).toLocaleString()}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">DNI:</span> <span className="font-medium">{c.dni || 'S/D'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Teléfono:</span> <span className="font-medium">{c.phone || 'S/T'}</span>
-                      </div>
+                  );
+                }
+
+                const query = (singleModal.searchQuery || '').trim().toLowerCase();
+                const matchedClients = availableClients.filter(c => {
+                  if (!query) return true;
+                  const name = String(c.name || '').toLowerCase();
+                  const dni = String(c.dni || '').toLowerCase();
+                  const phone = String(c.phone || '').toLowerCase();
+                  const id = String(c.id || '');
+                  return name.includes(query) || dni.includes(query) || phone.includes(query) || id === query;
+                });
+
+                return (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5 flex justify-between items-center">
+                      <span>Buscar Abonado (Nombre o DNI)</span>
+                      {loadingClients && <span className="text-emerald-600 font-normal">Cargando abonados...</span>}
+                    </label>
+                    <div className="relative">
+                      <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Escribe el nombre o DNI (ej: Davire)..."
+                        value={singleModal.searchQuery}
+                        onChange={e => setSingleModal(prev => ({ ...prev, searchQuery: e.target.value }))}
+                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                      />
+                      {singleModal.searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSingleModal(prev => ({ ...prev, searchQuery: '' }))}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lista interactiva de resultados */}
+                    <div className="mt-2 max-h-48 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-inner divide-y divide-slate-100">
+                      {loadingClients ? (
+                        <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                          Cargando lista de abonados...
+                        </div>
+                      ) : matchedClients.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                          No se encontraron coincidencias para "{singleModal.searchQuery}".
+                        </div>
+                      ) : (
+                        matchedClients.slice(0, 30).map(c => (
+                          <div
+                            key={c.id}
+                            onClick={() => setSingleModal(prev => ({ ...prev, clientId: c.id.toString(), searchQuery: '' }))}
+                            className="p-3 hover:bg-emerald-50/80 transition-colors flex justify-between items-center cursor-pointer group"
+                          >
+                            <div>
+                              <p className="font-bold text-sm text-slate-800 group-hover:text-emerald-900">
+                                {c.name}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                DNI: <span className="font-semibold text-slate-700">{c.dni || 'S/D'}</span> • Plan: <span className="font-medium text-emerald-700">{c.plan?.name || 'Sin Plan'}</span>
+                              </p>
+                            </div>
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100/70 group-hover:bg-emerald-600 group-hover:text-white px-2.5 py-1 rounded-lg transition-all">
+                              Elegir
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 );
