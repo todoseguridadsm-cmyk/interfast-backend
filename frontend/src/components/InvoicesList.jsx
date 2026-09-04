@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark, RotateCcw, CreditCard } from 'lucide-react';
+import { FileText, CheckCircle, Clock, AlertCircle, MessageCircle, Play, Download, Trash2, Landmark, RotateCcw, CreditCard, UserCheck, Search, X, User } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -16,6 +16,15 @@ export default function InvoicesList() {
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
+  const [singleModal, setSingleModal] = useState({
+    show: false,
+    clientId: '',
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    searchQuery: ''
+  });
+  const [availableClients, setAvailableClients] = useState([]);
+  const [loadingClients, setLoadingClients] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -23,6 +32,58 @@ export default function InvoicesList() {
       setInvoices(res.data);
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleOpenSingleModal = async () => {
+    setSingleModal(prev => ({
+      ...prev,
+      show: true,
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      searchQuery: searchTerm || '',
+      clientId: ''
+    }));
+    if (availableClients.length === 0) {
+      setLoadingClients(true);
+      try {
+        const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/clients');
+        setAvailableClients(res.data);
+      } catch (err) {
+        console.error('Error cargando clientes:', err);
+      } finally {
+        setLoadingClients(false);
+      }
+    }
+  };
+
+  const handleGenerateSingle = async (e) => {
+    e.preventDefault();
+    if (!singleModal.clientId) {
+      alert('Por favor selecciona un cliente');
+      return;
+    }
+    const selectedClient = availableClients.find(c => c.id === parseInt(singleModal.clientId));
+    if (!selectedClient) return;
+
+    if (!window.confirm(`¿Confirmar generar la deuda del período ${singleModal.month}/${singleModal.year} para ${selectedClient.name}?`)) return;
+
+    setLoading(true);
+    try {
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/invoices/generate', {
+        clientId: singleModal.clientId,
+        month: singleModal.month,
+        year: singleModal.year
+      });
+      alert(res.data.message);
+      setSingleModal(prev => ({ ...prev, show: false }));
+      setSearchTerm(selectedClient.name);
+      fetchInvoices();
+    } catch (error) {
+      console.error(error);
+      alert('Error al generar factura: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -717,8 +778,17 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
             </>
           )}
           <button 
+            onClick={handleOpenSingleModal} disabled={loading}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors flex items-center gap-2 disabled:bg-emerald-400"
+            title="Generar factura o deuda mensual para un cliente específico"
+          >
+            <UserCheck size={16} />
+            Generar Deuda Individual
+          </button>
+          <button 
             onClick={handleGenerate} disabled={loading}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-indigo-200 transition-colors flex items-center gap-2 disabled:bg-indigo-400"
+            title="Generar facturas mensuales para todos los clientes activos"
           >
             <Play size={16} className={loading ? 'animate-spin' : ''} />
             {loading ? 'Procesando...' : 'Generar Deuda'}
@@ -978,6 +1048,166 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                 </button>
                 <button type="submit" disabled={loading} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 transition-colors">
                   {loading ? 'Cobrando...' : 'Confirmar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Generar Deuda Individual */}
+      {singleModal.show && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <UserCheck size={22} />
+                  Generar Deuda Individual
+                </h3>
+                <p className="text-emerald-100 text-sm mt-1">
+                  Genera la factura o actualiza el monto pendiente de un cliente puntual.
+                </p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSingleModal(prev => ({ ...prev, show: false }))}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleGenerateSingle} className="p-6 space-y-4">
+              {/* Buscador de Cliente */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Buscar Abonado (Nombre o DNI)
+                </label>
+                <div className="relative">
+                  <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Escribe para filtrar la lista (ej: Davire)..."
+                    value={singleModal.searchQuery}
+                    onChange={e => setSingleModal(prev => ({ ...prev, searchQuery: e.target.value }))}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Selector de Cliente */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Seleccionar Cliente {loadingClients && <span className="text-emerald-600 font-normal">(Cargando...)</span>}
+                </label>
+                <select
+                  required
+                  value={singleModal.clientId}
+                  onChange={e => setSingleModal(prev => ({ ...prev, clientId: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                >
+                  <option value="">-- Selecciona un abonado --</option>
+                  {availableClients
+                    .filter(c => {
+                      if (!singleModal.searchQuery) return true;
+                      const q = singleModal.searchQuery.toLowerCase();
+                      return (c.name || '').toLowerCase().includes(q) || (c.dni || '').includes(q);
+                    })
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} (DNI: {c.dni || 'S/D'}) - {c.plan?.name || 'Sin Plan'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Ficha rápida del cliente seleccionado */}
+              {singleModal.clientId && (() => {
+                const c = availableClients.find(item => item.id === parseInt(singleModal.clientId));
+                if (!c) return null;
+                return (
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl space-y-1.5 text-xs text-slate-700">
+                    <div className="flex justify-between items-center font-bold text-sm text-emerald-950">
+                      <span>{c.name}</span>
+                      <span className="bg-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-md text-[11px]">
+                        ID #{c.id}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <span className="text-slate-500">Plan:</span> <span className="font-semibold">{c.plan?.name || 'No asignado'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Tarifa V1:</span> <span className="font-black text-emerald-700">${(c.plan?.priceV1 || c.plan?.totalPrice || 0).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">DNI:</span> <span className="font-medium">{c.dni || 'S/D'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Teléfono:</span> <span className="font-medium">{c.phone || 'S/T'}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Período: Mes y Año */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Mes
+                  </label>
+                  <select
+                    value={singleModal.month}
+                    onChange={e => setSingleModal(prev => ({ ...prev, month: parseInt(e.target.value) }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  >
+                    <option value="1">01 - Enero</option>
+                    <option value="2">02 - Febrero</option>
+                    <option value="3">03 - Marzo</option>
+                    <option value="4">04 - Abril</option>
+                    <option value="5">05 - Mayo</option>
+                    <option value="6">06 - Junio</option>
+                    <option value="7">07 - Julio</option>
+                    <option value="8">08 - Agosto</option>
+                    <option value="9">09 - Septiembre</option>
+                    <option value="10">10 - Octubre</option>
+                    <option value="11">11 - Noviembre</option>
+                    <option value="12">12 - Diciembre</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Año
+                  </label>
+                  <select
+                    value={singleModal.year}
+                    onChange={e => setSingleModal(prev => ({ ...prev, year: parseInt(e.target.value) }))}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  >
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSingleModal(prev => ({ ...prev, show: false }))}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-sm transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !singleModal.clientId}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white py-3 rounded-xl font-bold text-sm shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <UserCheck size={18} />
+                  {loading ? 'Generando...' : 'Generar Deuda'}
                 </button>
               </div>
             </form>

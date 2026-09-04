@@ -1758,17 +1758,34 @@ app.get('/api/invoices', async (req, res) => {
 
 app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, res) => {
   try {
-    const clients = await prisma.client.findMany({
-      where: { status: 'ACTIVE', isVip: false },
-      include: { plan: true }
-    });
+    const { clientId, month, year, sendWhatsapp } = req.body || {};
+
+    let clients;
+    if (clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: parseInt(clientId) },
+        include: { plan: true }
+      });
+      if (!client) {
+        return res.status(404).json({ error: 'Cliente no encontrado' });
+      }
+      if (!client.plan) {
+        return res.status(400).json({ error: 'El cliente no tiene un plan asignado' });
+      }
+      clients = [client];
+    } else {
+      clients = await prisma.client.findMany({
+        where: { status: 'ACTIVE', isVip: false },
+        include: { plan: true }
+      });
+    }
 
     const now = new Date();
-    let currentMonth = now.getMonth() + 1;
-    let currentYear = now.getFullYear();
+    let currentMonth = month ? parseInt(month) : (now.getMonth() + 1);
+    let currentYear = year ? parseInt(year) : now.getFullYear();
 
-    // Si facturamos después del 25, es para el mes que viene
-    if (now.getDate() >= 25) {
+    // Si facturamos masivo después del 25 y no se especificó mes, es para el mes que viene
+    if (!month && !clientId && now.getDate() >= 25) {
       currentMonth++;
       if (currentMonth > 12) {
         currentMonth = 1;
@@ -1777,9 +1794,12 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
     }
 
     let generatedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const processedInvoiceIds = [];
 
     for (let client of clients) {
-      if (!client.plan || client.isVip) continue;
+      if (!client.plan || (client.isVip && !clientId)) continue;
 
       // [INICIO MODIFICACIÓN REGLA 14 - Motor de Retenciones]
       if (client.promoEndDate && client.regularPlanId) {
@@ -1802,86 +1822,140 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
       // [FIN MODIFICACIÓN REGLA 14]
 
       const existing = await prisma.invoice.findFirst({
-        where: { clientId: client.id, month: currentMonth, year: currentYear }
+        where: { clientId: client.id, month: currentMonth, year: currentYear },
+        include: { payments: true }
       });
 
-      if (!existing) {
-        const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
-        const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
-        const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
-        const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
+      const dueDate1Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate1 || 10, 23, 59, 59, 999);
+      const dueDate2Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate2 || 15, 23, 59, 59, 999);
+      const dueDate3Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate3 || 20, 23, 59, 59, 999);
+      const dueDate4Date = new Date(currentYear, currentMonth - 1, client.plan.dueDate4 || 22, 23, 59, 59, 999);
 
-        let discountToApply = 0;
-        let remainingBalance = 0;
-        const basePrice = client.plan.priceV1 || client.plan.totalPrice;
+      const basePrice = client.plan.priceV1 || client.plan.totalPrice;
+      const expectedCentsOffset = client.uniqueVariation || 0;
 
-        if (client.walletBalance > 0) {
-          if (client.walletBalance >= basePrice) {
-            discountToApply = basePrice;
-            remainingBalance = client.walletBalance - basePrice;
-          } else {
-            discountToApply = client.walletBalance;
-            remainingBalance = 0;
+      if (existing) {
+        // Si se invoca de forma individual para este cliente
+        if (clientId) {
+          // Si ya tiene pagos reales asociados y está cobrada con monto > 0, advertir
+          if (existing.payments && existing.payments.length > 0 && existing.originalAmount > 0) {
+            return res.status(400).json({ 
+              error: `El cliente ya tiene una factura pagada con cobros registrados para el mes ${currentMonth}/${currentYear} (Factura #${existing.id}).` 
+            });
           }
-          
-          await prisma.client.update({
-            where: { id: client.id },
-            data: { walletBalance: remainingBalance }
-          });
-          console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
-        }
 
-        const expectedCentsOffset = client.uniqueVariation || 0;
-        
-        let priceV1Val = Math.max(0, basePrice - discountToApply);
-        let priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
-        let priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
-        let priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+          // Si la factura existía pero en $0, errónea o pendiente de actualización, recalculamos con los valores del plan
+          let priceV1Val = Math.round((basePrice + expectedCentsOffset) * 100) / 100;
+          let priceV2Val = Math.round(((client.plan.priceV2 || client.plan.totalPrice) + expectedCentsOffset) * 100) / 100;
+          let priceV3Val = Math.round(((client.plan.priceV3 || client.plan.totalPrice) + expectedCentsOffset) * 100) / 100;
+          let priceV4Val = Math.round(((client.plan.priceV4 || client.plan.totalPrice) + expectedCentsOffset) * 100) / 100;
 
-        // Añadir los centavos únicos a los montos (solo si el precio no es 0 por saldo a favor total)
-        if (priceV1Val > 0) priceV1Val = Math.round((priceV1Val + expectedCentsOffset) * 100) / 100;
-        if (priceV2Val > 0) priceV2Val = Math.round((priceV2Val + expectedCentsOffset) * 100) / 100;
-        if (priceV3Val > 0) priceV3Val = Math.round((priceV3Val + expectedCentsOffset) * 100) / 100;
-        if (priceV4Val > 0) priceV4Val = Math.round((priceV4Val + expectedCentsOffset) * 100) / 100;
-
-        const invoiceStatus = priceV1Val === 0 ? 'PAID' : 'PENDING';
-
-        const createdInv = await prisma.invoice.create({
-          data: {
-            clientId: client.id,
-            month: currentMonth,
-            year: currentYear,
-            originalAmount: priceV1Val,
-            dueDate: dueDate1Date,
-            priceV1: priceV1Val,
-            dueDate1: dueDate1Date,
-            priceV2: priceV2Val,
-            dueDate2: dueDate2Date,
-            priceV3: priceV3Val,
-            dueDate3: dueDate3Date,
-            priceV4: priceV4Val,
-            dueDate4: dueDate4Date,
-            status: invoiceStatus
-          }
-        });
-
-        if (invoiceStatus === 'PAID') {
-          await prisma.payment.create({
+          await prisma.invoice.update({
+            where: { id: existing.id },
             data: {
-              invoiceId: createdInv.id,
-              method: 'CREDIT', // SALDO_A_FAVOR
-              amountPaid: discountToApply,
-              lateFeeApplied: 0,
-              userId: 1
+              originalAmount: priceV1Val,
+              dueDate: dueDate1Date,
+              priceV1: priceV1Val,
+              dueDate1: dueDate1Date,
+              priceV2: priceV2Val,
+              dueDate2: dueDate2Date,
+              priceV3: priceV3Val,
+              dueDate3: dueDate3Date,
+              priceV4: priceV4Val,
+              dueDate4: dueDate4Date,
+              status: 'PENDING'
             }
           });
-        }
 
-        generatedCount++;
+          processedInvoiceIds.push(existing.id);
+          updatedCount++;
+          continue;
+        } else {
+          skippedCount++;
+          continue;
+        }
       }
+
+      // Cálculo de descuentos de billetera a favor
+      let discountToApply = 0;
+      let remainingBalance = 0;
+
+      if (client.walletBalance > 0) {
+        if (client.walletBalance >= basePrice) {
+          discountToApply = basePrice;
+          remainingBalance = client.walletBalance - basePrice;
+        } else {
+          discountToApply = client.walletBalance;
+          remainingBalance = 0;
+        }
+        
+        await prisma.client.update({
+          where: { id: client.id },
+          data: { walletBalance: remainingBalance }
+        });
+        console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
+      }
+      
+      let priceV1Val = Math.max(0, basePrice - discountToApply);
+      let priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
+      let priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
+      let priceV4Val = Math.max(0, (client.plan.priceV4 || client.plan.totalPrice) - discountToApply);
+
+      // Añadir los centavos únicos a los montos (solo si el precio no es 0 por saldo a favor total)
+      if (priceV1Val > 0) priceV1Val = Math.round((priceV1Val + expectedCentsOffset) * 100) / 100;
+      if (priceV2Val > 0) priceV2Val = Math.round((priceV2Val + expectedCentsOffset) * 100) / 100;
+      if (priceV3Val > 0) priceV3Val = Math.round((priceV3Val + expectedCentsOffset) * 100) / 100;
+      if (priceV4Val > 0) priceV4Val = Math.round((priceV4Val + expectedCentsOffset) * 100) / 100;
+
+      const invoiceStatus = priceV1Val === 0 ? 'PAID' : 'PENDING';
+
+      const createdInv = await prisma.invoice.create({
+        data: {
+          clientId: client.id,
+          month: currentMonth,
+          year: currentYear,
+          originalAmount: priceV1Val,
+          dueDate: dueDate1Date,
+          priceV1: priceV1Val,
+          dueDate1: dueDate1Date,
+          priceV2: priceV2Val,
+          dueDate2: dueDate2Date,
+          priceV3: priceV3Val,
+          dueDate3: dueDate3Date,
+          priceV4: priceV4Val,
+          dueDate4: dueDate4Date,
+          status: invoiceStatus
+        }
+      });
+
+      if (invoiceStatus === 'PAID') {
+        await prisma.payment.create({
+          data: {
+            invoiceId: createdInv.id,
+            method: 'CREDIT', // SALDO_A_FAVOR
+            amountPaid: discountToApply,
+            lateFeeApplied: 0,
+            userId: 1
+          }
+        });
+      }
+
+      processedInvoiceIds.push(createdInv.id);
+      generatedCount++;
     }
 
-    // Iniciar el envío de PDFs en segundo plano para no bloquear la respuesta HTTP
+    // Si fue para un cliente individual
+    if (clientId) {
+      const clientName = clients[0]?.name || 'Cliente';
+      const actionText = updatedCount > 0 ? 'actualizada y generada' : 'generada';
+      return res.json({ 
+        success: true,
+        message: `Factura del mes ${currentMonth}/${currentYear} ${actionText} exitosamente para ${clientName} (Plan: ${clients[0].plan.name}).`,
+        invoiceId: processedInvoiceIds[0]
+      });
+    }
+
+    // Iniciar el envío de PDFs en segundo plano para facturación masiva
     (async () => {
       console.log('🚀 Iniciando envío de PDFs de facturas en segundo plano...');
       const createdInvoices = await prisma.invoice.findMany({
@@ -1941,10 +2015,10 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
       console.log('🏁 Proceso de envío de PDFs finalizado.');
     })().catch(err => console.error('Error en tarea en segundo plano de envío de facturas:', err));
 
-    res.json({ message: `${generatedCount} facturas nuevas generadas. Los archivos PDF se están enviando vía WhatsApp en segundo plano.` });
+    res.json({ message: `${generatedCount} facturas nuevas generadas (Omitidas: ${skippedCount}). Los archivos PDF se están enviando vía WhatsApp en segundo plano.` });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al generar facturas' });
+    res.status(500).json({ error: 'Error al generar facturas: ' + error.message });
   }
 });
 
