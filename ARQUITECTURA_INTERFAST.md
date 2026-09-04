@@ -58,11 +58,12 @@
 *   **Segmentación por Topología:** Capacidad de enviar mensajes filtrando clientes por Node o Panel específico.
 *   **Motor Anti-Ban (Intocable):** Impone obligatoriamente: ofuscación dinámica de texto, pausas aleatorias de 15-25 segundos entre mensajes, y un enfriamiento estricto de 90 segundos cada 40 envíos.
 
-## 14. Facturación Mensual Masiva
+## 14. Facturación Masiva e Individual
 *   **Ciclo de Ejecución:** El motor ignora a los clientes VIP e itera sobre los abonados ACTIVE. Si se ejecuta del día 25 en adelante, liquida automáticamente el mes calendario siguiente.
 *   **Centavos Dinámicos y Seguridad API (Mercado Pago):** El sistema inyecta la `uniqueVariation` a cada opción de pago. Como estándar estricto, todo `unit_price` debe ser tipado numéricamente de forma obligatoria y siempre contar con un email de *fallback* para evitar rechazos (Error 400) de la API de MercadoPago.
 *   **Motor de Retenciones (Cero Mantenimiento):** Evalúa `promoEndDate` y restaura automáticamente el plan base (regularPlanId) al expirar descuentos.
 *   **Desacople Fiscal Total:** Prohibido disparar llamadas automáticas a la API de ARCA durante la facturación masiva.
+*   **Generación a Demanda (Devengamiento):** La creación manual de deuda se limita a inyectar un registro PENDING en Invoice (con sus respectivos centavos dinámicos). No altera CashMovement ni dispara facturación electrónica. Un cliente VIP ignora el ciclo masivo, pero el sistema permite facturarle si la ejecución individual envía su ID explícito.
 
 ## 15. Gestión de Clientes y Ficha de Abonado
 *   **Identidad Visual Continua (TK000):** El número de cliente se renderiza en tiempo real formateando matemáticamente la clave primaria (id).

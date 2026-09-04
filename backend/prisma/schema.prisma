@@ -97,6 +97,8 @@ model Invoice {
   notifiedAt     DateTime?
   dueDate4       DateTime?
   priceV4        Float     @default(0)
+  createdBy      String?
+  operator       String?
   client         Client    @relation(fields: [clientId], references: [id])
   payments       Payment[]
 }

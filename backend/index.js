@@ -1759,6 +1759,7 @@ app.get('/api/invoices', async (req, res) => {
 app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, res) => {
   try {
     const { clientId, month, year, sendWhatsapp } = req.body || {};
+    const currentOperator = req.user?.username || req.user?.name || (req.user?.id ? `Operador #${req.user.id}` : 'SISTEMA');
 
     let clients;
     if (clientId) {
@@ -1863,7 +1864,9 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
               dueDate3: dueDate3Date,
               priceV4: priceV4Val,
               dueDate4: dueDate4Date,
-              status: 'PENDING'
+              status: 'PENDING',
+              operator: currentOperator,
+              createdBy: existing.createdBy || currentOperator
             }
           });
 
@@ -1924,7 +1927,9 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
           dueDate3: dueDate3Date,
           priceV4: priceV4Val,
           dueDate4: dueDate4Date,
-          status: invoiceStatus
+          status: invoiceStatus,
+          operator: currentOperator,
+          createdBy: currentOperator
         }
       });
 
@@ -5945,6 +5950,20 @@ app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
+
+// --- VERIFICACIÓN DE COLUMNAS DE AUDITORÍA EN INVOICE (Regla 5) ---
+async function ensureInvoiceAuditColumns() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;
+      ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "operator" TEXT;
+    `);
+    console.log('✅ [Auditoría] Columnas createdBy y operator verificadas en Invoice.');
+  } catch (err) {
+    console.error('Advertencia al verificar columnas de auditoría en Invoice:', err.message);
+  }
+}
+ensureInvoiceAuditColumns();
 
 // --- MIGRACIÓN RÁPIDA DE CLIENTES (Ejecutado al arrancar) ---
 async function assignClientsToFirstNode() {
