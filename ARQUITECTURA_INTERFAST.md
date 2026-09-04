@@ -35,10 +35,11 @@
 *   **Estructura Jerárquica y Dinámica:** El modelo vincula a cada Client con un Panel (Antena AP), el cual pertenece a un Node (Router MikroTik). El mapeo de Nodos y Paneles se resuelve dinámicamente atado a la IP del cliente (`nodeRefId` y `panelRefId`).
 *   **Integración Winbox (Protocolos Nativos):** Queda estrictamente PROHIBIDO usar eventos sintéticos de React (`onClick={() => window.location.assign...}`) para invocar la aplicación. Solo deben utilizarse etiquetas HTML nativas (`<a href="winbox://...">`) con estilos CSS en línea para garantizar que Windows intercepte la llamada sin bloqueos del navegador.
 
-## 9. Bandeja de Pagos No Identificados (Orfandad)
-*   **Retención de Huérfanos:** Todo cobro vía Webhook no conciliado se guarda estrictamente en UnidentifiedPayment.
-*   **Motor de Sugerencias:** El sistema cruza los centavos dinámicos (getCents999) contra las facturas PENDING para sugerir coincidencias.
-*   **Asignación Manual:** Al vincularse, se asienta el ingreso en caja, se imputa la factura y se reactiva el servicio en MikroTik.
+## 9. Conciliación Automática (Webhook Mercado Pago)
+*   **Tolerancia Matemática:** El embudo de pagos maneja excedentes (inyectando saldo a favor en el `walletBalance` silenciosamente si sobra >$5), exactitud (+/- $5), y pagos parciales (marcando original como pagada y generando una nueva factura `PENDING` por el faltante junto a un aviso por webhook a n8n).
+*   **Cascada de Identificación (4 Fases):** 1) Match por Regex DNI/CUIT. 2) Tokenización de Nombres (coincidencia cruzada de 2 palabras mínimas). 3) Distancia de Levenshtein (en observaciones `MP:` para sortear errores de tipeo). 4) Cálculo Inverso de Centavos (`uniqueVariation`) para derivación a la bandeja de No Identificados.
+*   **Retención de Huérfanos:** Si las 4 fases fallan, el cobro se guarda en `UnidentifiedPayment`. El prefijo sugerido se antepone automáticamente al nombre en base a la coincidencia decimal exacta.
+*   **Regla de Arquitectura (Intocable):** El módulo de Mercado Pago vive aislado físicamente en `routes/mercadopagoWebhook.js`. Queda ESTRICTAMENTE PROHIBIDO inyectar lógica de webhooks o pasarelas de pago dentro de `index.js` para evitar sobrescrituras accidentales por pérdida de contexto de la IA.
 
 ## 10. Conciliación Contable y Extractos (Excel/CSV)
 *   **Inyección de Egresos:** El sistema asienta comisiones bancarias o de Mercado Pago en CashMovement como egresos (OUT).

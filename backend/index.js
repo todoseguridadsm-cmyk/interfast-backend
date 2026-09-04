@@ -5965,6 +5965,7 @@ async function ensureInvoiceAuditColumns() {
 }
 ensureInvoiceAuditColumns();
 
+app.use('/api', require('./routes/mercadopagoWebhook'));
 // --- MIGRACIÓN RÁPIDA DE CLIENTES (Ejecutado al arrancar) ---
 async function assignClientsToFirstNode() {
   try {
