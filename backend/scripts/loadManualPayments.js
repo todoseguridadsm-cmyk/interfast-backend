@@ -59,9 +59,23 @@ async function run() {
       }
 
       // 2. Buscar al cliente
-      const client = await prisma.client.findFirst({
+      let client = await prisma.client.findFirst({
         where: { name: { contains: searchName, mode: 'insensitive' } }
       });
+
+      // Búsqueda alternativa si no lo encuentra por nombre exacto
+      if (!client) {
+        const firstToken = searchName.split(' ')[0];
+        const secondToken = searchName.split(' ')[1] || '';
+        client = await prisma.client.findFirst({
+          where: {
+            AND: [
+              { name: { contains: firstToken, mode: 'insensitive' } },
+              { name: { contains: secondToken, mode: 'insensitive' } }
+            ]
+          }
+        });
+      }
 
       if (!client) {
         console.error(`[ERROR] Cliente NO encontrado para: "${pago.name}" (Buscando por: "${searchName}")`);
@@ -69,12 +83,13 @@ async function run() {
         continue;
       }
 
-      // 3. Buscar la factura en PENDING para el mes especificado
+      // 3. Buscar la factura en PENDING para el mes especificado (Parseando a Int)
       const invoice = await prisma.invoice.findFirst({
         where: { 
             clientId: client.id, 
-            month: pago.month, 
+            month: parseInt(pago.month, 10), 
             status: 'PENDING' 
+
         }
       });
 
