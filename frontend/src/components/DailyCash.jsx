@@ -631,8 +631,7 @@ export default function DailyCash() {
           </div>
         </div>
       )}
-        </div>
-      )}
+
 
       {/* ── MODAL UPLOAD MP ── */}
       {showMpModal && (
