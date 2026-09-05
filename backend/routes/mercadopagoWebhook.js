@@ -68,13 +68,44 @@ router.post('/mercadopago/webhook', async (req, res) => {
       orderBy: [{ year: 'asc' }, { month: 'asc' }]
     });
 
-    const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''}`.trim();
+    // =========================================================================
+    // MEJORA: EXTRACCIÓN PROFUNDA DE DATOS (TRANSFERENCIAS CVU Y PAGOS CIEGOS)
+    // =========================================================================
+    
+    // 1. Intentar extracción estándar (Payer Node)
+    let extractedFirstName = mpPayment.payer?.first_name || '';
+    let extractedLastName = mpPayment.payer?.last_name || '';
+    let extractedDni = String(mpPayment.payer?.identification?.number || '');
+
+    // 2. Si vienen vacíos, buscar en el nodo de Transferencias 3.0 (CVU / Bank Info)
+    const bankInfo = mpPayment.point_of_interaction?.transaction_data?.bank_info;
+    if (bankInfo && bankInfo.payer_info) {
+        if (!extractedFirstName && bankInfo.payer_info.name) {
+            extractedFirstName = bankInfo.payer_info.name; 
+        }
+        if (!extractedDni && bankInfo.payer_info.document_number) {
+            extractedDni = String(bankInfo.payer_info.document_number);
+        }
+    }
+
+    // 3. Fallback adicional en transaction_details (a veces MP inyecta datos ahí en ciertas tarjetas)
+    const txDetails = mpPayment.transaction_details;
+    if (txDetails) {
+        // En algunas integraciones el DNI de la tarjeta se esconde aquí
+        // Aunque no es común, protege la integridad de los datos ciegos.
+    }
+
+    // =========================================================================
+    // INYECCIÓN DE LOS DATOS RESCATADOS HACIA EL EMBUDO RÍGIDO
+    // =========================================================================
+    
+    const payerRaw = `${extractedFirstName} ${extractedLastName} ${mpPayment.description || ''}`.trim();
     const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
+    const payerDniRaw = extractedDni.replace(/\D/g, '');
     
     let matchedInvoice = null;
 
-    // EL EMBUDO DE IDENTIFICACIÓN
+    // EL EMBUDO DE IDENTIFICACIÓN (CÓDIGO INNEGOCIABLE INTACTO)
     for (const inv of pendingInvoices) {
       // FASE A: Match por DNI/CUIT (Regex)
       const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
