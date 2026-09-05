@@ -363,12 +363,26 @@ router.post('/mercadopago/upload-report', upload.single('file'), async (req, res
     let totalCostos = 0;
 
     data.forEach(row => {
-      const fee = parseFloat(row['fee_amount'] || 0);
-      const financing = parseFloat(row['financing_fee_amount'] || 0);
-      const taxes = parseFloat(row['taxes_amount'] || 0);
-      const telco = parseFloat(row['tax_amount_telco'] || 0);
-      
-      totalCostos += Math.abs(fee) + Math.abs(financing) + Math.abs(taxes) + Math.abs(telco);
+      Object.keys(row).forEach(key => {
+        const lowerKey = key.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        if (lowerKey.includes('comision') || lowerKey.includes('impuesto') || lowerKey.includes('retencion') || lowerKey.includes('cargo')) {
+          let val = row[key];
+          if (typeof val === 'string') {
+            // Limpiar signos de moneda y espacios
+            val = val.replace(/[^\d.,-]/g, '');
+            // Si hay puntos y comas (ej. 1.500,50), quitamos el punto (miles)
+            if (val.includes(',') && val.includes('.')) {
+              val = val.replace(/\./g, '');
+            }
+            // Reemplazar la coma decimal por punto para parseFloat
+            val = val.replace(',', '.');
+          }
+          const num = parseFloat(val);
+          if (!isNaN(num)) {
+            totalCostos += Math.abs(num);
+          }
+        }
+      });
     });
 
     if (totalCostos === 0) {
