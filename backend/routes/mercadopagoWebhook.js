@@ -336,8 +336,8 @@ router.post('/mercadopago/reports-webhook', async (req, res) => {
           type: 'OUT',
           amount: totalCostos,
           category: 'GASTOS_VARIOS', // Conciliación MP
-          description: `Costos, comisiones y retenciones mensuales MP (Reporte #${reportId})`,
-          operator: 'MERCADOPAGO_WEBHOOK',
+          description: `[CAJA: MERCADOPAGO] Costos, comisiones y retenciones mensuales MP (Reporte #${reportId})`,
+          operator: 'MERCADOPAGO',
           userId: 1
         }
       });
@@ -396,8 +396,8 @@ router.post('/mercadopago/upload-report', upload.single('file'), async (req, res
         type: 'OUT',
         amount: Number(totalCostos.toFixed(2)),
         category: 'GASTOS_VARIOS',
-        description: `Costos MP - ${req.file.originalname}`,
-        operator: operador,
+        description: `[CAJA: MERCADOPAGO] Costos MP - ${req.file.originalname} (Por: ${operador})`,
+        operator: 'MERCADOPAGO',
         userId: parseInt(req.user?.id) || 1
       },
       include: { user: { select: { username: true } } }
