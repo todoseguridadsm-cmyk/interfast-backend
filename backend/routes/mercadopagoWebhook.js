@@ -281,13 +281,17 @@ router.post('/mercadopago/webhook', async (req, res) => {
 router.post('/mercadopago/reports-webhook', async (req, res) => {
   // 1. Regla de Oro: Responder 200 INMEDIATO a MP
   res.sendStatus(200);
+  console.log('📡 [WEBHOOK MP REPORTS] Petición recibida:', { query: req.query, body: req.body });
 
   try {
     const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
     let reportId = req.query['data.id'] || req.query.id || req.body?.data?.id || req.body?.id;
     
     // Asegurarnos de que sea el webhook correcto
-    if (!reportId || topic !== 'report.created') return;
+    if (!reportId || topic !== 'report.created') {
+      console.log('⚠️ [WEBHOOK MP REPORTS] Abortado por payload inválido o topic incorrecto');
+      return;
+    }
 
     // 2. Idempotencia: Verificar si este reporte ya fue procesado
     const existing = await prisma.cashMovement.findFirst({
