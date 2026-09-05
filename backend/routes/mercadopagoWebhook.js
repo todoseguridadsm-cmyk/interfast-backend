@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const axios = require('axios');
+const xlsx = require('xlsx');
 
 // Inicializar cliente MP (usando variable de entorno principal)
 const clientMP = process.env.MP_ACCESS_TOKEN ? new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }) : null;
@@ -271,6 +272,74 @@ router.post('/mercadopago/webhook', async (req, res) => {
     }
   } catch (err) {
     console.error('Error en Webhook MercadoPago:', err);
+  }
+});
+
+// =========================================================================
+// NUEVO WEBHOOK: CONCILIACIÓN AUTOMÁTICA DE REPORTES MENSUALES (COSTOS MP)
+// =========================================================================
+router.post('/mercadopago/reports-webhook', async (req, res) => {
+  // 1. Regla de Oro: Responder 200 INMEDIATO a MP
+  res.sendStatus(200);
+
+  try {
+    const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
+    let reportId = req.query['data.id'] || req.query.id || req.body?.data?.id || req.body?.id;
+    
+    // Asegurarnos de que sea el webhook correcto
+    if (!reportId || topic !== 'report.created') return;
+
+    // 2. Idempotencia: Verificar si este reporte ya fue procesado
+    const existing = await prisma.cashMovement.findFirst({
+      where: { description: { contains: `Reporte MP #${reportId}` } }
+    });
+    if (existing) return; // Se aborta silenciosamente si ya existe
+
+    // 3. Descarga Directa del Reporte Binario
+    const reportUrl = `https://api.mercadopago.com/v1/account/release_report/${reportId}`;
+    const reportRes = await axios.get(reportUrl, {
+      headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` },
+      responseType: 'arraybuffer' // Crucial para mantener la integridad del archivo Excel
+    });
+
+    // 4. Parseo en Memoria (Cero archivos temporales en disco)
+    const workbook = xlsx.read(reportRes.data, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    let totalCostos = 0;
+
+    // 5. Extracción y Sumatoria
+    data.forEach(row => {
+      const fee = parseFloat(row['fee_amount'] || 0);
+      const financing = parseFloat(row['financing_fee_amount'] || 0);
+      const taxes = parseFloat(row['taxes_amount'] || 0);
+      const telco = parseFloat(row['tax_amount_telco'] || 0);
+      
+      // Sumamos los valores (Math.abs garantiza que siempre sumen positivo para el egreso)
+      totalCostos += Math.abs(fee) + Math.abs(financing) + Math.abs(taxes) + Math.abs(telco);
+    });
+
+    // Si el reporte vino en ceros, abortar para no ensuciar la base de datos
+    if (totalCostos === 0) return;
+
+    // 6. Asiento Atómico en Caja
+    await prisma.$transaction(async (tx) => {
+      await tx.cashMovement.create({
+        data: {
+          type: 'OUT',
+          amount: totalCostos,
+          category: 'GASTOS_VARIOS', // Conciliación MP
+          description: `Costos, comisiones y retenciones mensuales MP (Reporte #${reportId})`,
+          operator: 'MERCADOPAGO_WEBHOOK',
+          userId: 1
+        }
+      });
+    });
+
+    console.log(`✅ Webhook MP Reports: Conciliado Reporte Mensual #${reportId} por $${totalCostos}`);
+  } catch (err) {
+    console.error('❌ Error en Webhook MercadoPago Reports:', err.response?.data || err.message);
   }
 });
 
