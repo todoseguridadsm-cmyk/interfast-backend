@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 const { MercadoPagoConfig, Payment } = require('mercadopago');
 const axios = require('axios');
 const xlsx = require('xlsx');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Inicializar cliente MP (usando variable de entorno principal)
 const clientMP = process.env.MP_ACCESS_TOKEN ? new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }) : null;
@@ -344,6 +346,54 @@ router.post('/mercadopago/reports-webhook', async (req, res) => {
     console.log(`✅ Webhook MP Reports: Conciliado Reporte Mensual #${reportId} por $${totalCostos}`);
   } catch (err) {
     console.error('❌ Error en Webhook MercadoPago Reports:', err.response?.data || err.message);
+  }
+});
+
+// =========================================================================
+// PLAN B: UPLOAD MANUAL DE REPORTES MP (BOTÓN DE PÁNICO)
+// =========================================================================
+router.post('/mercadopago/upload-report', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo.' });
+
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+    let totalCostos = 0;
+
+    data.forEach(row => {
+      const fee = parseFloat(row['fee_amount'] || 0);
+      const financing = parseFloat(row['financing_fee_amount'] || 0);
+      const taxes = parseFloat(row['taxes_amount'] || 0);
+      const telco = parseFloat(row['tax_amount_telco'] || 0);
+      
+      totalCostos += Math.abs(fee) + Math.abs(financing) + Math.abs(taxes) + Math.abs(telco);
+    });
+
+    if (totalCostos === 0) {
+      return res.status(400).json({ error: 'No se encontraron comisiones o retenciones en el archivo.' });
+    }
+
+    const operador = req.user?.username || 'OPERADOR_MANUAL';
+
+    const m = await prisma.cashMovement.create({
+      data: {
+        type: 'OUT',
+        amount: totalCostos,
+        category: 'GASTOS_VARIOS',
+        description: `Costos, comisiones y retenciones mensuales MP (Subida Manual)`,
+        operator: operador,
+        userId: parseInt(req.user?.id) || 1
+      },
+      include: { user: { select: { username: true } } }
+    });
+
+    console.log(`✅ Upload MP Report: Conciliado manualmente por $${totalCostos} por ${operador}`);
+    res.json({ message: 'Conciliación exitosa', movement: m });
+  } catch (err) {
+    console.error('❌ Error en Upload MercadoPago Reports:', err);
+    res.status(500).json({ error: 'Error procesando el archivo de Mercado Pago' });
   }
 });
 
