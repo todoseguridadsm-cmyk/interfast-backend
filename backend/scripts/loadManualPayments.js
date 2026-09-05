@@ -117,12 +117,10 @@ async function run() {
         // B) Registrar Payment
         await tx.payment.create({
           data: {
-            amount: pago.amount,
+            amountPaid: pago.amount,
             method: 'MERCADOPAGO',
             operator: operatorName,
-            clientId: client.id,
-            invoiceId: invoice.id,
-            description: descriptionText
+            invoiceId: invoice.id
           }
         });
 
@@ -131,9 +129,10 @@ async function run() {
           data: {
             type: 'IN',
             amount: pago.amount,
+            category: 'PAGO_FACTURA',
             description: descriptionText,
             operator: operatorName,
-            method: 'MERCADOPAGO'
+            userId: 1
           }
         });
       });

@@ -126,13 +126,11 @@ router.post('/mercadopago/webhook', async (req, res) => {
         // 1. Guardar Payment Atómicamente
         await tx.payment.create({
           data: {
-            amount: transactionAmount,
+            amountPaid: transactionAmount,
             method: 'MERCADOPAGO',
             operator: currentOperator,
             mpPaymentId: String(paymentId),
-            clientId: matchedInvoice.clientId,
-            invoiceId: matchedInvoice.id,
-            description: `Cobro MP Automático - Factura #${matchedInvoice.id}`
+            invoiceId: matchedInvoice.id
           }
         });
 
@@ -147,9 +145,10 @@ router.post('/mercadopago/webhook', async (req, res) => {
           data: {
             type: 'IN',
             amount: transactionAmount,
+            category: 'PAGO_FACTURA',
             description: `Ingreso MP Webhook Cliente ${matchedInvoice.client.name}`,
             operator: currentOperator,
-            method: 'MERCADOPAGO'
+            userId: 1
           }
         });
 
