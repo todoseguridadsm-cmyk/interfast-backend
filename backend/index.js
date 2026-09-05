@@ -2817,7 +2817,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       }
       // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
       // Factura fiscal jamás debe dispararse sola al asentar un cobro por Webhook de Mercado Pago.
-      sendAutomaticPaidInvoiceNotification(invoiceId);
+      // [MODIFICACION ANTI-SPAM META] Deshabilitado el envío automático para pagos manuales:
+      // sendAutomaticPaidInvoiceNotification(invoiceId);
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
         try {
           const targetNode = invoiceData.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;

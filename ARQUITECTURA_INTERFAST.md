@@ -91,3 +91,6 @@
 *   **Fallas de Sincronización MikroTik:** Ante cortes, el sistema continúa iterando y genera un Ticket con prefijo [FALLA MIKROTIK].
 *   **Reportes Administrativos:** Notificaciones silenciosas a gerencia sobre procesos críticos.
 *   **Política de Respaldo:** Código fuente en GitHub y JSONs de n8n en almacenamiento externo.
+
+## 20. Políticas Anti-Spam de WhatsApp (Meta)
+*   **Desactivación de Respuestas de Pago Manual:** Por motivos de seguridad y para evitar baneos de línea por "Automatización Masiva" en WhatsApp Web (Baileys), **está estrictamente prohibido disparar mensajes automáticos cuando se procesan pagos manuales**. Las notificaciones de cobro automáticas están restringidas exclusivamente a flujos controlados, asíncronos y con simulación humana (efecto "escribiendo..." y encolamiento con retraso).
