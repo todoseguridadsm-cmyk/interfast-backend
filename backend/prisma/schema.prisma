@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  url       = env("DATABASE_URL") // Obligatorio puerto 6543 con ?pgbouncer=true
+  directUrl = env("DIRECT_URL")   // Obligatorio puerto 5432 para migraciones
 }
 
 model Client {
