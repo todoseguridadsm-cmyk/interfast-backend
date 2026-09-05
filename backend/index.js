@@ -5954,10 +5954,8 @@ app.get(/.*/, (req, res) => {
 // --- VERIFICACIÓN DE COLUMNAS DE AUDITORÍA EN INVOICE (Regla 5) ---
 async function ensureInvoiceAuditColumns() {
   try {
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;
-      ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "operator" TEXT;
-    `);
+    await prisma.$executeRawUnsafe('ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "createdBy" TEXT;');
+    await prisma.$executeRawUnsafe('ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "operator" TEXT;');
     console.log('✅ [Auditoría] Columnas createdBy y operator verificadas en Invoice.');
   } catch (err) {
     console.error('Advertencia al verificar columnas de auditoría en Invoice:', err.message);
