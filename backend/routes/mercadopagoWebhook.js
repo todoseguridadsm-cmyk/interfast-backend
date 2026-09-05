@@ -394,9 +394,9 @@ router.post('/mercadopago/upload-report', upload.single('file'), async (req, res
     const m = await prisma.cashMovement.create({
       data: {
         type: 'OUT',
-        amount: totalCostos,
+        amount: Number(totalCostos.toFixed(2)),
         category: 'GASTOS_VARIOS',
-        description: `Costos, comisiones y retenciones mensuales MP (Subida Manual)`,
+        description: `Costos MP - ${req.file.originalname}`,
         operator: operador,
         userId: parseInt(req.user?.id) || 1
       },
