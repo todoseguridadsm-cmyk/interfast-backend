@@ -40,6 +40,16 @@ function levenshteinDistance(a, b) {
 }
 
 // --- WEBHOOK MERCADO PAGO (CASCADA 4 FASES Y TOLERANCIA MATEMÁTICA) ---
+// --- ENDPOINT PARA LEER LOGS ESPÍA ---
+router.get('/mercadopago/admin-logs', (req, res) => {
+  const logPath = path.join(__dirname, '../mp_webhook_logs.txt');
+  if (fs.existsSync(logPath)) {
+    res.type('text/plain').send(fs.readFileSync(logPath, 'utf8'));
+  } else {
+    res.send('No logs yet.');
+  }
+});
+
 router.post('/mercadopago/webhook', async (req, res) => {
   res.sendStatus(200); // 200 INMEDIATO a MP para evitar retries por Timeout
 
