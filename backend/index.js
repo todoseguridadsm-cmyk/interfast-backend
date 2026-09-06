@@ -5992,6 +5992,9 @@ async function assignClientsToFirstNode() {
 }
 assignClientsToFirstNode();
 
+// Inicializar el Auto-Rastreador de MercadoPago
+require('./cron/mercadopagoAutoSync');
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Producción] Server & WebSocket running on port ${PORT}`);
 });
