@@ -94,7 +94,7 @@ app.get('/api/admin/fix-inverse', async (req, res) => {
     }
 
     res.json({ message: 'Fixed inverse' });
-  } catch(e) {
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
@@ -179,8 +179,8 @@ const checkPermission = (requiredModule) => {
     if (req.user.role === 'STAFF') {
       let userPerms = [];
       try {
-        userPerms = typeof req.user.permissions === 'string' 
-          ? JSON.parse(req.user.permissions) 
+        userPerms = typeof req.user.permissions === 'string'
+          ? JSON.parse(req.user.permissions)
           : (req.user.permissions || []);
       } catch (e) {
         userPerms = [];
@@ -237,11 +237,11 @@ function strictVerifyPayment(inv, mpPayment) {
   try {
     const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.additional_info?.payer?.first_name || ''} ${mpPayment.additional_info?.payer?.last_name || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
     const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    
+
     // A) PRIORIDAD OBSERVACIONES
     const obs = (inv.client?.observation || '');
     const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
-    
+
     for (const alias of rawAliases) {
       const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
       const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
@@ -256,7 +256,7 @@ function strictVerifyPayment(inv, mpPayment) {
     const clientName = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     const nameWords = clientName.split(/\s+/).filter(w => w.length > 3 && !['de', 'del', 'las', 'los', 'san', 'maria', 'jose', 'juan', 'escuela'].includes(w));
     const matchedWordsCount = nameWords.filter(word => payerClean.includes(word)).length;
-    
+
     if (nameWords.length > 0 && (matchedWordsCount >= 2 || (nameWords.length === 1 && matchedWordsCount === 1))) {
       console.log(`[strictVerifyPayment] MATCH NOMBRE: ${matchedWordsCount} palabras de "${clientName}" encontradas`);
       return true;
@@ -265,7 +265,7 @@ function strictVerifyPayment(inv, mpPayment) {
     // C) COINCIDENCIA POR DNI / CUIT
     const payerDniRaw = String(mpPayment.payer?.identification?.number || '');
     const clientDni = String(inv.client?.dni || '').replace(/\D/g, '');
-    
+
     if (clientDni && clientDni.length >= 6 && payerDniRaw.includes(clientDni)) {
       console.log(`[strictVerifyPayment] MATCH DNI: ${clientDni} en ${payerDniRaw}`);
       return true;
@@ -280,7 +280,7 @@ function strictVerifyPayment(inv, mpPayment) {
     }
 
     return false;
-  } catch(e) {
+  } catch (e) {
     console.error('Error en strictVerifyPayment:', e);
     return false;
   }
@@ -290,8 +290,8 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
   try {
     let note = '';
     if (candidates && candidates.length > 0) {
-       const names = candidates.map(c => c.client?.name).join(', ');
-       note = `POSIBLE CLIENTE POR COINCIDENCIA DE CENTAVOS: ${names}`;
+      const names = candidates.map(c => c.client?.name).join(', ');
+      note = `POSIBLE CLIENTE POR COINCIDENCIA DE CENTAVOS: ${names}`;
     }
     const payerNameRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''}`.trim() || mpPayment.description || 'Desconocido';
     const payerName = note ? `${payerNameRaw} - ${note}` : payerNameRaw;
@@ -315,22 +315,22 @@ async function registerUnidentifiedPayment(prisma, mpPayment, transactionAmount,
 function formatArgentineJid(phone) {
   if (!phone) throw new Error("Número no proporcionado");
   phone = String(phone);
-  
+
   // 1. Limpiar todo lo que no sea número
   let cleaned = phone.replace(/[^0-9]/g, '');
-  
+
   // 2. Regla de Oro: Si tiene 15 dígitos o más, es un @lid de Meta.
   if (cleaned.length >= 15) {
     return cleaned + '@lid'; // PROHIBIDO agregar 549 o @s.whatsapp.net
   }
-  
+
   // 3. Lógica normal para números argentinos reales
   if (cleaned.startsWith('54') && !cleaned.startsWith('549')) {
     cleaned = '549' + cleaned.substring(2);
   } else if (!cleaned.startsWith('549')) {
     cleaned = '549' + cleaned;
   }
-  
+
   return cleaned + '@s.whatsapp.net';
 }
 
@@ -338,7 +338,7 @@ async function sendWhatsAppMessage(phone, text) {
   let success = false;
   let phoneClean = '';
   const socket = getSocket();
-  
+
   // Priorizar el socket interno de Baileys (Sofi) y remover fallback a WAHA
   if (socket && waStatus === 'CONNECTED') {
     try {
@@ -359,7 +359,7 @@ async function sendWhatsAppMessage(phone, text) {
         where: { phone: { contains: phoneClean } },
         select: { name: true }
       });
-      
+
       // Guardar el mensaje saliente en la BD
       await prisma.whatsAppMessage.create({
         data: {
@@ -375,14 +375,14 @@ async function sendWhatsAppMessage(phone, text) {
       console.error('Error guardando mensaje saliente en BD:', dbErr);
     }
   }
-  
+
   return success;
 }
 
 setInterval(() => {
   const now = Date.now();
   global.recentReceipts = global.recentReceipts.filter(r => now - r.timestamp < 24 * 60 * 60 * 1000);
-  
+
   // Limpiar chats recientes muy viejos (más de 30 días) para no llenar la RAM
   for (const [phone, chat] of global.recentChats.entries()) {
     if (now - chat.lastMessageTime.getTime() > 30 * 24 * 60 * 60 * 1000) {
@@ -440,13 +440,13 @@ async function connectToWhatsApp() {
     }
   });
 
-  
+
   sock.ev.on('messages.upsert', async (m) => {
     try {
       if (m.type === 'notify') {
         for (const msg of m.messages) {
           if (!msg.message || msg.key.fromMe || msg.key.remoteJid === 'status@broadcast') continue;
-          
+
           let realFrom = msg.key.participant || msg.participant || msg.key.remoteJid;
           if (realFrom.includes('@lid') && msg.pushName) {
             // Lógica de fallback si es necesario, pero priorizar participant
@@ -456,10 +456,10 @@ async function connectToWhatsApp() {
           try {
             const { default: axios } = require('axios');
             const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
-            
+
             const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
             const wahaPayload = { event: "message", payload: { fromMe: msg.key.fromMe, from: realFrom, body: texto, type: "chat" } };
-            
+
             console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
             await axios.post(n8nWebhook, wahaPayload);
           } catch (n8nErr) {
@@ -470,7 +470,7 @@ async function connectToWhatsApp() {
             }
           }
           // -------------------------------
-          
+
           let text = '';
           if (msg.message.conversation) text = msg.message.conversation;
           else if (msg.message.extendedTextMessage) text = msg.message.extendedTextMessage.text;
@@ -480,7 +480,7 @@ async function connectToWhatsApp() {
 
           const phone = realFrom.replace('@s.whatsapp.net', '').replace('@c.us', '');
           const senderName = msg.pushName || msg.message?.pushName || 'Desconocido';
-          
+
           await prisma.whatsAppMessage.create({
             data: {
               phone: phone,
@@ -494,7 +494,7 @@ async function connectToWhatsApp() {
           console.log(`📥 Nuevo mensaje de ${name} (${phone}): ${text}`);
         }
       }
-    } catch(err) {
+    } catch (err) {
       console.error('Error procesando mensaje entrante de Baileys:', err);
     }
   });
@@ -523,7 +523,7 @@ async function generateCutoffList(autoCutoff = false) {
 
     for (const inv of pendingInvoices) {
       if (!inv.client || !inv.client.name) continue;
-      
+
       if (inv.client.isVip) continue; // Saltear clientes VIP
 
       if (!existingSet.has(inv.clientId)) {
@@ -548,13 +548,13 @@ async function generateCutoffList(autoCutoff = false) {
           // Si es manual, solo preparamos los datos para una inserción masiva (bulk insert)
           toCreate.push({ clientId: inv.clientId, invoiceId: inv.id, status: 'PENDING' });
         }
-        
+
         // Agregar al set para no procesarlo de nuevo si tiene otra factura
         existingSet.add(inv.clientId);
         count++;
       }
     }
-    
+
     // Inserción masiva ultra-rápida para evitar que el servidor haga timeout en Vercel
     if (!autoCutoff && toCreate.length > 0) {
       await prisma.cutoffList.createMany({
@@ -615,7 +615,7 @@ async function ensureCurrentMonthInvoice(clientId) {
         discountToApply = client.walletBalance;
         remainingBalance = 0;
       }
-      
+
       await prisma.client.update({
         where: { id: client.id },
         data: { walletBalance: remainingBalance }
@@ -775,26 +775,26 @@ app.post('/api/cutoffs/execute', async (req, res) => {
 
     let successCount = 0;
     const errors = [];
-    
+
     // Primero, actualizar la base de datos (rápido)
     for (const cutoffId of ids) {
       const cutoff = await prisma.cutoffList.findUnique({
         where: { id: parseInt(cutoffId) },
         include: { client: true }
       });
-      
+
       if (cutoff && cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
         try {
           await prisma.client.update({
             where: { id: cutoff.clientId },
             data: { status: 'SUSPENDED' }
           });
-          
+
           await prisma.cutoffList.update({
             where: { id: cutoff.id },
             data: { status: 'CUT' }
           });
-          
+
           successCount++;
         } catch (err) {
           console.error(`Error DB para IP ${cutoff.client.ipNumber}:`, err);
@@ -813,9 +813,9 @@ app.post('/api/cutoffs/execute', async (req, res) => {
           });
           if (cutoff && cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
             await mikrotik.addIpToCutoffList(
-              cutoff.client.ipNumber, 
-              cutoff.client.mainNode, 
-              'Morosos', 
+              cutoff.client.ipNumber,
+              cutoff.client.mainNode,
+              'Morosos',
               `${cutoff.client.name || 'Cliente'} (ID: ${cutoff.client.id || cutoff.clientId}) - Corte CRM`
             );
           }
@@ -826,9 +826,9 @@ app.post('/api/cutoffs/execute', async (req, res) => {
     })();
 
     if (errors.length > 0) {
-      return res.status(207).json({ 
-        message: `Se actualizaron ${successCount} clientes en la base de datos. Sin embargo, hubo algunos errores.`, 
-        details: errors 
+      return res.status(207).json({
+        message: `Se actualizaron ${successCount} clientes en la base de datos. Sin embargo, hubo algunos errores.`,
+        details: errors
       });
     }
 
@@ -872,7 +872,7 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
       data: { status: 'RESOLVED' },
       include: { client: true }
     });
-    
+
     if (cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
       try {
         await prisma.client.update({
@@ -886,7 +886,7 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
         console.error(`Error removiendo IP ${cutoff.client.ipNumber} del Mikrotik:`, msg);
       }
     }
-    
+
     res.json({ message: 'Cliente eximido de la lista de cortes.', cutoff });
   } catch (error) {
     console.error(error);
@@ -955,9 +955,9 @@ app.get('/api/test-afip', async (req, res) => {
     res.json({ success: true, status });
   } catch (err) {
     console.error("Test AFIP Error:", err);
-    res.json({ 
-      success: false, 
-      message: err.message, 
+    res.json({
+      success: false,
+      message: err.message,
       stack: err.stack,
       response: err.response ? {
         status: err.response.status,
@@ -992,10 +992,10 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
     ] = await Promise.all([
       // 1. Clientes Activos
       prisma.client.count({ where: { status: 'ACTIVE' } }),
-      
+
       // 2. Clientes Suspendidos (Cortes de morosidad)
       prisma.client.count({ where: { status: 'SUSPENDED' } }),
-      
+
       // 3. Cobros del mes actual (Flujo de caja)
       prisma.payment.aggregate({
         where: { paymentDate: { gte: startOfMonth } },
@@ -1053,7 +1053,7 @@ app.post('/api/clients/filter', async (req, res) => {
   try {
     const { nodeId, panelId } = req.body;
     let whereClause = { status: { not: 'BAJA' } };
-    
+
     if (nodeId) {
       whereClause.nodeRefId = parseInt(nodeId);
       // Panel es estrictamente opcional, si viene vacío no lo usamos.
@@ -1079,9 +1079,9 @@ app.get('/api/clients/bajas', async (req, res) => {
   try {
     const clients = await prisma.client.findMany({
       where: { status: 'BAJA' },
-      include: { 
-        plan: true, 
-        tickets: { orderBy: { createdAt: 'desc' }, take: 3 }, 
+      include: {
+        plan: true,
+        tickets: { orderBy: { createdAt: 'desc' }, take: 3 },
         cancellationRequests: { orderBy: { requestedAt: 'desc' }, take: 1 },
         cutoffLists: { where: { status: 'PENDING' }, take: 1 }
       },
@@ -1163,11 +1163,11 @@ app.post('/api/clients', async (req, res) => {
     }
 
     let variation = 0;
-    while(true) {
+    while (true) {
       const cents = Math.floor(Math.random() * 999) + 1; // 1 to 999
       variation = cents / 100; // 0.01 to 9.99
-      const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation }});
-      if(!exists) break;
+      const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation } });
+      if (!exists) break;
     }
 
     const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, uniqueVariation: variation, isVip: isVip || false };
@@ -1185,35 +1185,35 @@ app.post('/api/clients', async (req, res) => {
     try {
       const techPhones = ['5492634302101', '5492634757105'];
       const techMessage = `🚀 *NUEVA ALTA DE CLIENTE CREADA* 🚀\n\n` +
-                          `👤 *Cliente:* ${client.name}\n` +
-                          `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
-                          `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
-                          `🆔 *DNI/CUIT:* ${client.dni || client.cuit || 'No registrado'}\n` +
-                          `📡 *IP Asignada:* ${client.ipNumber || 'Sin IP'}\n\n` +
-                          `✅ *N° de Cliente:* TK${client.id}\n` +
-                          `🔗 *Revisalo en el CRM para coordinar la instalación.*`;
+        `👤 *Cliente:* ${client.name}\n` +
+        `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
+        `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
+        `🆔 *DNI/CUIT:* ${client.dni || client.cuit || 'No registrado'}\n` +
+        `📡 *IP Asignada:* ${client.ipNumber || 'Sin IP'}\n\n` +
+        `✅ *N° de Cliente:* TK${client.id}\n` +
+        `🔗 *Revisalo en el CRM para coordinar la instalación.*`;
 
       for (const techPhone of techPhones) {
         const techTarget = `${techPhone}@s.whatsapp.net`;
-        
+
         if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
           console.log(`📱 [Auto-Envío Técnico] Enviando alerta de alta TK${client.id} a ${techPhone} por Baileys...`);
-          waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
+          waSocket.sendMessage(techTarget, { text: techMessage }).catch(e => console.error(e));
         }
 
         if (process.env.WAHA_API_URL) {
           const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
           const sessionName = process.env.WAHA_SESSION || 'default';
           const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-          if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+          if (process.env.WAHA_API_KEY) headers['X-Api-Key'] = process.env.WAHA_API_KEY;
           fetch(wahaUrl, { method: 'POST', headers, body: JSON.stringify({ chatId: `${techPhone}@c.us`, text: techMessage, session: sessionName }) })
-          .catch(err => console.error('Error WAHA Alta:', err.message));
+            .catch(err => console.error('Error WAHA Alta:', err.message));
         }
 
         if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) {
           const evoUrl = `${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE_NAME || 'interfast'}`;
           fetch(evoUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': process.env.EVOLUTION_API_KEY }, body: JSON.stringify({ number: techPhone, options: { delay: 1200 }, textMessage: { text: techMessage } }) })
-          .catch(err => console.error('Error EVO Alta:', err.message));
+            .catch(err => console.error('Error EVO Alta:', err.message));
         }
       }
     } catch (notifErr) {
@@ -1261,7 +1261,7 @@ app.delete('/api/clients/:id', async (req, res) => {
 app.put('/api/clients/:id', async (req, res) => {
   try {
     const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate, isVip } = req.body;
-    
+
     let parsedRegistrationDate = null;
     if (registrationDate) {
       parsedRegistrationDate = new Date(registrationDate);
@@ -1285,7 +1285,7 @@ app.put('/api/clients/:id/status', async (req, res) => {
       where: { id: parseInt(req.params.id) },
       data: { status },
     });
-    
+
     // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
     if (client.ipNumber && client.mainNode) {
       if (status === 'SUSPENDED' || status === 'BAJA') {
@@ -1295,7 +1295,7 @@ app.put('/api/clients/:id/status', async (req, res) => {
         await ensureCurrentMonthInvoice(client.id);
       }
     }
-    
+
     res.json(client);
   } catch (error) {
     console.error(error);
@@ -1476,7 +1476,7 @@ app.post('/api/bajas', async (req, res) => {
     const { clientId, reason } = req.body;
     if (!clientId) return res.status(400).json({ error: 'Falta clientId' });
     const cId = parseInt(clientId);
-    
+
     const existing = await prisma.cancellationRequest.findFirst({
       where: {
         clientId: cId,
@@ -1488,8 +1488,8 @@ app.post('/api/bajas', async (req, res) => {
       const updated = await prisma.cancellationRequest.update({
         where: { id: existing.id },
         data: {
-          reason: reason && (!existing.reason || !existing.reason.includes(reason)) 
-            ? `${existing.reason} | ${reason}` 
+          reason: reason && (!existing.reason || !existing.reason.includes(reason))
+            ? `${existing.reason} | ${reason}`
             : existing.reason,
           requestedAt: new Date()
         }
@@ -1587,26 +1587,26 @@ app.post('/api/clients/generate-variations', async (req, res) => {
     const clients = await prisma.client.findMany({
       where: { uniqueVariation: 0.0 }
     });
-    
+
     let updated = 0;
     for (const client of clients) {
       let variation = 0;
       let attempts = 0;
-      while(attempts < 5000) {
+      while (attempts < 5000) {
         const cents = Math.floor(Math.random() * 999) + 1; // 1 to 999
         variation = cents / 100; // 0.01 to 9.99
-        const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation }});
-        if(!exists) break;
+        const exists = await prisma.client.findFirst({ where: { uniqueVariation: variation } });
+        if (!exists) break;
         attempts++;
       }
-      
+
       await prisma.client.update({
         where: { id: client.id },
         data: { uniqueVariation: variation }
       });
       updated++;
     }
-    
+
     res.json({ message: `Variaciones asignadas a ${updated} clientes.` });
   } catch (error) {
     console.error(error);
@@ -1806,10 +1806,10 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
       if (client.promoEndDate && client.regularPlanId) {
         if (now > new Date(client.promoEndDate)) {
           console.log(`[Retenciones] Promoción vencida para ${client.name}. Restaurando plan original (ID: ${client.regularPlanId}).`);
-          
+
           client = await prisma.client.update({
             where: { id: client.id },
-            data: { 
+            data: {
               planId: client.regularPlanId,
               regularPlanId: null,
               promoEndDate: null
@@ -1840,8 +1840,8 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
         if (clientId) {
           // Si ya tiene pagos reales asociados y está cobrada con monto > 0, advertir
           if (existing.payments && existing.payments.length > 0 && existing.originalAmount > 0) {
-            return res.status(400).json({ 
-              error: `El cliente ya tiene una factura pagada con cobros registrados para el mes ${currentMonth}/${currentYear} (Factura #${existing.id}).` 
+            return res.status(400).json({
+              error: `El cliente ya tiene una factura pagada con cobros registrados para el mes ${currentMonth}/${currentYear} (Factura #${existing.id}).`
             });
           }
 
@@ -1891,14 +1891,14 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
           discountToApply = client.walletBalance;
           remainingBalance = 0;
         }
-        
+
         await prisma.client.update({
           where: { id: client.id },
           data: { walletBalance: remainingBalance }
         });
         console.log(`💳 [Mensual] Saldo a favor aplicado: $${discountToApply} para cliente ${client.name}. Restante: $${remainingBalance}`);
       }
-      
+
       let priceV1Val = Math.max(0, basePrice - discountToApply);
       let priceV2Val = Math.max(0, (client.plan.priceV2 || client.plan.totalPrice) - discountToApply);
       let priceV3Val = Math.max(0, (client.plan.priceV3 || client.plan.totalPrice) - discountToApply);
@@ -1953,7 +1953,7 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
     if (clientId) {
       const clientName = clients[0]?.name || 'Cliente';
       const actionText = updatedCount > 0 ? 'actualizada y generada' : 'generada';
-      return res.json({ 
+      return res.json({
         success: true,
         message: `Factura del mes ${currentMonth}/${currentYear} ${actionText} exitosamente para ${clientName} (Plan: ${clients[0].plan.name}).`,
         invoiceId: processedInvoiceIds[0]
@@ -1984,7 +1984,7 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
         try {
           const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
           const totalWithCents = inv.priceV1 + centsVal;
-          const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
+          const totalEs = totalWithCents.toLocaleString('es-AR', { minimumFractionDigits: 2 });
 
           let messageBody = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos la factura de tu servicio de Internet para el período ${inv.month}/${inv.year}.\n\n💰 Monto a Abonar (Vencimiento 1): $${totalEs}\n👉 Alias Mercado Pago: interfastsm (respetar centavos para acreditación automática).\n\n💡 ¿Querés pagar con tarjeta (Link de Pago), sumarte al Débito Automático Mensual, o en efectivo en un rapipago o pago facil? Respondeme este mensaje pidiéndomelo.\n\nTe adjuntamos la factura en formato PDF con el detalle de los 4 vencimientos y tarifas.\n\n⚠️ Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.`;
           messageBody = obfuscateMessage(messageBody);
@@ -2092,7 +2092,7 @@ app.post('/api/invoices/mass-cutoff', authenticateToken, async (req, res) => {
             where: { id: invoice.clientId },
             data: { status: 'SUSPENDED' }
           });
-          
+
           // Enviar orden al Mikrotik
           await mikrotik.addIpToCutoffList(invoice.client.ipNumber, invoice.client.mainNode, 'Morosos', `${invoice.client.name || 'Cliente'} (ID: ${invoice.client.id || invoice.clientId}) - Corte CRM`);
           suspendedCount++;
@@ -2202,85 +2202,85 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
       for (const inv of invoices) {
         if (!inv.client || !inv.client.phone) continue;
 
-      const phone = inv.client.phone.replace(/\D/g, '');
-      if (phone.length < 8) continue;
+        const phone = inv.client.phone.replace(/\D/g, '');
+        if (phone.length < 8) continue;
 
-      const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
+        const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
-      const today = new Date();
-      let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
-      let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
-      expirationDate.setHours(23, 59, 59, 999);
+        const today = new Date();
+        let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
+        let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
+        expirationDate.setHours(23, 59, 59, 999);
 
-      if (inv.dueDate1) {
-        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
+        if (inv.dueDate1) {
+          const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
+          const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
+          const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
+          const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
 
-        if (today > d3 && inv.priceV4) {
-          totalAmountWithFee = inv.priceV4;
-          expirationDate = d4;
-        } else if (today > d2 && inv.priceV3) {
-          totalAmountWithFee = inv.priceV3;
-          expirationDate = d3;
-        } else if (today > d1 && inv.priceV2) {
-          totalAmountWithFee = inv.priceV2;
-          expirationDate = d2;
+          if (today > d3 && inv.priceV4) {
+            totalAmountWithFee = inv.priceV4;
+            expirationDate = d4;
+          } else if (today > d2 && inv.priceV3) {
+            totalAmountWithFee = inv.priceV3;
+            expirationDate = d3;
+          } else if (today > d1 && inv.priceV2) {
+            totalAmountWithFee = inv.priceV2;
+            expirationDate = d2;
+          } else {
+            expirationDate = d1;
+          }
+        }
+
+        let paymentLink = '';
+        const centsValForLink = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
+        const totalAmountWithCents = parseFloat((totalAmountWithFee + centsValForLink).toFixed(2));
+        if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
+          paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${inv.id}`;
         } else {
-          expirationDate = d1;
-        }
-      }
+          const preference = new Preference(clientMP);
+          const prefBody = {
+            items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: totalAmountWithCents }],
+            payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
+            external_reference: inv.id.toString(),
+            notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
+          };
 
-      let paymentLink = '';
-      const centsValForLink = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
-      const totalAmountWithCents = parseFloat((totalAmountWithFee + centsValForLink).toFixed(2));
-      if (!process.env.MP_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN === '') {
-        paymentLink = `https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=DEMO-SIMULACION-${inv.id}`;
-      } else {
-        const preference = new Preference(clientMP);
-        const prefBody = {
-          items: [{ id: `INV-${inv.id}`, title: `Internet TK${String(inv.clientId).padStart(3, '0')}`, quantity: 1, unit_price: totalAmountWithCents }],
-          payer: { name: inv.client.name, email: inv.client.email || 'test@test.com' },
-          external_reference: inv.id.toString(),
-          notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
-        };
-        
-        if (expirationDate && expirationDate >= today) {
-          prefBody.expires = true;
-          prefBody.expiration_date_to = expirationDate.toISOString();
+          if (expirationDate && expirationDate >= today) {
+            prefBody.expires = true;
+            prefBody.expiration_date_to = expirationDate.toISOString();
+          }
+
+          const prefs = await preference.create({ body: prefBody });
+          paymentLink = prefs.init_point;
         }
 
-        const prefs = await preference.create({ body: prefBody });
-        paymentLink = prefs.init_point;
+        const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
+        const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
+        const totalWithCents = totalAmountWithFee + centsVal;
+        const totalEs = totalWithCents.toLocaleString('es-AR', { minimumFractionDigits: 2 });
+        const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
+        let message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito o en efectivo (Rapipago/PagoFácil), pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+        message = obfuscateMessage(message);
+
+        await sendWhatsAppMessage(targetPhone, message);
+
+        await prisma.invoice.update({
+          where: { id: inv.id },
+          data: { notifiedAt: new Date() }
+        });
+
+        notifiedCount++;
+
+        if (notifiedCount % 40 === 0) {
+          console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
+          await sleep(90000);
+        } else {
+          const delay = getRandomDelay(15000, 25000);
+          await sleep(delay);
+        }
       }
-
-      const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
-      const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
-      const totalWithCents = totalAmountWithFee + centsVal;
-      const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
-      const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-      let message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito o en efectivo (Rapipago/PagoFácil), pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
-      message = obfuscateMessage(message);
-
-      await sendWhatsAppMessage(targetPhone, message);
-      
-      await prisma.invoice.update({
-        where: { id: inv.id },
-        data: { notifiedAt: new Date() }
-      });
-      
-      notifiedCount++;
-
-      if (notifiedCount % 40 === 0) {
-        console.log(`Pausa larga de 90 segundos después de ${notifiedCount} envíos (Anti-ban)...`);
-        await sleep(90000);
-      } else {
-        const delay = getRandomDelay(15000, 25000);
-        await sleep(delay);
-      }
-    }
-    console.log(`¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot (WAHA).`);
+      console.log(`¡Proceso silencioso completado! ${notifiedCount} deudores notificados automáticamente por el Robot (WAHA).`);
     })().catch(err => console.error("Error en mass-notify background:", err));
 
   } catch (err) {
@@ -2354,7 +2354,7 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
           external_reference: inv.id.toString(),
           notification_url: "https://interfast-backend-95ww.onrender.com/api/mercadopago/webhook"
         };
-        
+
         if (expirationDate && expirationDate >= today) {
           prefBody.expires = true;
           prefBody.expiration_date_to = expirationDate.toISOString();
@@ -2367,7 +2367,7 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
       const dueDateStr = expirationDate ? expirationDate.toLocaleDateString('es-AR') : (inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-AR') : `10/${String(inv.month).padStart(2, '0')}/${inv.year}`);
       const centsVal = ((inv.clientId || (inv.client && inv.client.id) || inv.id || 1) % 1000) / 100;
       const totalWithCents = totalAmountWithFee + centsVal;
-      const totalEs = totalWithCents.toLocaleString('es-AR', {minimumFractionDigits: 2});
+      const totalEs = totalWithCents.toLocaleString('es-AR', { minimumFractionDigits: 2 });
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
       let message = `Hola ${inv.client.name}! ⚠️\n\nTe contactamos desde administración. A la fecha no registramos el pago de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Venció el:* ${dueDateStr}\n💰 *Saldo Adeudado:* *$${totalEs}*\n\nPor este motivo, te enviamos este AVISO DE CORTE.\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO PARA REGULARIZAR AL INSTANTE:*\nPodés transferir al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (respeta los centavos para acreditar en segundos).\nEnvíanos la captura del comprobante por aquí para evitar la suspensión del servicio.\n\n💡 *¿Otras opciones?* Pídeme por aquí el *Link de Pago* (para tarjetas o efectivo en Rapipago/PagoFácil) o sumarte al *Débito Automático*.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
       message = obfuscateMessage(message);
@@ -2480,26 +2480,26 @@ app.post('/api/cutoffs/restore', async (req, res) => {
 
     let successCount = 0;
     const errors = [];
-    
+
     // DB Update
     for (const cutoffId of ids) {
       const cutoff = await prisma.cutoffList.findUnique({
         where: { id: parseInt(cutoffId) },
         include: { client: true }
       });
-      
+
       if (cutoff && cutoff.client) {
         try {
           await prisma.client.update({
             where: { id: cutoff.clientId },
             data: { status: 'ACTIVE' }
           });
-          
+
           await prisma.cutoffList.update({
             where: { id: cutoff.id },
             data: { status: 'RESOLVED' }
           });
-          
+
           successCount++;
         } catch (err) {
           console.error(`Error DB restaurando IP ${cutoff.client.ipNumber}:`, err);
@@ -2526,9 +2526,9 @@ app.post('/api/cutoffs/restore', async (req, res) => {
     })();
 
     if (errors.length > 0) {
-      return res.status(207).json({ 
-        message: `Se actualizaron ${successCount} clientes en la base de datos. Hubo algunos errores.`, 
-        details: errors 
+      return res.status(207).json({
+        message: `Se actualizaron ${successCount} clientes en la base de datos. Hubo algunos errores.`,
+        details: errors
       });
     }
 
@@ -2641,7 +2641,7 @@ app.put('/api/tickets/:id', async (req, res) => {
 app.delete('/api/tickets/:id', async (req, res) => {
   try {
     const ticketId = parseInt(req.params.id);
-    
+
     // Primero eliminamos el historial del ticket para evitar el error de clave foránea (Foreign Key constraint)
     await prisma.ticketHistory.deleteMany({
       where: { ticketId: ticketId }
@@ -2692,7 +2692,7 @@ app.get('/api/cash/daily', checkPermission('CAJA'), async (req, res) => {
     });
 
     const movements = await prisma.cashMovement.findMany({
-      where: { 
+      where: {
         createdAt: { gte: startOfDay, lte: endOfDay },
         category: { not: 'PAGO_FACTURA' }
       },
@@ -2801,12 +2801,12 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       await prisma.cutoffList.deleteMany({
         where: { invoiceId }
       });
-      
+
       const invoiceData = await prisma.invoice.findUnique({
         where: { id: invoiceId },
         include: { client: true }
       });
-      
+
       // Auto-habilitar en la BD
       if (invoiceData && invoiceData.clientId) {
         await prisma.client.update({
@@ -2817,8 +2817,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       }
       // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
       // Factura fiscal jamás debe dispararse sola al asentar un cobro por Webhook de Mercado Pago.
-      // [MODIFICACION ANTI-SPAM META] Deshabilitado el envío automático para pagos manuales:
-      // sendAutomaticPaidInvoiceNotification(invoiceId);
+      sendAutomaticPaidInvoiceNotification(invoiceId);
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
         try {
           const targetNode = invoiceData.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
@@ -2867,7 +2866,7 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
 
     let finalPrice = parseFloat(totalAmount);
     if (isNaN(finalPrice) || finalPrice <= 0) finalPrice = parseFloat(invoice.originalAmount);
-    
+
     const unitPrice = finalPrice * 1.10;
     if (isNaN(unitPrice) || unitPrice <= 0) throw new Error('Monto inválido para cobrar');
 
@@ -2939,7 +2938,7 @@ app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
 
     const planAmount = invoice.originalAmount || 22990;
     let subscriptionLink = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=INTERFAST-SUB-${invoice.client.id}`;
-    
+
     if (clientMP) {
       try {
         const preapprovalPlan = new PreApprovalPlan(clientMP);
@@ -2970,7 +2969,7 @@ app.get('/api/invoices/:id/mercadopago/debito', async (req, res) => {
           };
           const prefs = await preference.create({ body: prefBody });
           subscriptionLink = prefs.init_point;
-        } catch (prefErr) {}
+        } catch (prefErr) { }
       }
     }
     res.redirect(subscriptionLink);
@@ -3005,15 +3004,15 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
       let notifiedCount = 0;
       for (const invoice of invoices) {
         if (!invoice.client || !invoice.client.phone) continue;
-        
+
         const phoneClean = invoice.client.phone.replace(/\D/g, '');
         if (phoneClean.length < 8) continue;
         const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-        
+
         const today = new Date();
         let activeV = 'V1';
         let activeAmount = invoice.priceV1 || invoice.originalAmount;
-        
+
         if (invoice.dueDate1) {
           const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
           const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
@@ -3027,7 +3026,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
         const centsVal = getCents999(invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1);
         const totalConCentavos = parseFloat(activeAmount) + centsVal;
-        const totalEs = totalConCentavos.toLocaleString('es-AR', {minimumFractionDigits: 2});
+        const totalEs = totalConCentavos.toLocaleString('es-AR', { minimumFractionDigits: 2 });
         const originalConCentavos = parseFloat(invoice.originalAmount) + centsVal;
 
         const formatD = (d) => {
@@ -3039,10 +3038,10 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         let pricesText = '';
         if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
           pricesText += `El total a abonar varía según el día de pago:\n`;
-          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(invoice.priceV1) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(invoice.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(invoice.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
-          if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(invoice.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(invoice.priceV1) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(invoice.priceV2) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(invoice.priceV3) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(invoice.priceV4) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
           pricesText += '\n';
         }
 
@@ -3051,8 +3050,8 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         const debitoLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/debito`;
 
         let msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
-          `📅 *Período:* ${String(invoice.month).padStart(2,'0')}/${invoice.year}\n` +
-          `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', {minimumFractionDigits:2})}\n\n` +
+          `📅 *Período:* ${String(invoice.month).padStart(2, '0')}/${invoice.year}\n` +
+          `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n\n` +
           `${pricesText}` +
           `📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n` +
           `🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\n` +
@@ -3061,7 +3060,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           `Una vez transferido, envíanos la foto del comprobante por aquí.\n\n` +
           `💳 *¿Preferís pagar con tarjeta / efectivo (Rapipago/PagoFácil)?*\n` +
           `Podés hacerlo desde aquí (puede incluir recargo):\n${mpLink}\n\n` +
-          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` + 
+          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` +
           `¡Muchas gracias!`;
         msg = obfuscateMessage(msg);
 
@@ -3120,7 +3119,7 @@ app.post('/api/bot/generar-factura-arca', async (req, res) => {
     }
 
     await emitAfipInvoiceHelper(targetInvoiceId, afip);
-    
+
     const updated = await prisma.invoice.findUnique({
       where: { id: parseInt(targetInvoiceId) }
     });
@@ -3159,17 +3158,17 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
       where: { id: parseInt(invoiceId) },
       data: { status: 'PAID', paymentMethod: 'MERCADOPAGO', paymentDate: payment.date }
     });
-    
+
     if (invoice.client && invoice.client.ipNumber) {
       try {
         const targetNode = invoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
         if (targetNode) await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, targetNode);
-      } catch(e) {}
+      } catch (e) { }
     }
 
     await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
     res.json({ message: 'Pago asignado con éxito' });
-  } catch(error) {
+  } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al asignar pago' });
   }
@@ -3211,7 +3210,7 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
     }
 
     const preference = new Preference(clientMP);
-    
+
     const prefBody = {
       items: [
         {
@@ -3269,7 +3268,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
 
     const today = new Date();
     let combinedTotal = 0;
-    let combinedExpiration = null; 
+    let combinedExpiration = null;
     let hasStrictExpiration = false;
 
     for (const invoice of invoices) {
@@ -3316,7 +3315,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
     }
 
     const preference = new Preference(clientMP);
-    
+
     const prefBody = {
       items: [
         {
@@ -3426,11 +3425,11 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
   }
 
   const difference = expectedTotalForDate - transactionAmount;
-  
+
   // Regla de $200 de diferencia para DEUDA
   if (difference > 200.0) {
     console.log(`⚠️ Imputación: Diferencia detectada para factura #${invoiceId}. Esperado: $${expectedTotalForDate}, Pagado: $${transactionAmount}. Diferencia: $${difference}`);
-    
+
     await prisma.invoice.create({
       data: {
         clientId: invoice.clientId,
@@ -3454,10 +3453,10 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
       const phoneClean = invoice.client.phone.replace(/\D/g, '');
       const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
       const diffMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n⚠️ *Aviso de Diferencia:* Como tu pago fue registrado el día ${new Date().toLocaleDateString('es-AR')}, el total correspondiente a la fecha era de *$${expectedTotalForDate.toFixed(2)}* (${activeTierName}).\n\nPor este motivo, se ha generado automáticamente una factura pendiente por la diferencia de *$${difference.toFixed(2)}* en tu cuenta, la cual podrás abonar más adelante.\n\nTu servicio de Internet ya se encuentra activo. ¡Muchas gracias!`;
-      
+
       await waSocket.sendMessage(targetPhone, { text: diffMsg }).catch(console.error);
     }
-  } 
+  }
   // Regla de $200 de diferencia para SALDO A FAVOR
   else if (difference < -200.0) {
     const excessCredit = -difference;
@@ -3472,7 +3471,7 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
         const phoneClean = invoice.client.phone.replace(/\D/g, '');
         const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
         const creditMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n🎉 *Crédito a Favor:* Como el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}*, registramos un saldo a favor en tu cuenta de *$${excessCredit.toFixed(2)}*, el cual se aplicará automáticamente como descuento en tu próxima factura mensual.\n\n¡Muchas gracias!`;
-        
+
         await waSocket.sendMessage(targetPhone, { text: creditMsg }).catch(console.error);
       }
     }
@@ -3510,7 +3509,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 
       const payment = new Payment(clientMP);
       const mpPayment = await payment.get({ id: paymentId });
-      
+
       if (mpPayment.status === 'approved') {
         const ref = (mpPayment.external_reference || mpPayment.metadata?.external_reference || '').toString().trim();
         const description = (mpPayment.description || mpPayment.reason || '').toString();
@@ -3562,7 +3561,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           const payerRaw = `${mpPayment.payer?.first_name || ''} ${mpPayment.payer?.last_name || ''} ${mpPayment.description || ''} ${mpPayment.point_of_interaction?.transaction_data?.bank_info?.payer?.long_name || ''}`;
           const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
           const payerDniRaw = String(mpPayment.payer?.identification?.number || '').replace(/\D/g, '');
-          
+
           let matchedInvoice = null;
 
           const checkAmountTolerance = (inv) => {
@@ -3619,7 +3618,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           } else {
             let suggestedClientName = '';
             const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
-            
+
             for (const inv of pendingInvoices) {
               const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
               const centsVal = getCents999(cId);
@@ -3665,7 +3664,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
           where: { mpPaymentId: String(paymentId) }
         });
         if (existingUnidentified) {
-           await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
+          await prisma.unidentifiedPayment.delete({ where: { id: existingUnidentified.id } });
         }
 
         for (const invoiceId of invoiceIdsToProcess) {
@@ -3728,7 +3727,7 @@ app.get('/api/reports/sales', async (req, res) => {
 
     const manualIn = movements.filter(m => m.type === 'IN').reduce((acc, m) => acc + m.amount, 0);
     const manualOut = movements.filter(m => m.type === 'OUT').reduce((acc, m) => acc + m.amount, 0);
-    
+
     const totalBruto = totalCollectedFromInvoices + manualIn;
     const totalEgresos = manualOut + totalMpFees;
     const totalNeto = totalBruto - totalEgresos;
@@ -3884,7 +3883,7 @@ app.post('/api/leads', async (req, res) => {
     if (phone) {
       const cleanPhone = phone.toString().replace(/\D/g, '');
       const shortPhone = cleanPhone.length > 8 ? cleanPhone.slice(-8) : cleanPhone;
-      
+
       const existingLead = await prisma.lead.findFirst({
         where: {
           phone: { contains: shortPhone }
@@ -3978,7 +3977,7 @@ app.put('/api/content_library/:id', authenticateToken, async (req, res) => {
 app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) => {
   try {
     const { contenido_post, url_media } = req.body;
-    
+
     // 1. Update in DB
     const content = await prisma.content_library.update({
       where: { id: BigInt(req.params.id) },
@@ -3992,9 +3991,9 @@ app.put('/api/content_library/:id/aprobar', authenticateToken, async (req, res) 
         await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            url_foto: content.url_media, 
-            contenido: content.contenido_post, 
+          body: JSON.stringify({
+            url_foto: content.url_media,
+            contenido: content.contenido_post,
             tipo_media: content.tipo_media || 'imagen'
           })
         });
@@ -4026,7 +4025,7 @@ app.get('/api/sales-info', async (req, res) => {
     const catalog = await prisma.catalogItem.findMany({ where: { isActive: true } });
     const plans = await prisma.plan.findMany();
     const mapSetting = await prisma.systemSettings.findUnique({ where: { key: 'COVERAGE_POLYGONS' } });
-    
+
     let coverageMap = [];
     if (mapSetting && mapSetting.value) {
       try {
@@ -4054,7 +4053,7 @@ function buildBotClientSearchWhere(query) {
 
   if (isNumeric || cleanQuery.length >= 4) {
     const cuitWithHyphens = cleanQuery.length === 11 ? `${cleanQuery.slice(0, 2)}-${cleanQuery.slice(2, 10)}-${cleanQuery.slice(10)}` : rawQuery;
-    
+
     let dottedQuery = rawQuery;
     if (cleanQuery.length === 8) {
       dottedQuery = `${cleanQuery.slice(0, 2)}.${cleanQuery.slice(2, 5)}.${cleanQuery.slice(5)}`;
@@ -4150,7 +4149,7 @@ async function handleVerificarAtencion(req, res) {
     const b = req.body || {};
 
     const phone = q.phone || b.phone || '';
-    
+
     // Ignorar estados de WhatsApp (status@broadcast) o extracciones fallidas de N8N
     if (phone.includes('@lid') || phone.includes('@s.whatsapp.net')) {
       // PERMITIDO EXPLÍCITAMENTE (Bypass anti-filtro)
@@ -4174,7 +4173,7 @@ async function handleVerificarAtencion(req, res) {
         // NOTA: Se desactiva la auto-pausa de 1 hora porque también se activaba cuando la propia IA (Sofi) 
         // enviaba un mensaje, lo que provocaba que se silenciara a sí misma indefinidamente.
         // Si un humano quiere intervenir, debe usar el botón "Pausar" en el CRM.
-        
+
         console.log(`[Bot Control] MENSAJE SALIENTE DETECTADO -> Chat ${cleanPhone}. Se ignora para evitar bucle de N8N.`);
         return res.json({
           canRespond: false,
@@ -4231,7 +4230,7 @@ async function handleVerificarAtencion(req, res) {
       if (cleanPhone && cleanPhone.length >= 7) {
         const now = Date.now();
         const lastMsgTime = lastMessageMap.get(cleanPhone) || 0;
-        
+
         if (now - lastMsgTime < 7000) {
           lastMessageMap.set(cleanPhone, now); // Refrescar el temporizador si siguen llegando
           console.log(`[Bot Control] DEBOUNCE - Ignorando mensaje múltiple/simultáneo de ${cleanPhone}`);
@@ -4242,7 +4241,7 @@ async function handleVerificarAtencion(req, res) {
             code: 'MESSAGE_DEBOUNCED'
           });
         }
-        
+
         // Registrar la hora de este mensaje válido
         lastMessageMap.set(cleanPhone, now);
       }
@@ -4282,7 +4281,7 @@ app.get('/api/bot/buscar-cliente', async (req, res) => {
 
     const primaryClient = matchingClients[0];
     const clientsList = matchingClients.map(c => `- ID ${c.id}: ${c.name} | Dir: ${c.address || 'Sin Dirección'} | DNI: ${c.dni || 'No cargado'}`).join('\n');
-    
+
     let formatted_message = '';
     if (matchingClients.length === 1) {
       const cuitText = primaryClient.cuit ? ` | CUIT: ${primaryClient.cuit}` : '';
@@ -4335,7 +4334,7 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
       const whereClause = buildBotClientSearchWhere(strVal);
       client = await prisma.client.findFirst({ where: whereClause });
     }
-    
+
     if (client) {
       parsedId = client.id;
       console.log(`[Bot N8N] Auto-resolución de cliente al crear ticket: se resolvió al cliente ID ${client.id} (${client.name}).`);
@@ -4388,13 +4387,13 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
     try {
       const techPhones = ['5492634302101', '5492634757105'];
       const techMessage = `🚨 *NUEVO TICKET TÉCNICO GENERADO POR SOFI* 🚨\n\n` +
-                          `👤 *Cliente:* ${client.name}\n` +
-                          `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
-                          `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
-                          `📄 *Asunto:* ${title || 'Soporte Técnico'}\n` +
-                          `📝 *Detalle:* ${description || 'Sin detalle'}\n\n` +
-                          `🎫 *Ticket N°:* ${ticket.id}\n` +
-                          `🔗 *Revisalo en el CRM.*`;
+        `👤 *Cliente:* ${client.name}\n` +
+        `📞 *Teléfono:* ${client.phone || 'No registrado'}\n` +
+        `📍 *Dirección:* ${client.address || 'No registrada'}\n` +
+        `📄 *Asunto:* ${title || 'Soporte Técnico'}\n` +
+        `📝 *Detalle:* ${description || 'Sin detalle'}\n\n` +
+        `🎫 *Ticket N°:* ${ticket.id}\n` +
+        `🔗 *Revisalo en el CRM.*`;
 
       for (const techPhone of techPhones) {
         const techTarget = `${techPhone}@s.whatsapp.net`;
@@ -4402,7 +4401,7 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
         // Intentar enviar por Baileys interno
         if (typeof waSocket !== 'undefined' && waSocket && typeof waStatus !== 'undefined' && waStatus === 'CONNECTED') {
           console.log(`📱 [Auto-Envío Técnico] Enviando alerta de ticket #${ticket.id} a ${techPhone} por Baileys...`);
-          await waSocket.sendMessage(techTarget, { text: techMessage }).catch(e=>console.error(e));
+          await waSocket.sendMessage(techTarget, { text: techMessage }).catch(e => console.error(e));
         }
 
         // Intentar enviar por WAHA si está configurado
@@ -4410,10 +4409,10 @@ app.post('/api/bot/crear-ticket', async (req, res) => {
           const wahaUrl = `${process.env.WAHA_API_URL}/api/sendText`;
           const sessionName = process.env.WAHA_SESSION || 'default';
           console.log(`🟢 [Auto-Envío Técnico] Enviando alerta por WAHA a ${techPhone}...`);
-          
+
           const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
           if (process.env.WAHA_API_KEY) {
-            headers['X-Api-Key'] = process.env.WAHA_API_KEY; 
+            headers['X-Api-Key'] = process.env.WAHA_API_KEY;
           }
 
           fetch(wahaUrl, {
@@ -4469,14 +4468,14 @@ app.post('/api/bot/registrar-comprobante', async (req, res) => {
 
     const cleanPhone = String(phone).replace(/\D/g, '');
     global.recentReceipts.push({ phone: cleanPhone, timestamp: Date.now() });
-    
+
     // Si entró un webhook de pago hace un ratito (menos de 24hs) que quedó como No Identificado
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const unidentified = await prisma.unidentifiedPayment.findMany({
       where: { date: { gte: twentyFourHoursAgo } },
       orderBy: { date: 'desc' }
     });
-    
+
     for (const payment of unidentified) {
       if (payment.mpPaymentId) {
         // Disparar el webhook localmente para que intente procesarlo de nuevo, 
@@ -4492,7 +4491,7 @@ app.post('/api/bot/registrar-comprobante', async (req, res) => {
         }
       }
     }
-    
+
     res.json({ message: 'Comprobante registrado. Sistema buscando pagos huérfanos...', phone: cleanPhone });
   } catch (error) {
     console.error(error);
@@ -4504,18 +4503,18 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
   try {
     const { query, clientId } = req.query;
     const searchTarget = clientId || query;
-    
+
     if (!searchTarget || typeof searchTarget !== 'string' || searchTarget.trim() === '') {
       return res.status(400).json({ error: 'Falta parámetro de búsqueda o ID de cliente válido' });
     }
 
     let matchingClients = [];
     const parsedId = !isNaN(parseInt(searchTarget)) && searchTarget.toString().trim().length <= 8 ? parseInt(searchTarget) : null;
-    
+
     if (!parsedId) {
       return res.status(400).json({ error: 'Falta parámetro de búsqueda o ID de cliente válido' });
     }
-    
+
     // 1. Si se pasó clientId o un ID numérico corto de cliente, buscar cliente directo
     if (parsedId && parsedId <= 2147483647) {
       const exactClient = await prisma.client.findUnique({ where: { id: parsedId } });
@@ -4530,18 +4529,18 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
             NOT: { OR: [{ dni: '' }, { phone: '' }] }
           }
         });
-        
+
         const allClientsMap = new Map();
         allClientsMap.set(exactClient.id, exactClient);
-        
+
         // Solo asociamos si realmente comparten un DNI o Teléfono válido (evitar asociar por campos vacíos)
         for (const c of samePersonClients) {
-          if ((c.dni && c.dni.length > 4 && c.dni === exactClient.dni) || 
-              (c.phone && c.phone.length > 4 && c.phone === exactClient.phone)) {
-             allClientsMap.set(c.id, c);
+          if ((c.dni && c.dni.length > 4 && c.dni === exactClient.dni) ||
+            (c.phone && c.phone.length > 4 && c.phone === exactClient.phone)) {
+            allClientsMap.set(c.id, c);
           }
         }
-        
+
         matchingClients = Array.from(allClientsMap.values());
       }
     }
@@ -4549,10 +4548,10 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
     // 2. REGLA ESTRICTA DE SEGURIDAD PARA LA IA: Si no se encontró por ID directo, 
     // prohibir la búsqueda genérica que causa mezcla de clientes (Data Leak).
     if (matchingClients.length === 0) {
-      return res.json({ 
-        success: false, 
-        found: false, 
-        message: 'ERROR DE IA: Debes utilizar la herramienta buscar_cliente primero y pasarme estrictamente su ID numérico exacto.' 
+      return res.json({
+        success: false,
+        found: false,
+        message: 'ERROR DE IA: Debes utilizar la herramienta buscar_cliente primero y pasarme estrictamente su ID numérico exacto.'
       });
     }
 
@@ -4616,7 +4615,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
           }
         }
         globalActiveV = activeV;
-        
+
         const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
         const cId = inv.clientId || (inv.client && inv.client.id) || inv.id || 1;
         const centsVal = getCents999(cId);
@@ -4644,13 +4643,13 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
         totalDebtBase += currentAmountNum;
         periods.push(`${inv.month}/${inv.year}`);
         const accountLabel = matchingClients.length > 1 ? ` [Servicio: ${inv.client?.name || 'Cliente'} - ${inv.client?.address || 'S/D'}]` : '';
-        
-        let invDetail = `- Período ${inv.month}/${inv.year}${accountLabel}: Monto actual a abonar hoy: $${currentAmountNum.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+
+        let invDetail = `- Período ${inv.month}/${inv.year}${accountLabel}: Monto actual a abonar hoy: $${currentAmountNum.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
         if (inv.dueDate1 && pV2Num) {
-          const pV1 = pV1Num.toLocaleString('es-AR', {minimumFractionDigits:2});
-          const pV2 = pV2Num.toLocaleString('es-AR', {minimumFractionDigits:2});
-          const pV3 = pV3Num ? pV3Num.toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
-          const pV4 = pV4Num ? pV4Num.toLocaleString('es-AR', {minimumFractionDigits:2}) : null;
+          const pV1 = pV1Num.toLocaleString('es-AR', { minimumFractionDigits: 2 });
+          const pV2 = pV2Num.toLocaleString('es-AR', { minimumFractionDigits: 2 });
+          const pV3 = pV3Num ? pV3Num.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : null;
+          const pV4 = pV4Num ? pV4Num.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : null;
           invDetail += `\n  (Desglose de valores según fecha: V1: $${pV1} | V2: $${pV2}${pV3 ? ` | V3: $${pV3}` : ''}${pV4 ? ` | V4: $${pV4}` : ''})`;
         }
         breakdown.push(invDetail);
@@ -4661,7 +4660,7 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
 
       invoiceForPDF = pendingInvoices[0]; // Use last pending invoice for PDF
       const currentTotal = totalDebtBase; // Ya incluye los centavos desde la DB
-      const aliasAmountEs = currentTotal.toLocaleString('es-AR', {minimumFractionDigits:2});
+      const aliasAmountEs = currentTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 });
       const periodsStr = Array.from(new Set(periods)).join(' y ');
 
       let paymentLink = null;
@@ -4690,8 +4689,8 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
 
       const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoiceForPDF.id}`;
       const breakdownStr = breakdown.join('\n');
-      const accountsSummaryText = matchingClients.length > 1 
-        ? ` (IMPORTANTE MULTI-CUENTA: El cliente posee ${matchingClients.length} cuentas/servicios asociadas: ${matchingClients.map(c => `${c.name} - ${c.address || 'S/D'}`).join(' | ')})` 
+      const accountsSummaryText = matchingClients.length > 1
+        ? ` (IMPORTANTE MULTI-CUENTA: El cliente posee ${matchingClients.length} cuentas/servicios asociadas: ${matchingClients.map(c => `${c.name} - ${c.address || 'S/D'}`).join(' | ')})`
         : '';
 
       formatted_message = `ESTADO DE CUENTA DE: ${primaryClient.name}${accountsSummaryText} | Períodos Adeudados: ${periodsStr} | Estado: PENDIENTE DE PAGO 🔴 | Vencimiento Actualizado: ${globalActiveV} | Monto Total a Abonar (Acumulado entre todas sus cuentas actualizado a la fecha de hoy): $${aliasAmountEs} | LINK MERCADOPAGO OCULTO POR DEFECTO: ${paymentLink}.
@@ -4909,7 +4908,7 @@ cron.schedule('* * * * *', async () => {
     const pendingContents = await prisma.content_library.findMany({
       where: { estado: 'Pendiente' }
     });
-    
+
     for (const content of pendingContents) {
       if (content.url_media && !content.url_media.includes('supabase.co')) {
         console.log(`[Cron] Descargando media externa para content_library ID ${content.id}...`);
@@ -4917,29 +4916,29 @@ cron.schedule('* * * * *', async () => {
           const response = await fetch(content.url_media);
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const buffer = await response.arrayBuffer();
-          
+
           const fileExtension = content.tipo_media === 'video' ? 'mp4' : 'jpg';
           const fileName = `media_${content.id}_${Date.now()}.${fileExtension}`;
-          
+
           const { data, error } = await supabaseStorage
             .storage
             .from('content_media')
             .upload(fileName, buffer, {
               contentType: response.headers.get('content-type') || (content.tipo_media === 'video' ? 'video/mp4' : 'image/jpeg')
             });
-            
+
           if (error) {
             console.error(`[Cron] Error subiendo archivo a Supabase:`, error);
             continue;
           }
-          
+
           const publicUrl = supabaseStorage.storage.from('content_media').getPublicUrl(fileName).data.publicUrl;
-          
+
           await prisma.content_library.update({
             where: { id: content.id },
             data: { url_media: publicUrl }
           });
-          
+
           console.log(`[Cron] Archivo resguardado exitosamente para content_library ID ${content.id}: ${publicUrl}`);
         } catch (downloadError) {
           console.error(`[Cron] Error procesando archivo para content_library ID ${content.id}:`, downloadError);
@@ -4972,10 +4971,10 @@ cron.schedule('*/10 * * * *', async () => {
 
 
     const mpPayments = searchResponse.results || [];
-    
+
     for (const mpPayment of mpPayments) {
       if (mpPayment.status !== 'approved') continue;
-      
+
       const existingPayment = await prisma.payment.findUnique({
         where: { mpPaymentId: String(mpPayment.id) }
       });
@@ -5096,24 +5095,24 @@ cron.schedule('*/10 * * * *', async () => {
               inv.priceV4
             ].filter(a => a !== null && a > 0);
 
-            const matchesBaseAmount = possibleBaseAmounts.some(amt => 
-              Math.abs(transactionAmount - amt) < 5.0 || 
+            const matchesBaseAmount = possibleBaseAmounts.some(amt =>
+              Math.abs(transactionAmount - amt) < 5.0 ||
               Math.abs((transactionAmount - expectedCentsOffset) - amt) < 5.0
             );
-            
+
             if (matchesBaseAmount) {
               nameAndAmountMatches.push(inv);
             }
           }
 
           if (nameAndAmountMatches.length > 0) {
-            
-              for (let candidate of nameAndAmountMatches) {
-                if (strictVerifyPayment(candidate, mpPayment)) {
-                  matchedInvoice = candidate;
-                  break;
-                }
+
+            for (let candidate of nameAndAmountMatches) {
+              if (strictVerifyPayment(candidate, mpPayment)) {
+                matchedInvoice = candidate;
+                break;
               }
+            }
 
             if (matchedInvoice) {
               console.log(`🎯 [Cron MP Sync - Conciliación Inteligente]: ¡ÉXITO! Factura #${matchedInvoice.id} imputada a ${matchedInvoice.client?.name} sin coincidencia estricta de centavos.`);
@@ -5272,7 +5271,7 @@ app.get('/api/mikrotik/active-clients', async (req, res) => {
     });
 
     let liveClients = [];
-    
+
     // Promise.all to fetch all nodes concurrently to save time
     const nodePromises = nodes.map(async (node) => {
       const active = await mikrotik.getMikrotikActiveClients(node.name);
@@ -5333,7 +5332,7 @@ app.post('/api/bot/send-custom-message', async (req, res) => {
     }
     const phoneClean = phone.replace(/\D/g, '');
     const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-    
+
     if (waSocket && waStatus === 'CONNECTED') {
       await waSocket.sendMessage(targetPhone, { text: message });
       res.json({ message: 'Mensaje enviado por WhatsApp (Robot).' });
@@ -5354,7 +5353,7 @@ app.post('/api/bot/broadcast-n8n', async (req, res) => {
     }
 
     const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL_DIFUSION || 'https://interfast-n8n.onrender.com/webhook/difusion';
-    
+
     // Enviamos todo el bloque de clientes a n8n en una sola petición.
     // Sofi (n8n) se encargará de iterarlos y aplicar la demora correspondiente para evitar baneos.
     try {
@@ -5490,7 +5489,7 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
     let cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
     if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
-    
+
     const messages = await prisma.whatsAppMessage.findMany({
       where: { phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone } },
       orderBy: { timestamp: 'asc' },
@@ -5518,9 +5517,9 @@ app.post('/api/chat/messages/:phone/read', async (req, res) => {
     let cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
     if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
-    
+
     await prisma.whatsAppMessage.updateMany({
-      where: { 
+      where: {
         phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone },
         isFromMe: false,
         isRead: false
@@ -5565,7 +5564,7 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
       // Registrar la actividad del chat en memoria para el CRM, sin importar si Sofi está apagada o prendida
       if (req.body.payload && req.body.payload.from && global.recentChats) {
         let phoneStr = req.body.payload.from;
-        
+
         // Ignorar estados
         if (phoneStr === 'status@broadcast') return;
 
@@ -5573,9 +5572,9 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
         if (phoneStr.includes('@lid') && req.body.payload._data?.key?.remoteJidAlt) {
           phoneStr = req.body.payload._data.key.remoteJidAlt;
         }
-        
+
         let notifyName = req.body.payload._data?.notifyName || 'Desconocido (WhatsApp)';
-        
+
         let cleanPhone = phoneStr.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
         if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
         if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
@@ -5600,7 +5599,7 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
             lastMessageTime: new Date(),
             unreadCount: isFromMe ? 0 : ((existingChat.unreadCount || 0) + 1)
           });
-          
+
           // Guardar en Base de Datos de manera asíncrona
           prisma.whatsAppMessage.create({
             data: {
@@ -5626,12 +5625,12 @@ app.post('/api/bot/waha-webhook', async (req, res) => {
 
     // Forward to n8n
     const n8nUrl = 'https://interfast-n8n.onrender.com/webhook/interfast-whatsapp';
-    
+
     if (req.body) {
       const headers = { ...req.headers };
       delete headers['host'];
       delete headers['content-length'];
-      
+
       axios.post(n8nUrl, req.body, { headers }).catch(err => {
         console.error('Error enviando webhook a n8n:', err.message);
       });
@@ -5670,20 +5669,20 @@ app.post('/api/telemetry/alert', async (req, res) => {
 
     // 3. Lógica Anti-Duplicados: Verificar ticket abierto por el mismo problema
     const formattedTitle = `[TELEMETRÍA] ${title}`;
-    
+
     const existingTicket = await prisma.ticket.findFirst({
-      where: { 
-        clientId: client.id, 
+      where: {
+        clientId: client.id,
         status: 'OPEN',
         title: formattedTitle
       }
     });
 
     if (existingTicket) {
-      return res.status(200).json({ 
-        success: true, 
-        message: 'El cliente ya posee un ticket de telemetría abierto por este problema.', 
-        ticketId: existingTicket.id 
+      return res.status(200).json({
+        success: true,
+        message: 'El cliente ya posee un ticket de telemetría abierto por este problema.',
+        ticketId: existingTicket.id
       });
     }
 
@@ -5721,7 +5720,7 @@ app.post('/api/telemetry/alert', async (req, res) => {
 app.post('/api/reconciliation/process', authenticateToken, checkPermission('CAJA'), async (req, res) => {
   try {
     const { gateway, fileName, transactions, operator, periodStart, periodEnd } = req.body;
-    
+
     if (!transactions || !Array.isArray(transactions)) {
       return res.status(400).json({ error: 'El formato de transacciones es inválido.' });
     }
@@ -5740,7 +5739,7 @@ app.post('/api/reconciliation/process', authenticateToken, checkPermission('CAJA
               description: tx.description || 'Comisión / Gasto Bancario Automático',
               category: tx.category || 'COMISIONES_PASARELA',
               operator: operator || req.user.username,
-              userId: req.user.id || 1, 
+              userId: req.user.id || 1,
               externalTransactionId: tx.externalTransactionId // Clave para evitar duplicados
             }
           });
@@ -5768,12 +5767,12 @@ app.post('/api/reconciliation/process', authenticateToken, checkPermission('CAJA
       }
     });
 
-    res.json({ 
-      success: true, 
-      message: 'Conciliación procesada correctamente', 
-      insertedCount, 
+    res.json({
+      success: true,
+      message: 'Conciliación procesada correctamente',
+      insertedCount,
       skippedCount,
-      logId: log.id 
+      logId: log.id
     });
 
   } catch (error) {
@@ -5810,7 +5809,7 @@ const path = require('path');
 app.post('/api/whatsapp/restart', authenticateToken, checkPermission('ADMIN'), async (req, res) => {
   try {
     console.log('[WhatsApp] Reinicio forzado solicitado por ADMIN');
-    
+
     // 1. Cerrar la conexión activa en memoria
     if (global.waSocket) {
       global.waSocket.end(new Error('Reinicio manual desde Centro de Control'));
@@ -5859,10 +5858,10 @@ app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOP
       return res.status(404).json({ error: 'No se encontraron clientes activos con teléfono válido en este segmento.' });
     }
 
-    res.json({ 
-      success: true, 
-      message: 'Difusión inicializada correctamente. El envío se realizará en segundo plano.', 
-      totalTargets: validClients.length 
+    res.json({
+      success: true,
+      message: 'Difusión inicializada correctamente. El envío se realizará en segundo plano.',
+      totalTargets: validClients.length
     });
 
     (async () => {
@@ -5874,13 +5873,13 @@ app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOP
         try {
           const personalizedMsg = message.replace(/{nombre}/gi, client.name || 'Cliente');
           const safeMessage = obfuscateText(personalizedMsg);
-          
+
           console.log(`[Motor Anti-Ban] Mensaje despachado a ${client.phone} (Cliente ID: ${client.id})`);
           sentCount++;
 
           if (sentCount % 40 === 0 && i !== validClients.length - 1) {
             console.log(`[Motor Anti-Ban] Límite de ráfaga alcanzado (40 mensajes). Enfriamiento de 90s...`);
-            await sleep(90000); 
+            await sleep(90000);
           } else if (i !== validClients.length - 1) {
             const randomPause = Math.floor(Math.random() * (25000 - 15000 + 1) + 15000);
             console.log(`[Motor Anti-Ban] Modo humano activo. Esperando ${randomPause / 1000}s...`);
@@ -5929,7 +5928,7 @@ const io = new Server(server, {
 });
 
 // Guardamos 'io' globalmente para usarlo en otros archivos/middlewares si es necesario
-global.io = io; 
+global.io = io;
 
 io.on('connection', (socket) => {
   console.log('[WebSocket] Panel de Soporte conectado:', socket.id);

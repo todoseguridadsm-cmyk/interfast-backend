@@ -54,8 +54,8 @@ router.post('/mercadopago/webhook', async (req, res) => {
     if (existingPayment) return; // Se aborta silenciosamente si ya existe
 
     if (!clientMP) {
-        console.error('Webhook MP abortado: MP_ACCESS_TOKEN no configurado en el servidor.');
-        return;
+      console.error('Webhook MP abortado: MP_ACCESS_TOKEN no configurado en el servidor.');
+      return;
     }
 
     const payment = new Payment(clientMP);
@@ -63,7 +63,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
     if (mpPayment.status !== 'approved') return;
 
     const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
-    
+
     // Obtenemos facturas pendientes para la cascada
     const pendingInvoices = await prisma.invoice.findMany({
       where: { status: 'PENDING' },
@@ -74,7 +74,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
     // =========================================================================
     // MEJORA: EXTRACCIÓN PROFUNDA DE DATOS (TRANSFERENCIAS CVU Y PAGOS CIEGOS)
     // =========================================================================
-    
+
     // 1. Intentar extracción estándar (Payer Node)
     let extractedFirstName = mpPayment.payer?.first_name || '';
     let extractedLastName = mpPayment.payer?.last_name || '';
@@ -83,29 +83,29 @@ router.post('/mercadopago/webhook', async (req, res) => {
     // 2. Si vienen vacíos, buscar en el nodo de Transferencias 3.0 (CVU / Bank Info)
     const bankInfo = mpPayment.point_of_interaction?.transaction_data?.bank_info;
     if (bankInfo && bankInfo.payer_info) {
-        if (!extractedFirstName && bankInfo.payer_info.name) {
-            extractedFirstName = bankInfo.payer_info.name; 
-        }
-        if (!extractedDni && bankInfo.payer_info.document_number) {
-            extractedDni = String(bankInfo.payer_info.document_number);
-        }
+      if (!extractedFirstName && bankInfo.payer_info.name) {
+        extractedFirstName = bankInfo.payer_info.name;
+      }
+      if (!extractedDni && bankInfo.payer_info.document_number) {
+        extractedDni = String(bankInfo.payer_info.document_number);
+      }
     }
 
     // 3. Fallback adicional en transaction_details (a veces MP inyecta datos ahí en ciertas tarjetas)
     const txDetails = mpPayment.transaction_details;
     if (txDetails) {
-        // En algunas integraciones el DNI de la tarjeta se esconde aquí
-        // Aunque no es común, protege la integridad de los datos ciegos.
+      // En algunas integraciones el DNI de la tarjeta se esconde aquí
+      // Aunque no es común, protege la integridad de los datos ciegos.
     }
 
     // =========================================================================
     // INYECCIÓN DE LOS DATOS RESCATADOS HACIA EL EMBUDO RÍGIDO
     // =========================================================================
-    
+
     const payerRaw = `${extractedFirstName} ${extractedLastName} ${mpPayment.description || ''}`.trim();
     const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     const payerDniRaw = extractedDni.replace(/\D/g, '');
-    
+
     let matchedInvoice = null;
 
     // EL EMBUDO DE IDENTIFICACIÓN (CÓDIGO INNEGOCIABLE INTACTO)
@@ -129,7 +129,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
       // FASE C: Match por Observaciones (Alias MP y Levenshtein)
       const obs = (inv.client?.observation || '');
       const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
-      
+
       let aliasMatched = false;
       for (const alias of rawAliases) {
         const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -137,7 +137,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
         if (aliasClean === payerClean || levenshteinDistance(aliasClean, payerClean) <= 2) {
           aliasMatched = true; break;
         }
-        
+
         // Tokenización sobre el alias
         const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
         const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
@@ -145,7 +145,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
           aliasMatched = true; break;
         }
       }
-      
+
       if (aliasMatched) { matchedInvoice = inv; break; }
     }
 
@@ -225,7 +225,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
               phone: matchedInvoice.client.phone,
               paidAmount: transactionAmount,
               remainingDebt: remainingDebt
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       });
@@ -234,7 +234,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
       // FASE D: HUÉRFANOS Y CÁLCULO DE CENTAVOS
       let suggestedClientName = '';
       const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
-      
+
       for (const inv of pendingInvoices) {
         const cId = inv.clientId;
         const centsVal = getCents999(cId);
@@ -259,7 +259,7 @@ router.post('/mercadopago/webhook', async (req, res) => {
       const existingUnidentified = await prisma.unidentifiedPayment.findFirst({
         where: { mpPaymentId: String(paymentId) }
       });
-      
+
       if (!existingUnidentified) {
         await prisma.unidentifiedPayment.create({
           data: {
@@ -288,7 +288,7 @@ router.post('/mercadopago/reports-webhook', async (req, res) => {
   try {
     const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
     let reportId = req.query['data.id'] || req.query.id || req.body?.data?.id || req.body?.id;
-    
+
     // Asegurarnos de que sea el webhook correcto
     if (!reportId || topic !== 'report.created') {
       console.log('⚠️ [WEBHOOK MP REPORTS] Abortado por payload inválido o topic incorrecto');
@@ -321,7 +321,7 @@ router.post('/mercadopago/reports-webhook', async (req, res) => {
       const financing = parseFloat(row['financing_fee_amount'] || 0);
       const taxes = parseFloat(row['taxes_amount'] || 0);
       const telco = parseFloat(row['tax_amount_telco'] || 0);
-      
+
       // Sumamos los valores (Math.abs garantiza que siempre sumen positivo para el egreso)
       totalCostos += Math.abs(fee) + Math.abs(financing) + Math.abs(taxes) + Math.abs(telco);
     });
@@ -336,8 +336,8 @@ router.post('/mercadopago/reports-webhook', async (req, res) => {
           type: 'OUT',
           amount: totalCostos,
           category: 'GASTOS_VARIOS', // Conciliación MP
-          description: `[CAJA: MERCADOPAGO] Costos, comisiones y retenciones mensuales MP (Reporte #${reportId})`,
-          operator: 'MERCADOPAGO',
+          description: `Costos, comisiones y retenciones mensuales MP (Reporte #${reportId})`,
+          operator: 'MERCADOPAGO_WEBHOOK',
           userId: 1
         }
       });
@@ -396,8 +396,8 @@ router.post('/mercadopago/upload-report', upload.single('file'), async (req, res
         type: 'OUT',
         amount: Number(totalCostos.toFixed(2)),
         category: 'GASTOS_VARIOS',
-        description: `[CAJA: MERCADOPAGO] Costos MP - ${req.file.originalname} (Por: ${operador})`,
-        operator: 'MERCADOPAGO',
+        description: `Costos MP - ${req.file.originalname}`,
+        operator: operador,
         userId: parseInt(req.user?.id) || 1
       },
       include: { user: { select: { username: true } } }
