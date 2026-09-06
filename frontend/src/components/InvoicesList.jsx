@@ -840,6 +840,11 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   const centsVal = getCentsVal(inv);
                   const displayOriginal = parseFloat(inv.originalAmount) + centsVal;
                   const displayTotal = parseFloat(inv.totalAmount) + centsVal;
+                  
+                  const actualPaidAmount = (inv.payments && inv.payments.length > 0)
+                    ? inv.payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+                    : 0;
+                  const finalDisplayTotal = (isPaid && actualPaidAmount > 0) ? actualPaidAmount : displayTotal;
 
                   return (
                     <tr key={inv.id} className={`transition-colors ${isPaid ? 'bg-slate-50/50' : 'hover:bg-slate-50'}`}>
@@ -879,7 +884,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                       </td>
                       <td className="px-2 py-2 text-right">
                         <span className={`font-bold ${isPaid ? 'text-slate-500 line-through' : 'text-slate-900 text-base'}`}>
-                          ${displayTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          ${finalDisplayTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-center">
