@@ -875,10 +875,12 @@ app.post('/api/cutoffs/remove/:id', async (req, res) => {
 
     if (cutoff.client && cutoff.client.ipNumber && cutoff.client.mainNode) {
       try {
-        await prisma.client.update({
-          where: { id: cutoff.clientId },
-          data: { status: 'ACTIVE' }
-        });
+        if (cutoff.client.status !== 'BAJA') {
+          await prisma.client.update({
+            where: { id: cutoff.clientId },
+            data: { status: 'ACTIVE' }
+          });
+        }
         // await ensureCurrentMonthInvoice(cutoff.clientId); // Desactivado por solicitud del usuario (evita deuda mes 8 al rehabilitar)
         await mikrotik.removeIpFromCutoffList(cutoff.client.ipNumber, cutoff.client.mainNode);
       } catch (err) {
@@ -1104,6 +1106,46 @@ app.get('/api/clients/bajas', async (req, res) => {
   }
 });
 
+// Endpoint para consultar estado real de Mikrotik para los clientes en BAJA
+app.get('/api/clients/bajas/service-status', async (req, res) => {
+  try {
+    const bajas = await prisma.client.findMany({
+      where: { status: 'BAJA', ipNumber: { not: null } },
+      select: { id: true, ipNumber: true, mainNode: true }
+    });
+
+    // Agrupar por nodo
+    const ipsByNode = {};
+    for (const b of bajas) {
+      if (!b.mainNode || !b.ipNumber) continue;
+      if (!ipsByNode[b.mainNode]) ipsByNode[b.mainNode] = [];
+      ipsByNode[b.mainNode].push({ id: b.id, ip: b.ipNumber });
+    }
+
+    const finalStatus = {}; // { clientId: true (cortado) | false (activo) }
+
+    for (const [nodeName, clients] = Object.entries(ipsByNode)) {
+      try {
+        const ips = clients.map(c => c.ip);
+        const mikrotikResult = await mikrotik.checkIpsInCutoffList(ips, nodeName);
+        for (const c of clients) {
+          const cleanIp = c.ip.split('/')[0].trim();
+          finalStatus[c.id] = mikrotikResult[cleanIp] || false;
+        }
+      } catch (err) {
+        console.error(`Error consultando Mikrotik nodo ${nodeName} para bajas:`, err.message);
+        // Fallback a desconocido (null) para este nodo
+        for (const c of clients) finalStatus[c.id] = null;
+      }
+    }
+
+    res.json(finalStatus);
+  } catch (error) {
+    console.error('Error en /api/clients/bajas/service-status:', error);
+    res.status(500).json({ error: 'Error al consultar estado de servicios en bajas' });
+  }
+});
+
 // Dar servicio Mikrotik a un cliente en BAJA (sin darlo de alta)
 app.put('/api/clients/:id/enable-service', async (req, res) => {
   try {
@@ -1111,7 +1153,14 @@ app.put('/api/clients/:id/enable-service', async (req, res) => {
     const client = await prisma.client.findUnique({ where: { id } });
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
     if (!client.ipNumber) return res.status(400).json({ error: 'Cliente sin IP asignada' });
+    
     await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode);
+
+    // Borrar de la lista de cortes para que no figure más como suspendido
+    await prisma.cutoffList.deleteMany({
+      where: { clientId: id, status: 'PENDING' }
+    });
+
     res.json({ success: true, message: `Servicio habilitado para ${client.name} (${client.ipNumber})` });
   } catch (error) {
     console.error('Error al habilitar servicio:', error);
@@ -1123,10 +1172,29 @@ app.put('/api/clients/:id/enable-service', async (req, res) => {
 app.put('/api/clients/:id/disable-service', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const client = await prisma.client.findUnique({ where: { id } });
+    const client = await prisma.client.findUnique({ where: { id }, include: { invoices: true } });
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
     if (!client.ipNumber) return res.status(400).json({ error: 'Cliente sin IP asignada' });
+    
     await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name} (ID: ${client.id}) - Corte por BAJA`);
+
+    // Agregar a lista de cortes si no estaba
+    const pendingCutoff = await prisma.cutoffList.findFirst({
+      where: { clientId: id, status: 'PENDING' }
+    });
+    
+    if (!pendingCutoff) {
+      // Buscar última factura (para asociar el corte, aunque sea ficticio)
+      const lastInvoice = client.invoices && client.invoices.length > 0 ? client.invoices[client.invoices.length - 1] : null;
+      await prisma.cutoffList.create({
+        data: {
+          clientId: id,
+          invoiceId: lastInvoice ? lastInvoice.id : 0,
+          status: 'PENDING'
+        }
+      });
+    }
+
     res.json({ success: true, message: `Servicio cortado para ${client.name} (${client.ipNumber})` });
   } catch (error) {
     console.error('Error al cortar servicio:', error);
@@ -2497,10 +2565,12 @@ app.post('/api/cutoffs/restore', async (req, res) => {
 
       if (cutoff && cutoff.client) {
         try {
-          await prisma.client.update({
-            where: { id: cutoff.clientId },
-            data: { status: 'ACTIVE' }
-          });
+          if (cutoff.client.status !== 'BAJA') {
+            await prisma.client.update({
+              where: { id: cutoff.clientId },
+              data: { status: 'ACTIVE' }
+            });
+          }
 
           await prisma.cutoffList.update({
             where: { id: cutoff.id },
