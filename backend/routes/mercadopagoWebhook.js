@@ -41,7 +41,7 @@ function levenshteinDistance(a, b) {
 
 // --- WEBHOOK MERCADO PAGO (CASCADA 4 FASES Y TOLERANCIA MATEMÁTICA) ---
 // --- ENDPOINT PARA LEER LOGS ESPÍA ---
-router.get('/mercadopago/webhook-logs', (req, res) => {
+router.post('/mercadopago/webhook-logs', (req, res) => {
   const logPath = path.join(__dirname, '../mp_webhook_logs.txt');
   if (fs.existsSync(logPath)) {
     res.type('text/plain').send(fs.readFileSync(logPath, 'utf8'));
