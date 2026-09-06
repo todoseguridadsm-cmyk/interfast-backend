@@ -842,7 +842,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                   const displayTotal = parseFloat(inv.totalAmount) + centsVal;
                   
                   const actualPaidAmount = (inv.payments && inv.payments.length > 0)
-                    ? inv.payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+                    ? inv.payments.reduce((sum, p) => sum + parseFloat(p.amountPaid || 0), 0)
                     : 0;
                   const finalDisplayTotal = (isPaid && actualPaidAmount > 0) ? actualPaidAmount : displayTotal;
 
