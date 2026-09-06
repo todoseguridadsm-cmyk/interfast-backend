@@ -7,6 +7,8 @@ const axios = require('axios');
 const xlsx = require('xlsx');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
+const fs = require('fs');
+const path = require('path');
 
 // Inicializar cliente MP (usando variable de entorno principal)
 const clientMP = process.env.MP_ACCESS_TOKEN ? new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN }) : null;
@@ -42,9 +44,16 @@ router.post('/mercadopago/webhook', async (req, res) => {
   res.sendStatus(200); // 200 INMEDIATO a MP para evitar retries por Timeout
 
   try {
+    // --- LOGGER TEMPORAL DE DIAGNOSTICO ---
+    const logData = `[${new Date().toISOString()}] WEBHOOK INCOMING:\nQUERY: ${JSON.stringify(req.query)}\nBODY: ${JSON.stringify(req.body)}\n-----------------------\n`;
+    fs.appendFileSync(path.join(__dirname, '../mp_webhook_logs.txt'), logData);
+
     const topic = req.query.topic || req.query.type || req.body?.type || req.body?.action;
     let paymentId = req.query['data.id'] || req.query.id || req.body?.data?.id;
     if (!paymentId && req.body?.id && topic === 'payment.created') paymentId = req.body.id;
+
+    // A veces MP manda el id directamente en data.id aunque el topic no sea payment.created
+    if (!paymentId && req.body?.data?.id) paymentId = req.body.data.id;
 
     // Regla de Oro: Idempotencia Fuerte
     if (!paymentId) return;
