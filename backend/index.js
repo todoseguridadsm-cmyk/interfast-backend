@@ -3181,6 +3181,17 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
   }
 });
 
+app.delete('/api/unidentified-payments/:id', async (req, res) => {
+  try {
+    const paymentId = parseInt(req.params.id);
+    await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
+    res.json({ message: 'Pago eliminado con éxito' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar pago' });
+  }
+});
+
 app.post('/api/invoices/:id/mercadopago', async (req, res) => {
   try {
     const invoiceId = parseInt(req.params.id);
