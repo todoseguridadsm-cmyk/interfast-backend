@@ -1384,6 +1384,13 @@ app.get('/api/nodes', async (req, res) => {
     res.json(nodes);
   } catch (error) { res.status(500).json({ error: 'Error fetching nodes' }); }
 });
+
+app.get('/api/panels', async (req, res) => {
+  try {
+    const panels = await prisma.panel.findMany({ orderBy: { name: 'asc' } });
+    res.json(panels);
+  } catch (error) { res.status(500).json({ error: 'Error fetching panels' }); }
+});
 app.post('/api/nodes', async (req, res) => {
   try {
     const node = await prisma.node.create({ data: req.body });
@@ -5873,6 +5880,8 @@ app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOP
         try {
           const personalizedMsg = message.replace(/{nombre}/gi, client.name || 'Cliente');
           const safeMessage = obfuscateText(personalizedMsg);
+
+          await sendWhatsAppMessage(client.phone, safeMessage);
 
           console.log(`[Motor Anti-Ban] Mensaje despachado a ${client.phone} (Cliente ID: ${client.id})`);
           sentCount++;
