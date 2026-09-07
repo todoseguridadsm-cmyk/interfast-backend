@@ -33,9 +33,10 @@ export default function ChatCRM() {
     fetchSofiStatus();
     fetchContacts();
 
+    // Sincronización en tiempo real de contactos cada 3.5 segundos
     const contactsInterval = setInterval(() => {
       fetchContacts(true);
-    }, 15000);
+    }, 3500);
 
     return () => clearInterval(contactsInterval);
   }, []);
@@ -47,7 +48,8 @@ export default function ChatCRM() {
       
       setContacts(prev => prev.map(c => c.phone === selectedContact.phone ? { ...c, unreadCount: 0 } : c));
 
-      const intervalId = setInterval(() => fetchMessages(selectedContact.phone, true), 5000);
+      // Sincronización del chat activo cada 3 segundos
+      const intervalId = setInterval(() => fetchMessages(selectedContact.phone, true), 3000);
       return () => clearInterval(intervalId);
     }
   }, [selectedContact]);
@@ -86,7 +88,7 @@ export default function ChatCRM() {
       const { data } = await axios.get('https://interfast-backend-95ww.onrender.com/api/chat/contacts');
       setContacts(data);
     } catch (err) {
-      console.error(err);
+      if (!isPolling) console.error(err);
     }
   };
 
@@ -99,7 +101,7 @@ export default function ChatCRM() {
         [phone]: data
       }));
     } catch (err) {
-      console.error('Error fetching messages:', err);
+      if (!isPolling) console.error('Error fetching messages:', err);
     } finally {
       if (!isPolling) setLoadingHistory(false);
     }
@@ -128,6 +130,9 @@ export default function ChatCRM() {
         };
       });
 
+      // Refrescar contactos de inmediato para mover este chat al inicio
+      fetchContacts(true);
+
     } catch (err) {
       console.error(err);
       alert('Error enviando mensaje: ' + (err.response?.data?.error || err.message));
@@ -143,7 +148,8 @@ export default function ChatCRM() {
 
   const filteredContacts = useMemo(() => {
     return contacts.filter(c => {
-      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.phone.includes(searchTerm);
+      const matchesSearch = (c.name && c.name.toLowerCase().includes(searchTerm.toLowerCase())) || 
+                            (c.phone && c.phone.includes(searchTerm));
       if (!matchesSearch) return false;
       if (activeTab === 'UNREAD') return c.unreadCount > 0;
       return true;
@@ -206,7 +212,25 @@ export default function ChatCRM() {
   const formatMessageTime = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) {
+      return 'Ayer';
+    }
+
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (diffDays < 7) {
+      const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      return days[d.getDay()];
+    }
+
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
   };
 
   return (

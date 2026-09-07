@@ -445,57 +445,98 @@ async function connectToWhatsApp() {
     try {
       if (m.type === 'notify') {
         for (const msg of m.messages) {
-          if (!msg.message || msg.key.fromMe || msg.key.remoteJid === 'status@broadcast') continue;
+          if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
 
-          let realFrom = msg.key.participant || msg.participant || msg.key.remoteJid;
-          if (realFrom.includes('@lid') && msg.pushName) {
-            // Lógica de fallback si es necesario, pero priorizar participant
-          }
+          const isFromMe = msg.key.fromMe === true;
+          const remoteJid = msg.key.remoteJid || '';
+          const participant = msg.key.participant || msg.participant || remoteJid;
 
-          // ---- INYECCIÓN N8N (SOFI) ----
-          try {
-            const { default: axios } = require('axios');
-            const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
+          let rawPhone = isFromMe ? remoteJid : participant;
+          let cleanPhone = rawPhone.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '').replace(/\D/g, '');
+          if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
+          else if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
 
-            const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-            const wahaPayload = { event: "message", payload: { fromMe: msg.key.fromMe, from: realFrom, body: texto, type: "chat" } };
+          if (!cleanPhone || cleanPhone.length < 5) continue;
 
-            console.log('Interceptado. Enviando a n8n URL:', n8nWebhook);
-            await axios.post(n8nWebhook, wahaPayload);
-          } catch (n8nErr) {
-            if (n8nErr.response && n8nErr.response.status === 404) {
-              console.log('[Alerta] n8n devolvió 404. El flujo está apagado o se está usando una URL de prueba (/webhook-test/) sin estar en modo escucha.');
-            } else {
-              console.error('Error reenviando mensaje entrante a n8n:', n8nErr.message);
-            }
-          }
-          // -------------------------------
-
+          // Extraer texto o descripción del adjunto
           let text = '';
-          if (msg.message.conversation) text = msg.message.conversation;
-          else if (msg.message.extendedTextMessage) text = msg.message.extendedTextMessage.text;
-          else if (msg.message.imageMessage) text = '[Imagen/Comprobante adjunto]';
-          else if (msg.message.documentMessage) text = '[Documento adjunto]';
-          else continue;
+          if (msg.message.conversation) {
+            text = msg.message.conversation;
+          } else if (msg.message.extendedTextMessage?.text) {
+            text = msg.message.extendedTextMessage.text;
+          } else if (msg.message.imageMessage) {
+            text = msg.message.imageMessage.caption ? `[📷 Foto: ${msg.message.imageMessage.caption}]` : '[📷 Foto]';
+          } else if (msg.message.documentMessage) {
+            text = msg.message.documentMessage.fileName ? `[📄 ${msg.message.documentMessage.fileName}]` : '[📄 Documento]';
+          } else if (msg.message.audioMessage) {
+            text = '[🎤 Audio / Mensaje de voz]';
+          } else if (msg.message.videoMessage) {
+            text = msg.message.videoMessage.caption ? `[🎥 Video: ${msg.message.videoMessage.caption}]` : '[🎥 Video]';
+          } else if (msg.message.stickerMessage) {
+            text = '[Sticker]';
+          } else if (msg.message.contactMessage) {
+            text = `[👤 Contacto: ${msg.message.contactMessage.displayName || ''}]`;
+          } else if (msg.message.locationMessage) {
+            text = '[📍 Ubicación compartida]';
+          } else {
+            text = '[Mensaje adjunto]';
+          }
 
-          const phone = realFrom.replace('@s.whatsapp.net', '').replace('@c.us', '');
-          const senderName = msg.pushName || msg.message?.pushName || 'Desconocido';
+          // Buscar nombre si es cliente
+          const phoneKey = cleanPhone.length >= 8 ? cleanPhone.slice(-8) : cleanPhone;
+          const client = await prisma.client.findFirst({
+            where: { phone: { contains: phoneKey } },
+            select: { name: true }
+          });
 
+          const senderName = client ? client.name : (msg.pushName || msg.message?.pushName || 'Contacto WhatsApp');
+          const msgTimestamp = new Date(msg.messageTimestamp ? Number(msg.messageTimestamp) * 1000 : Date.now());
+
+          // Guardar en base de datos
           await prisma.whatsAppMessage.create({
             data: {
-              phone: phone,
+              phone: cleanPhone,
               name: senderName,
               text: text,
-              isFromMe: false,
-              isRead: false,
-              timestamp: new Date()
+              isFromMe: isFromMe,
+              isRead: isFromMe,
+              timestamp: msgTimestamp
             }
           });
-          console.log(`📥 Nuevo mensaje de ${name} (${phone}): ${text}`);
+
+          console.log(`💬 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] ${senderName} (${cleanPhone}): ${text}`);
+
+          // Reenviar a n8n (Sofi) SOLO si es entrante y el bot está activo
+          if (!isFromMe) {
+            try {
+              const setting = await prisma.systemSettings.findUnique({ where: { key: 'SOFI_ENABLED' } });
+              const isEnabled = setting ? setting.value === 'true' : true;
+
+              if (isEnabled) {
+                const n8nWebhook = process.env.N8N_WEBHOOK_URL_INCOMING || 'https://interfast-n8n.onrender.com/webhook/incoming';
+                const wahaPayload = { 
+                  event: "message", 
+                  payload: { 
+                    fromMe: false, 
+                    from: remoteJid, 
+                    body: msg.message.conversation || msg.message.extendedTextMessage?.text || text, 
+                    type: "chat" 
+                  } 
+                };
+                axios.post(n8nWebhook, wahaPayload).catch(n8nErr => {
+                  if (n8nErr.response && n8nErr.response.status === 404) {
+                    console.log('[Alerta] n8n devolvió 404 para webhook incoming.');
+                  }
+                });
+              }
+            } catch (sofiErr) {
+              console.error('Error evaluando Sofi webhook:', sofiErr.message);
+            }
+          }
         }
       }
     } catch (err) {
-      console.error('Error procesando mensaje entrante de Baileys:', err);
+      console.error('Error procesando mensaje Baileys:', err);
     }
   });
 
@@ -5751,66 +5792,51 @@ app.post('/api/bot/toggle-sofi', async (req, res) => {
 app.get('/api/chat/contacts', async (req, res) => {
   try {
     const dbClients = await prisma.client.findMany({
-      where: { status: 'ACTIVE' },
       select: { id: true, name: true, phone: true }
     });
 
-    const contactMap = new Map();
+    const getPhoneKey = (p) => {
+      if (!p) return '';
+      const c = String(p).replace(/\D/g, '');
+      return c.length >= 8 ? c.slice(-8) : c;
+    };
+
+    const clientByPhoneKey = new Map();
     dbClients.forEach(c => {
       if (c.phone) {
-        const cleanPhone = c.phone.replace(/\D/g, '');
-        contactMap.set(cleanPhone, {
-          clientId: c.id,
-          name: c.name,
-          phone: cleanPhone,
-          lastMessage: '',
-          lastMessageTime: new Date(0),
-          unreadCount: 0
-        });
+        const k = getPhoneKey(c.phone);
+        if (k) clientByPhoneKey.set(k, c);
       }
     });
 
-    const recentChatsData = await prisma.$queryRaw`
-      SELECT 
-        phone, 
-        MAX(name) as "name", 
-        MAX(timestamp) as "lastMessageTime",
-        SUM(CASE WHEN "isRead" = false AND "isFromMe" = false THEN 1 ELSE 0 END) as "unreadCount",
-        (SELECT text FROM "WhatsAppMessage" w2 WHERE w2.phone = "WhatsAppMessage".phone ORDER BY timestamp DESC LIMIT 1) as "lastMessage"
-      FROM "WhatsAppMessage"
-      GROUP BY phone
-    `;
+    // Traer los mensajes más recientes agrupados
+    const recentMessages = await prisma.whatsAppMessage.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 2500
+    });
 
-    for (const chatData of recentChatsData) {
-      let cleanPhone = chatData.phone.replace(/\D/g, '');
-      if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
-      if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    const contactMap = new Map();
 
-      let matchedDbPhone = null;
-      if (cleanPhone.length > 5) {
-        for (const dbPhone of contactMap.keys()) {
-          if (dbPhone.length > 5 && (dbPhone.endsWith(cleanPhone) || cleanPhone.endsWith(dbPhone))) {
-            matchedDbPhone = dbPhone;
-            break;
-          }
-        }
-      }
+    for (const msg of recentMessages) {
+      if (!msg.phone) continue;
+      const key = getPhoneKey(msg.phone);
+      if (!key) continue;
 
-      const unreadCount = parseInt(chatData.unreadCount || 0);
-
-      if (matchedDbPhone) {
-        contactMap.get(matchedDbPhone).lastMessageTime = new Date(chatData.lastMessageTime);
-        contactMap.get(matchedDbPhone).unreadCount = unreadCount;
-        contactMap.get(matchedDbPhone).lastMessage = chatData.lastMessage || '';
-      } else {
-        contactMap.set(cleanPhone, {
-          clientId: 'unknown-' + cleanPhone,
-          name: chatData.name || 'Desconocido (WhatsApp)',
-          phone: cleanPhone,
-          lastMessage: chatData.lastMessage || '',
-          lastMessageTime: new Date(chatData.lastMessageTime),
-          unreadCount: unreadCount
+      if (!contactMap.has(key)) {
+        const matchedClient = clientByPhoneKey.get(key);
+        contactMap.set(key, {
+          clientId: matchedClient ? matchedClient.id : null,
+          name: matchedClient ? matchedClient.name : (msg.name && msg.name !== 'Desconocido' ? msg.name : msg.phone),
+          phone: msg.phone,
+          lastMessage: msg.text || '',
+          lastMessageTime: new Date(msg.timestamp),
+          unreadCount: (!msg.isRead && !msg.isFromMe) ? 1 : 0,
+          isFromMe: msg.isFromMe || false
         });
+      } else {
+        if (!msg.isRead && !msg.isFromMe) {
+          contactMap.get(key).unreadCount += 1;
+        }
       }
     }
 
@@ -5827,19 +5853,18 @@ app.get('/api/chat/contacts', async (req, res) => {
 app.get('/api/chat/messages/:phone', async (req, res) => {
   try {
     const { phone } = req.params;
-    let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
-    if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    let cleanPhone = String(phone).replace(/\D/g, '');
+    const phoneKey = cleanPhone.length >= 8 ? cleanPhone.slice(-8) : cleanPhone;
 
     const messages = await prisma.whatsAppMessage.findMany({
-      where: { phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone } },
+      where: { phone: { contains: phoneKey } },
       orderBy: { timestamp: 'asc' },
-      take: 100
+      take: 300
     });
 
     const formattedMessages = messages.map(msg => ({
       id: msg.id,
-      phone: cleanPhone,
+      phone: msg.phone,
       remitente: msg.isFromMe ? 'Nosotros' : 'Cliente',
       mensaje: msg.text,
       created_at: msg.timestamp
@@ -5855,13 +5880,12 @@ app.get('/api/chat/messages/:phone', async (req, res) => {
 app.post('/api/chat/messages/:phone/read', async (req, res) => {
   try {
     const { phone } = req.params;
-    let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('549')) cleanPhone = cleanPhone.substring(3);
-    if (cleanPhone.startsWith('54')) cleanPhone = cleanPhone.substring(2);
+    let cleanPhone = String(phone).replace(/\D/g, '');
+    const phoneKey = cleanPhone.length >= 8 ? cleanPhone.slice(-8) : cleanPhone;
 
     await prisma.whatsAppMessage.updateMany({
       where: {
-        phone: { contains: cleanPhone.length > 6 ? cleanPhone.substring(cleanPhone.length - 6) : cleanPhone },
+        phone: { contains: phoneKey },
         isFromMe: false,
         isRead: false
       },
