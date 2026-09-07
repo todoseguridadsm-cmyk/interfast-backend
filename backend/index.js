@@ -1085,7 +1085,7 @@ app.get('/api/clients/bajas', async (req, res) => {
         plan: true,
         tickets: { orderBy: { createdAt: 'desc' }, take: 3 },
         cancellationRequests: { orderBy: { requestedAt: 'desc' }, take: 1 },
-        cutoffLists: { where: { status: 'PENDING' }, take: 1 }
+        cutoffLists: { where: { status: { in: ['PENDING', 'CUT'] } }, take: 1 }
       },
       orderBy: { updatedAt: 'desc' }
     });
@@ -1146,7 +1146,7 @@ app.put('/api/clients/:id/enable-service', async (req, res) => {
     
     await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode);
 
-    // Borrar de la lista de cortes para que no figure más como suspendido
+    // Borrar de la lista de cortes para que no figure más como suspendido/cortado
     await prisma.cutoffList.deleteMany({
       where: { clientId: id }
     });
@@ -1168,20 +1168,24 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
     
     await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name} (ID: ${client.id}) - Corte por BAJA`);
 
-    // Agregar a lista de cortes si no estaba
-    const pendingCutoff = await prisma.cutoffList.findFirst({
-      where: { clientId: id, status: 'PENDING' }
+    // Guardar o actualizar en lista de cortes como CUT (Servicio Cortado)
+    const existingCutoff = await prisma.cutoffList.findFirst({
+      where: { clientId: id }
     });
     
-    if (!pendingCutoff) {
-      // Buscar última factura (para asociar el corte, aunque sea ficticio)
+    if (!existingCutoff) {
       const lastInvoice = client.invoices && client.invoices.length > 0 ? client.invoices[client.invoices.length - 1] : null;
       await prisma.cutoffList.create({
         data: {
           clientId: id,
           invoiceId: lastInvoice ? lastInvoice.id : 0,
-          status: 'PENDING'
+          status: 'CUT'
         }
+      });
+    } else {
+      await prisma.cutoffList.update({
+        where: { id: existingCutoff.id },
+        data: { status: 'CUT' }
       });
     }
 
@@ -1353,19 +1357,24 @@ app.put('/api/clients/:id/status', async (req, res) => {
           console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); 
         }
         
-        // Sincronizar con CutoffList
+        // Sincronizar con CutoffList como CUT
         try {
-          const pendingCutoff = await prisma.cutoffList.findFirst({
-            where: { clientId: client.id, status: 'PENDING' }
+          const existingCutoff = await prisma.cutoffList.findFirst({
+            where: { clientId: client.id }
           });
-          if (!pendingCutoff) {
+          if (!existingCutoff) {
             const clientInvoices = await prisma.invoice.findMany({ where: { clientId: client.id }, orderBy: { id: 'desc' }, take: 1 });
             await prisma.cutoffList.create({
               data: {
                 clientId: client.id,
                 invoiceId: clientInvoices.length > 0 ? clientInvoices[0].id : 0,
-                status: 'PENDING'
+                status: 'CUT'
               }
+            });
+          } else {
+            await prisma.cutoffList.update({
+              where: { id: existingCutoff.id },
+              data: { status: 'CUT' }
             });
           }
         } catch (e) {
