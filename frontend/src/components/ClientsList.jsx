@@ -417,131 +417,137 @@ export default function ClientsList() {
             />
           </div>
         </div>
-        <div className="overflow-auto w-full max-h-[calc(100vh-240px)] custom-scrollbar">
-          <table className="w-full text-left border-collapse ">
-          <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
-            <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-              <th className="px-3 py-3 font-medium">N° Cliente</th>
-              <th className="px-3 py-3 font-medium">Cliente</th>
-              <th className="px-3 py-3 font-medium">DNI</th>
-              <th className="px-3 py-3 font-medium">Plan Actual</th>
-              <th className="px-3 py-3 font-medium">Red IP</th>
-              <th className="px-3 py-3 font-medium">Billetera</th>
-              <th className="px-3 py-3 font-medium">Estado</th>
-              <th className="px-3 py-3 font-medium text-right">Acciones</th>
+        <div className="w-full overflow-x-auto max-h-[calc(100vh-240px)] custom-scrollbar">
+          <table className="w-full text-left border-collapse table-auto">
+          <thead className="sticky top-0 z-10 bg-slate-50 shadow-xs">
+            <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-semibold border-b border-slate-200">
+              <th className="px-2.5 py-2.5 whitespace-nowrap">N° Cliente</th>
+              <th className="px-2.5 py-2.5">Cliente</th>
+              <th className="px-2 py-2.5 whitespace-nowrap">DNI</th>
+              <th className="px-2 py-2.5 whitespace-nowrap">Plan</th>
+              <th className="px-2 py-2.5 whitespace-nowrap">Red IP</th>
+              <th className="px-2 py-2.5 whitespace-nowrap">Billetera</th>
+              <th className="px-2 py-2.5 text-center whitespace-nowrap">Estado</th>
+              <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
+          <tbody className="divide-y divide-slate-100 text-xs">
             {clients.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-12 text-center text-slate-500">
+                <td colSpan="8" className="px-4 py-8 text-center text-slate-400">
                   No hay clientes registrados en el sistema.
                 </td>
               </tr>
             ) : (
               [...filteredClients].sort((a, b) => a.name.localeCompare(b.name)).map(client => (
                 <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-3 py-3 text-sm font-bold text-blue-600 tracking-wider">
+                  <td className="px-2.5 py-2 text-xs font-mono font-bold text-blue-600 tracking-wider whitespace-nowrap">
                     {`TK${String(client.id).padStart(3, '0')}`}
                   </td>
-                  <td className="px-3 py-3 font-medium text-slate-900">
-                    <div className="flex items-center gap-2">
-                      {client.name}
+                  <td className="px-2.5 py-2 font-medium text-slate-900">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-semibold text-slate-800 leading-tight">{client.name}</span>
                       {client.isVip && (
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold uppercase rounded-full border border-amber-200" title="Cliente VIP - Exento de Cortes">VIP</span>
+                        <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-bold uppercase rounded-full border border-amber-200" title="Cliente VIP - Exento de Cortes">VIP</span>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-slate-600">{client.dni}</td>
-                  <td className="px-3 py-3 text-slate-600">{client.plan?.name || "Sin Plan"}</td>
-                  <td className="px-3 py-3 text-xs font-mono text-slate-500">
-                    <span className="font-bold block text-slate-700">{client.ipNumber || '---'}</span>
-                    {client.mainNode && <span className="mt-1 block">{client.mainNode}</span>}
-                    <div className="flex gap-1 mt-1">
-                      {client.hasRouter && <span className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded font-bold">RTR</span>}
-                      {client.hasMast && <span className="text-[9px] bg-sky-100 text-sky-700 px-1 rounded font-bold">MST</span>}
-                      {client.debitoAutomatico && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"><CreditCard size={8} /> DÉB.AUT.</span>}
+                  <td className="px-2 py-2 text-slate-600 text-xs whitespace-nowrap">{client.dni}</td>
+                  <td className="px-2 py-2 text-slate-600 text-xs whitespace-nowrap">
+                    <span className="truncate max-w-[100px] block" title={client.plan?.name || "Sin Plan"}>
+                      {client.plan?.name || "Sin Plan"}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-[11px] font-mono text-slate-500 whitespace-nowrap">
+                    <span className="font-bold block text-slate-700 leading-tight">{client.ipNumber || '---'}</span>
+                    {client.mainNode && <span className="text-[9px] text-slate-400 block truncate max-w-[85px] leading-tight">{client.mainNode}</span>}
+                    <div className="flex gap-0.5 mt-0.5">
+                      {client.hasRouter && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded font-bold">RTR</span>}
+                      {client.hasMast && <span className="text-[8px] bg-sky-100 text-sky-700 px-1 rounded font-bold">MST</span>}
+                      {client.debitoAutomatico && <span className="text-[8px] bg-indigo-100 text-indigo-700 px-1 rounded font-bold flex items-center gap-0.5"><CreditCard size={7} /> DÉB.</span>}
                     </div>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     {client.walletBalance > 0 ? (
-                       <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold border border-emerald-200">
+                       <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[11px] font-bold border border-emerald-200">
                          +${client.walletBalance.toLocaleString('es-AR', {minimumFractionDigits: 2})}
                        </span>
-                    ) : ( <span className="text-slate-400 text-xs">$0.00</span> )}
+                    ) : ( <span className="text-slate-400 text-[11px]">$0.00</span> )}
                   </td>
-                  <td className="px-3 py-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : client.status === 'PENDING' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${client.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : client.status === 'PENDING' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
                       {client.status === 'PENDING' ? 'Pendiente' : client.status}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-right flex justify-end gap-1 items-center">
-                    {/* ACCESO DIRECTO A WINBOX (Regla 22) */}
-                    {client.ipNumber ? (
-                      <a href={`winbox://${client.ipNumber || client.ip || client.redIp || ''}`} title="Abrir Winbox" className="inline-flex items-center justify-center hover:opacity-80 transition-opacity mr-2" style={{ width: '24px', height: '24px' }}>
-                        <img src="/winbox.jpg" alt="Winbox" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
-                      </a>
-                    ) : (
-                      <button 
-                        disabled
-                        className="text-slate-200 inline-flex items-center justify-center p-1.5 rounded-lg cursor-not-allowed mr-2"
-                        title="Requiere IP Asignada"
-                      >
-                        <Server size={16} />
-                      </button>
-                    )}
-                    
-                    {client.status === 'PENDING' && canManageClients && (
-                      <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-emerald-50" title="Confirmar Alta">
-                        <Check size={16} />
-                      </button>
-                    )}
-                    {canManageClients && client.status !== 'BAJA' && client.status !== 'PENDING' && (
-                      <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-1.5 rounded-lg mr-1 ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
-                        <Power size={16} />
-                      </button>
-                    )}
-                    {canManageClients && (
-                      <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-blue-50" title="Editar cliente">
-                        <Edit2 size={16} />
-                      </button>
-                    )}
-                    {canManageClients && (
-                      <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-purple-50 disabled:opacity-50" title="Hacer Ping a la Antena">
-                        {pingingId === client.id ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
-                      </button>
-                    )}
-                    {canManageClients && (
-                      <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-indigo-50 disabled:opacity-50" title="Diagnóstico Avanzado de Telemetría">
-                        {diagnosingId === client.id ? <Loader2 size={16} className="animate-spin" /> : <Stethoscope size={16} />}
-                      </button>
-                    )}
-                    {canManageClients && (
-                      <button
-                        onClick={() => handleToggleDebitoAutomatico(client)}
-                        className={`transition-colors inline-flex items-center justify-center p-1.5 rounded-lg ${
-                          client.debitoAutomatico
-                            ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 bg-indigo-50'
-                            : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                        }`}
-                        title={client.debitoAutomatico ? 'Débito Automático ACTIVO — clic para desactivar' : 'Activar Débito Automático'}
-                      >
-                        <CreditCard size={16} />
-                      </button>
-                    )}
-                    <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-green-50 mr-2" title="Enviar WhatsApp">
-                      <MessageCircle size={16} />
-                    </button>
-                    {canManageClients && (
-                      <>
-                        <button onClick={() => handleDarDeBaja(client.id)} className="text-orange-500 hover:text-orange-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-orange-50 mr-1" title="Dar de baja / Mover a Retiros">
-                          <UserMinus size={16} />
+                  <td className="px-2.5 py-2 text-right whitespace-nowrap">
+                    <div className="flex justify-end gap-0.5 items-center">
+                      {/* ACCESO DIRECTO A WINBOX (Regla 22) */}
+                      {client.ipNumber ? (
+                        <a href={`winbox://${client.ipNumber || client.ip || client.redIp || ''}`} title="Abrir Winbox" className="inline-flex items-center justify-center hover:opacity-80 transition-opacity p-0.5" style={{ width: '20px', height: '20px' }}>
+                          <img src="/winbox.jpg" alt="Winbox" style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
+                        </a>
+                      ) : (
+                        <button 
+                          disabled
+                          className="text-slate-200 inline-flex items-center justify-center p-1 rounded cursor-not-allowed"
+                          title="Requiere IP Asignada"
+                        >
+                          <Server size={14} />
                         </button>
-                        <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-red-50" title="Eliminar cliente">
-                          <Trash2 size={16} />
+                      )}
+                      
+                      {client.status === 'PENDING' && canManageClients && (
+                        <button onClick={() => handleConfirm(client.id)} className="text-emerald-600 hover:text-emerald-800 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-emerald-50 cursor-pointer" title="Confirmar Alta">
+                          <Check size={14} />
                         </button>
-                      </>
-                    )}
+                      )}
+                      {canManageClients && client.status !== 'BAJA' && client.status !== 'PENDING' && (
+                        <button onClick={() => handleToggleStatus(client)} className={`transition-colors inline-flex items-center justify-center p-1 rounded cursor-pointer ${client.status === 'ACTIVE' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'}`} title={client.status === 'ACTIVE' ? "Cortar Servicio (Suspender)" : "Habilitar Servicio (Activar)"}>
+                          <Power size={14} />
+                        </button>
+                      )}
+                      {canManageClients && (
+                        <button onClick={() => handleEdit(client)} className="text-blue-500 hover:text-blue-700 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-blue-50 cursor-pointer" title="Editar cliente">
+                          <Edit2 size={14} />
+                        </button>
+                      )}
+                      {canManageClients && (
+                        <button onClick={() => handlePing(client)} disabled={pingingId === client.id || diagnosingId === client.id} className="text-purple-500 hover:text-purple-700 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-purple-50 disabled:opacity-50 cursor-pointer" title="Hacer Ping a la Antena">
+                          {pingingId === client.id ? <Loader2 size={14} className="animate-spin" /> : <Activity size={14} />}
+                        </button>
+                      )}
+                      {canManageClients && (
+                        <button onClick={() => handleAdvancedDiag(client)} disabled={diagnosingId === client.id || pingingId === client.id} className="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-indigo-50 disabled:opacity-50 cursor-pointer" title="Diagnóstico Avanzado de Telemetría">
+                          {diagnosingId === client.id ? <Loader2 size={14} className="animate-spin" /> : <Stethoscope size={14} />}
+                        </button>
+                      )}
+                      {canManageClients && (
+                        <button
+                          onClick={() => handleToggleDebitoAutomatico(client)}
+                          className={`transition-colors inline-flex items-center justify-center p-1 rounded cursor-pointer ${
+                            client.debitoAutomatico
+                              ? 'text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 bg-indigo-50'
+                              : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                          }`}
+                          title={client.debitoAutomatico ? 'Débito Automático ACTIVO — clic para desactivar' : 'Activar Débito Automático'}
+                        >
+                          <CreditCard size={14} />
+                        </button>
+                      )}
+                      <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-green-50 cursor-pointer" title="Enviar WhatsApp">
+                        <MessageCircle size={14} />
+                      </button>
+                      {canManageClients && (
+                        <>
+                          <button onClick={() => handleDarDeBaja(client.id)} className="text-orange-500 hover:text-orange-700 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-orange-50 cursor-pointer" title="Dar de baja / Mover a Retiros">
+                            <UserMinus size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(client.id)} className="text-red-500 hover:text-red-700 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-red-50 cursor-pointer" title="Eliminar cliente">
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
