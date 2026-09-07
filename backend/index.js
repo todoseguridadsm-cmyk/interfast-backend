@@ -1124,7 +1124,7 @@ app.get('/api/clients/bajas/service-status', async (req, res) => {
 
     const finalStatus = {}; // { clientId: true (cortado) | false (activo) }
 
-    for (const [nodeName, clients] = Object.entries(ipsByNode)) {
+    for (const [nodeName, clients] of Object.entries(ipsByNode)) {
       try {
         const ips = clients.map(c => c.ip);
         const mikrotikResult = await mikrotik.checkIpsInCutoffList(ips, nodeName);
