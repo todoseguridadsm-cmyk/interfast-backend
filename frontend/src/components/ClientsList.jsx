@@ -73,6 +73,7 @@ export default function ClientsList() {
 
   const handleEdit = (client) => {
     setEditingId(client.id);
+    const hasActivePromo = !!(client.promoEndDate && client.regularPlanId);
     setFormData({
       dni: client.dni || '',
       name: client.name || '',
@@ -98,14 +99,27 @@ export default function ClientsList() {
       hasRouter: client.hasRouter || false,
       hasMast: client.hasMast || false,
       registrationDate: client.registrationDate ? new Date(client.registrationDate).toISOString().split('T')[0] : '',
-      isVip: client.isVip || false
+      isVip: client.isVip || false,
+      // Promociones / Retenciones
+      originalPlanId: client.planId || '',
+      regularPlanId: client.regularPlanId || null,
+      promoEndDate: client.promoEndDate ? new Date(client.promoEndDate).toISOString().split('T')[0] : '',
+      isPromo: hasActivePromo,
+      promoDurationMonths: '3'
     });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setEditingId(null);
-    setFormData({ dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', nodeRefId: '', panelRefId: '', panelId: '', ipNumber: '', planId: '', cuit: '', taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, registrationDate: '', isVip: false });
+    setFormData({ 
+      dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', 
+      address: '', fiscalAddress: '', city: '', province: '', zipCode: '', mainNode: '', 
+      nodeRefId: '', panelRefId: '', panelId: '', ipNumber: '', planId: '', cuit: '', 
+      taxCondition: 'CONSUMIDOR_FINAL', status: 'ACTIVE', hasRouter: false, hasMast: false, 
+      registrationDate: '', isVip: false,
+      originalPlanId: '', regularPlanId: null, promoEndDate: '', isPromo: false, promoDurationMonths: '3'
+    });
     setIsModalOpen(false);
   };
 
@@ -163,7 +177,9 @@ export default function ClientsList() {
 
     const payload = {
       ...formData,
-      planId: formData.planId ? parseInt(formData.planId) : null
+      planId: formData.planId ? parseInt(formData.planId) : null,
+      regularPlanId: formData.isPromo && formData.regularPlanId ? parseInt(formData.regularPlanId) : null,
+      promoEndDate: formData.isPromo && formData.promoEndDate ? formData.promoEndDate : null
     };
 
     const request = editingId 
@@ -454,9 +470,14 @@ export default function ClientsList() {
                   </td>
                   <td className="px-2 py-2 text-slate-600 text-xs whitespace-nowrap">{client.dni}</td>
                   <td className="px-2 py-2 text-slate-600 text-xs whitespace-nowrap">
-                    <span className="truncate max-w-[100px] block" title={client.plan?.name || "Sin Plan"}>
+                    <span className="truncate max-w-[110px] block font-semibold" title={client.plan?.name || "Sin Plan"}>
                       {client.plan?.name || "Sin Plan"}
                     </span>
+                    {client.promoEndDate && client.regularPlanId && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-md font-bold mt-0.5 border border-purple-200" title={`Promo hasta ${new Date(client.promoEndDate).toLocaleDateString('es-AR')}. Volverá a: ${plans.find(p => p.id === client.regularPlanId)?.name || 'Plan base'}`}>
+                        🏷️ Promo ({new Date(client.promoEndDate).toLocaleDateString('es-AR', {day: '2-digit', month: '2-digit'})})
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-[11px] font-mono text-slate-500 whitespace-nowrap">
                     <span className="font-bold block text-slate-700 leading-tight">{client.ipNumber || '---'}</span>
@@ -761,12 +782,153 @@ export default function ClientsList() {
 
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
                   <label className="block text-sm font-bold text-slate-800 mb-2">Plan de Internet Asociado</label>
-                  <select name="planId" value={formData.planId} onChange={handleInputChange} className="w-full px-4 py-3 border border-slate-300 font-medium rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-blue-50 text-blue-900">
+                  <select 
+                    name="planId" 
+                    value={formData.planId} 
+                    onChange={(e) => {
+                      const newPlanId = e.target.value ? parseInt(e.target.value) : '';
+                      const isChangingExisting = editingId && formData.originalPlanId && newPlanId && newPlanId !== formData.originalPlanId;
+                      
+                      setFormData(prev => {
+                        const nextIsPromo = prev.isPromo || isChangingExisting;
+                        let nextRegularPlanId = prev.regularPlanId;
+                        let nextPromoEndDate = prev.promoEndDate;
+
+                        if (nextIsPromo && !nextPromoEndDate) {
+                          const d = new Date();
+                          d.setMonth(d.getMonth() + parseInt(prev.promoDurationMonths || 3));
+                          nextPromoEndDate = d.toISOString().split('T')[0];
+                        }
+                        if (nextIsPromo && !nextRegularPlanId) {
+                          nextRegularPlanId = prev.originalPlanId || prev.planId;
+                        }
+
+                        return {
+                          ...prev,
+                          planId: newPlanId,
+                          isPromo: nextIsPromo,
+                          regularPlanId: nextRegularPlanId,
+                          promoEndDate: nextPromoEndDate
+                        };
+                      });
+                    }} 
+                    className="w-full px-4 py-3 border border-slate-300 font-medium rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-blue-50 text-blue-900"
+                  >
                     <option value="">-- Sin Plan Seleccionado --</option>
                     {plans.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.megas} MB) - ${p.price}</option>
+                      <option key={p.id} value={p.id}>{p.name} ({p.megas} MB) - ${(p.priceV1 || p.totalPrice || p.basePrice || p.price || 0).toLocaleString('es-AR')}</option>
                     ))}
                   </select>
+
+                  {/* Panel de Promoción Temporal / Retención */}
+                  {editingId && (
+                    <div className="mt-3 bg-purple-50/80 border border-purple-200 rounded-xl p-3.5 transition-all">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer font-bold text-purple-900 text-xs">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.isPromo} 
+                            onChange={(e) => {
+                              const isChecked = e.target.checked;
+                              if (isChecked) {
+                                const d = new Date();
+                                d.setMonth(d.getMonth() + parseInt(formData.promoDurationMonths || 3));
+                                setFormData(prev => ({
+                                  ...prev,
+                                  isPromo: true,
+                                  regularPlanId: prev.regularPlanId || prev.originalPlanId || prev.planId,
+                                  promoEndDate: d.toISOString().split('T')[0]
+                                }));
+                              } else {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  isPromo: false,
+                                  regularPlanId: null,
+                                  promoEndDate: ''
+                                }));
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 rounded border-purple-300 focus:ring-purple-500 cursor-pointer"
+                          />
+                          🎁 ¿Es una Promoción Temporal / Retención?
+                        </label>
+                        {formData.isPromo && (
+                          <span className="text-[10px] bg-purple-200 text-purple-800 font-bold px-2 py-0.5 rounded-full">
+                            Retorno Automático Activado
+                          </span>
+                        )}
+                      </div>
+
+                      {formData.isPromo && (
+                        <div className="mt-3 pt-3 border-t border-purple-200/60 space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-purple-900 mb-1">Duración de la Promoción</label>
+                              <div className="grid grid-cols-4 gap-1">
+                                {['1', '2', '3', '6'].map(m => (
+                                  <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => {
+                                      const d = new Date();
+                                      d.setMonth(d.getMonth() + parseInt(m));
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        promoDurationMonths: m,
+                                        promoEndDate: d.toISOString().split('T')[0]
+                                      }));
+                                    }}
+                                    className={`py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                      formData.promoDurationMonths === m 
+                                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm' 
+                                        : 'bg-white text-purple-700 border-purple-200 hover:bg-purple-100'
+                                    }`}
+                                  >
+                                    {m} {m === '1' ? 'Mes' : 'Meses'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-purple-900 mb-1">Fecha Límite (Fin de Promo)</label>
+                              <input 
+                                type="date" 
+                                value={formData.promoEndDate} 
+                                onChange={(e) => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    promoEndDate: e.target.value,
+                                    promoDurationMonths: 'custom'
+                                  }));
+                                }}
+                                className="w-full px-3 py-1.5 border border-purple-200 rounded-lg text-xs font-bold bg-white text-purple-900 focus:ring-2 focus:ring-purple-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="bg-white border border-purple-200 rounded-lg p-3 text-xs text-purple-900 space-y-1.5 shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Plan Promocional (Abonará durante la promo):</span>
+                              <span className="font-bold text-emerald-700">
+                                {plans.find(p => p.id === parseInt(formData.planId))?.name || 'Seleccionado'} - ${(plans.find(p => p.id === parseInt(formData.planId))?.priceV1 || plans.find(p => p.id === parseInt(formData.planId))?.totalPrice || plans.find(p => p.id === parseInt(formData.planId))?.basePrice || 0).toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Plan Base al que retornará automáticamente:</span>
+                              <span className="font-bold text-blue-700">
+                                {plans.find(p => p.id === (formData.regularPlanId ? parseInt(formData.regularPlanId) : formData.originalPlanId))?.name || 'Plan Original'} - ${(plans.find(p => p.id === (formData.regularPlanId ? parseInt(formData.regularPlanId) : formData.originalPlanId))?.priceV1 || plans.find(p => p.id === (formData.regularPlanId ? parseInt(formData.regularPlanId) : formData.originalPlanId))?.totalPrice || plans.find(p => p.id === (formData.regularPlanId ? parseInt(formData.regularPlanId) : formData.originalPlanId))?.basePrice || 0).toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-purple-700 font-medium pt-1.5 border-t border-purple-100 flex items-center gap-1.5">
+                              <span>🔄</span>
+                              <span>Al llegar al <span className="font-bold">{formData.promoEndDate ? new Date(formData.promoEndDate + 'T00:00:00').toLocaleDateString('es-AR') : 'vencimiento'}</span>, el sistema devolverá al cliente a su plan habitual de forma 100% autónoma.</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               

@@ -1381,7 +1381,19 @@ app.post('/api/clients', async (req, res) => {
       if (!exists) break;
     }
 
-    const dataPayload = { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, uniqueVariation: variation, isVip: isVip || false };
+    let parsedPromoEndDate = null;
+    if (req.body.promoEndDate) {
+      parsedPromoEndDate = new Date(req.body.promoEndDate);
+    }
+
+    const dataPayload = { 
+      dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, 
+      mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, 
+      regularPlanId: req.body.regularPlanId ? parseInt(req.body.regularPlanId) : null,
+      promoEndDate: parsedPromoEndDate,
+      cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, 
+      uniqueVariation: variation, isVip: isVip || false 
+    };
     if (reusableId !== null) {
       dataPayload.id = reusableId;
     }
@@ -1471,16 +1483,42 @@ app.delete('/api/clients/:id', async (req, res) => {
 
 app.put('/api/clients/:id', async (req, res) => {
   try {
-    const { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate, isVip } = req.body;
+    const { 
+      dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, 
+      city, province, zipCode, mainNode, nodeRefId, panelRefId, panelId, ipNumber, 
+      planId, regularPlanId, promoEndDate, cuit, taxCondition, status, hasRouter, hasMast, 
+      registrationDate, isVip 
+    } = req.body;
 
     let parsedRegistrationDate = null;
     if (registrationDate) {
       parsedRegistrationDate = new Date(registrationDate);
     }
 
+    let parsedPromoEndDate = null;
+    if (promoEndDate) {
+      parsedPromoEndDate = new Date(promoEndDate);
+    }
+
+    const updateData = { 
+      dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, 
+      city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, 
+      panelId, ipNumber, planId: planId !== undefined ? (planId ? parseInt(planId) : null) : undefined, 
+      cuit, taxCondition, status, hasRouter, hasMast, 
+      registrationDate: parsedRegistrationDate, 
+      isVip: isVip || false 
+    };
+
+    if (regularPlanId !== undefined) {
+      updateData.regularPlanId = regularPlanId ? parseInt(regularPlanId) : null;
+    }
+    if (promoEndDate !== undefined) {
+      updateData.promoEndDate = parsedPromoEndDate;
+    }
+
     const client = await prisma.client.update({
       where: { id: parseInt(req.params.id) },
-      data: { dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, cuit, taxCondition, status, hasRouter, hasMast, registrationDate: parsedRegistrationDate, isVip: isVip || false },
+      data: updateData,
     });
     res.json(client);
   } catch (error) {
@@ -1488,6 +1526,37 @@ app.put('/api/clients/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al editar cliente' });
   }
 });
+
+// Función periódica que verifica si expiraron promociones temporales y restaura el plan regular
+async function checkExpiredPromoPlans() {
+  try {
+    const now = new Date();
+    const expiredClients = await prisma.client.findMany({
+      where: {
+        promoEndDate: { lte: now },
+        regularPlanId: { not: null }
+      }
+    });
+
+    for (const c of expiredClients) {
+      console.log(`🏷️ [Retenciones] Promoción vencida para ${c.name}. Restaurando plan original ID ${c.regularPlanId}.`);
+      await prisma.client.update({
+        where: { id: c.id },
+        data: {
+          planId: c.regularPlanId,
+          regularPlanId: null,
+          promoEndDate: null
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error en checkExpiredPromoPlans:', err);
+  }
+}
+
+// Ejecutar verificación de promociones vencidas cada 1 hora
+setInterval(checkExpiredPromoPlans, 60 * 60 * 1000);
+setTimeout(checkExpiredPromoPlans, 20000);
 
 app.put('/api/clients/:id/status', async (req, res) => {
   try {
