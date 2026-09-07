@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   UserMinus, RotateCcw, Trash2, Search, AlertCircle, 
-  Wifi, WifiOff, Calendar, Clock, CheckCircle, X, CheckSquare, Square
+  Wifi, WifiOff, Calendar, Clock, X, CheckSquare, Square
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://interfast-backend-95ww.onrender.com/api';
@@ -128,7 +128,6 @@ export default function RetirosList() {
     const cr = client.cancellationRequests?.[0];
     if (cr?.scheduledRemovalAt) {
       const d = new Date(cr.scheduledRemovalAt);
-      // Formato para input datetime-local: YYYY-MM-DDTHH:mm
       const pad = (n) => String(n).padStart(2, '0');
       const formatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       setScheduleDate(formatted);
@@ -182,64 +181,65 @@ export default function RetirosList() {
     c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.dni?.includes(searchTerm) ||
     c.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(c.id).includes(searchTerm)
+    String(c.id).includes(searchTerm) ||
+    `TK${String(c.id).padStart(3, '0')}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) return <div className="p-8 text-center text-slate-500 font-medium">Cargando lista de bajas...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (loading) return <div className="p-8 text-center text-slate-500 font-medium text-xs">Cargando lista de bajas...</div>;
+  if (error) return <div className="p-8 text-center text-red-500 text-xs">{error}</div>;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
       {/* Header */}
-      <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 md:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <UserMinus className="text-orange-500" />
+          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <UserMinus className="text-orange-500" size={20} />
             Bajas / Retiros de Antena
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-[11px] text-slate-500 mt-0.5">
             Base de datos de clientes inactivos y gestión de visitas para retiro de equipamiento.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-            {filteredBajas.length} clientes inactivos
+        <div className="flex items-center gap-2.5">
+          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap">
+            {filteredBajas.length} clientes
           </span>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input
               type="text"
-              placeholder="Buscar por nombre, DNI, N°..."
+              placeholder="Buscar nombre, DNI, TK..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-1.5 border border-slate-200 bg-slate-50 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 w-full md:w-60 transition-all"
+              className="pl-8 pr-3 py-1 border border-slate-200 bg-slate-50 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 w-full md:w-52 transition-all"
             />
           </div>
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
+      {/* Tabla Adaptada al Ancho Completo sin Scroll */}
+      <div className="w-full overflow-x-auto">
+        <table className="w-full text-left border-collapse table-auto">
           <thead>
-            <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
-              <th className="py-3 px-4 w-24">N° / TK</th>
-              <th className="py-3 px-4">Cliente</th>
-              <th className="py-3 px-4 hidden md:table-cell">Dirección</th>
-              <th className="py-3 px-4">IP</th>
-              <th className="py-3 px-4">Servicio Hasta</th>
-              <th className="py-3 px-4 text-center">Internet</th>
-              <th className="py-3 px-4 text-center">Retiro Antena</th>
-              <th className="py-3 px-4 text-center">Agendar Retiro</th>
-              <th className="py-3 px-4 text-right">Acciones</th>
+            <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold text-[10px]">
+              <th className="py-2.5 px-3 whitespace-nowrap">N° TK</th>
+              <th className="py-2.5 px-3">Cliente</th>
+              <th className="py-2.5 px-3 hidden lg:table-cell">Dirección</th>
+              <th className="py-2.5 px-3">IP / Nodo</th>
+              <th className="py-2.5 px-3 whitespace-nowrap">Servicio Hasta</th>
+              <th className="py-2.5 px-2 text-center whitespace-nowrap">Internet</th>
+              <th className="py-2.5 px-2 text-center whitespace-nowrap">Retiro Antena</th>
+              <th className="py-2.5 px-2 text-center whitespace-nowrap">Agendar Visita</th>
+              <th className="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 text-xs">
             {filteredBajas.length === 0 ? (
               <tr>
                 <td colSpan="9" className="p-8 text-center text-slate-400">
-                  <AlertCircle className="mx-auto text-slate-300 mb-2" size={28} />
+                  <AlertCircle className="mx-auto text-slate-300 mb-2" size={24} />
                   No hay clientes en la lista de bajas.
                 </td>
               </tr>
@@ -251,104 +251,96 @@ export default function RetirosList() {
                 const isCut = serviceStatus[client.id] === true;
                 const isAntennaRetrieved = Boolean(cr?.antennaRetrieved);
                 const scheduledDate = cr?.scheduledRemovalAt ? new Date(cr.scheduledRemovalAt) : null;
+                const tkCode = `TK${String(client.id).padStart(3, '0')}`;
 
                 return (
-                  <tr key={client.id} className="transition-colors hover:bg-slate-50/80">
-                    {/* N° + Tickets */}
-                    <td className="py-3 px-4">
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex items-center text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full w-fit">
-                          #{client.id}
-                        </span>
-                        {client.tickets?.slice(0, 2).map(tk => (
-                          <span key={tk.id} className="inline-flex items-center text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full w-fit">
-                            TK{tk.id}
-                          </span>
-                        ))}
-                      </div>
+                  <tr key={client.id} className="transition-colors hover:bg-slate-50/70">
+                    {/* Código TK único */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
+                        {tkCode}
+                      </span>
                     </td>
 
                     {/* Cliente */}
-                    <td className="py-3 px-4">
-                      <div className="text-sm font-semibold text-slate-800 leading-tight">{client.name}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">DNI: {client.dni} {client.phone ? `| ${client.phone}` : ''}</div>
+                    <td className="py-2.5 px-3">
+                      <div className="text-xs font-semibold text-slate-800 leading-tight">{client.name}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">DNI: {client.dni} {client.phone ? `| ${client.phone}` : ''}</div>
                     </td>
 
                     {/* Dirección */}
-                    <td className="py-3 px-4 hidden md:table-cell text-slate-600 max-w-xs truncate">
-                      <div className="text-xs">{client.address || '-'}</div>
-                      <div className="text-[11px] text-slate-400">{client.city || ''}</div>
+                    <td className="py-2.5 px-3 hidden lg:table-cell text-slate-600 max-w-[140px] truncate">
+                      <div className="text-[11px] truncate" title={`${client.address || ''} - ${client.city || ''}`}>{client.address || '-'}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{client.city || ''}</div>
                     </td>
 
-                    {/* IP */}
-                    <td className="py-3 px-4">
-                      <div className="font-mono text-xs font-medium text-slate-700">{client.ipNumber || '-'}</div>
-                      <div className="text-[10px] text-slate-400">{client.mainNode || ''}</div>
+                    {/* IP / Nodo */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <div className="font-mono text-[11px] font-medium text-slate-700">{client.ipNumber || '-'}</div>
+                      <div className="text-[9px] text-slate-400 truncate max-w-[90px]">{client.mainNode || ''}</div>
                     </td>
 
                     {/* Servicio Hasta */}
-                    <td className="py-3 px-4">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {editingDate === client.id ? (
                         <div className="flex items-center gap-1">
                           <input
                             type="date"
                             value={dateInput}
                             onChange={e => setDateInput(e.target.value)}
-                            className="text-xs border border-slate-300 rounded px-1.5 py-1 w-28 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            className="text-[11px] border border-slate-300 rounded px-1.5 py-0.5 w-26 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
                           />
-                          <button onClick={() => handleSaveServiceDate(client.id)} className="p-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded font-bold">✓</button>
-                          <button onClick={() => { setEditingDate(null); setDateInput(''); }} className="p-1 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded font-bold">✕</button>
+                          <button onClick={() => handleSaveServiceDate(client.id)} className="p-0.5 px-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded text-[10px] font-bold">✓</button>
+                          <button onClick={() => { setEditingDate(null); setDateInput(''); }} className="p-0.5 px-1 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded text-[10px] font-bold">✕</button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           {keepUntil ? (
-                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${serviceActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${serviceActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                               {keepUntil.toLocaleDateString('es-AR')}
                             </span>
                           ) : (
-                            <span className="text-slate-400 text-xs italic">Sin fecha</span>
+                            <span className="text-slate-400 text-[10px] italic">Sin fecha</span>
                           )}
                           <button
                             onClick={() => { setEditingDate(client.id); setDateInput(keepUntil ? keepUntil.toISOString().split('T')[0] : ''); }}
                             className="p-1 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
                             title="Editar fecha de corte programado"
                           >
-                            <Calendar size={13} />
+                            <Calendar size={12} />
                           </button>
                         </div>
                       )}
                     </td>
 
-                    {/* Estado Internet & Acciones Dar/Cortar */}
-                    <td className="py-3 px-4 text-center">
-                      <div className="inline-flex items-center gap-2">
-                        {/* Indicador WiFi único */}
+                    {/* Internet (WiFi + Botones) */}
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
                         <div 
                           title={isCut ? "Servicio Cortado en Mikrotik" : "Servicio Activo en Mikrotik"}
-                          className={`p-1.5 rounded-lg border flex items-center justify-center ${
+                          className={`p-1 rounded border flex items-center justify-center ${
                             isCut 
                               ? 'bg-red-50 text-red-600 border-red-200' 
                               : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                           }`}
                         >
-                          {isCut ? <WifiOff size={15} /> : <Wifi size={15} />}
+                          {isCut ? <WifiOff size={13} /> : <Wifi size={13} />}
                         </div>
 
-                        {/* Botones de acción rápida */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           <button
                             onClick={() => handleEnableService(client.id)}
                             disabled={actionLoading === client.id}
-                            title="Dar servicio en Mikrotik"
-                            className="px-2 py-1 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                            title="Dar servicio"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
                           >
                             Dar
                           </button>
                           <button
                             onClick={() => handleDisableService(client.id)}
                             disabled={actionLoading === client.id}
-                            title="Cortar servicio en Mikrotik"
-                            className="px-2 py-1 rounded text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            title="Cortar servicio"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
                           >
                             Cortar
                           </button>
@@ -356,43 +348,43 @@ export default function RetirosList() {
                       </div>
                     </td>
 
-                    {/* Retiro de Antena (Checkbox) */}
-                    <td className="py-3 px-4 text-center">
+                    {/* Retiro de Antena */}
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
                       <button
                         onClick={() => handleToggleAntenna(client.id, isAntennaRetrieved)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all ${
                           isAntennaRetrieved 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
-                        title="Hacer clic para marcar o desmarcar retiro de antena"
+                        title="Alternar estado de retiro"
                       >
                         {isAntennaRetrieved ? (
                           <>
-                            <CheckSquare size={13} className="text-emerald-600" />
+                            <CheckSquare size={11} className="text-emerald-600" />
                             <span>Retirada</span>
                           </>
                         ) : (
                           <>
-                            <Square size={13} className="text-slate-400" />
+                            <Square size={11} className="text-slate-400" />
                             <span>Pendiente</span>
                           </>
                         )}
                       </button>
                     </td>
 
-                    {/* Agendar Retiro (Horario Técnico) */}
-                    <td className="py-3 px-4 text-center">
+                    {/* Agendar Retiro */}
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
                       <button
                         onClick={() => handleOpenScheduleModal(client)}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
                           scheduledDate 
                             ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' 
                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                         }`}
-                        title="Agendar visita de técnico para retiro"
+                        title="Agendar visita técnica"
                       >
-                        <Clock size={13} className={scheduledDate ? 'text-blue-600' : 'text-slate-400'} />
+                        <Clock size={11} className={scheduledDate ? 'text-blue-600' : 'text-slate-400'} />
                         {scheduledDate ? (
                           <span>
                             {scheduledDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}{' '}
@@ -405,23 +397,23 @@ export default function RetirosList() {
                     </td>
 
                     {/* Acciones */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex justify-end gap-1.5">
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-1">
                         {canManageClients && (
                           <>
                             <button 
                               onClick={() => handleRestore(client.id)} 
                               title="Restablecer cliente a ACTIVO" 
-                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-200 transition-colors"
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded border border-transparent hover:border-emerald-200 transition-colors"
                             >
-                              <RotateCcw size={16} />
+                              <RotateCcw size={14} />
                             </button>
                             <button 
                               onClick={() => handleDelete(client.id)} 
-                              title="Eliminar cliente definitivamente" 
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-200 transition-colors"
+                              title="Eliminar definitivamente" 
+                              className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </button>
                           </>
                         )}
@@ -437,26 +429,26 @@ export default function RetirosList() {
 
       {/* Modal para Agendar Retiro con Fecha, Horario y Notas */}
       {scheduleModalClient && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                <Clock className="text-blue-600" size={18} />
-                Agendar Retiro de Antena
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <Clock className="text-blue-600" size={16} />
+                Agendar Retiro de Antena (TK{String(scheduleModalClient.id).padStart(3, '0')})
               </h3>
               <button 
                 onClick={() => setScheduleModalClient(null)} 
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="mt-4 space-y-4">
+            <div className="mt-3.5 space-y-3">
               <div>
-                <span className="text-xs text-slate-500">Cliente:</span>
-                <p className="text-sm font-semibold text-slate-800">{scheduleModalClient.name}</p>
-                <p className="text-xs text-slate-500">{scheduleModalClient.address}, {scheduleModalClient.city}</p>
+                <span className="text-[11px] text-slate-500">Cliente:</span>
+                <p className="text-xs font-semibold text-slate-800">{scheduleModalClient.name}</p>
+                <p className="text-[11px] text-slate-500">{scheduleModalClient.address}, {scheduleModalClient.city}</p>
               </div>
 
               <div>
@@ -467,7 +459,7 @@ export default function RetirosList() {
                   type="datetime-local"
                   value={scheduleDate}
                   onChange={(e) => setScheduleDate(e.target.value)}
-                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -476,20 +468,20 @@ export default function RetirosList() {
                   Observaciones / Franja horaria para el Técnico
                 </label>
                 <textarea
-                  rows={3}
-                  placeholder="Ej: Pasar de 15:00 a 18:00hs. Atiende su hijo en el domicilio."
+                  rows={2}
+                  placeholder="Ej: Pasar de 15:00 a 18:00hs. Atiende en el domicilio."
                   value={scheduleNotes}
                   onChange={(e) => setScheduleNotes(e.target.value)}
-                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setScheduleModalClient(null)}
-                className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 Cancelar
               </button>
@@ -497,7 +489,7 @@ export default function RetirosList() {
                 type="button"
                 disabled={savingSchedule}
                 onClick={handleSaveSchedule}
-                className="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
                 {savingSchedule ? 'Guardando...' : 'Guardar Agenda'}
               </button>
