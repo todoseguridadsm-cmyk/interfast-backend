@@ -138,23 +138,37 @@ function AppContent() {
         </div>
         
         {/* User Session Badge */}
-        <div className="px-4 py-3 mx-3 my-2 rounded-xl bg-slate-900/60 border border-slate-800/80 relative z-10 backdrop-blur-sm">
-          <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <div className="w-7 h-7 rounded-full bg-slate-800 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-xs font-bold uppercase">
-                {user.username ? user.username.charAt(0) : 'U'}
+        {(() => {
+          const u = (user.username || '').toLowerCase();
+          let avatarSrc = null;
+          if (u.includes('victor')) avatarSrc = '/avatars/victor.jpg';
+          else if (u.includes('humberto')) avatarSrc = '/avatars/humberto.jpg';
+          else if (u.includes('matias') || u.includes('tkip') || u.includes('admin')) avatarSrc = '/avatars/matias.jpg';
+
+          return (
+            <div className="px-4 py-3 mx-3 my-2 rounded-xl bg-slate-900/60 border border-slate-800/80 relative z-10 backdrop-blur-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-xl bg-slate-800 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-xs font-bold uppercase overflow-hidden shadow-[0_0_8px_rgba(6,182,212,0.3)]">
+                    {avatarSrc ? (
+                      <img src={avatarSrc} alt={user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{user.username ? user.username.charAt(0) : 'U'}</span>
+                    )}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-900 shadow-[0_0_6px_#10b981]"></span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-slate-400 font-medium leading-none">Sesión Activa</div>
+                  <div className="text-xs font-bold text-slate-100 truncate capitalize mt-0.5">{user.username}</div>
+                </div>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 uppercase font-semibold">
+                  {user.role}
+                </span>
               </div>
-              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 border border-slate-900 shadow-[0_0_6px_#10b981]"></span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] text-slate-400 font-medium leading-none">Sesión Activa</div>
-              <div className="text-xs font-bold text-slate-100 truncate capitalize mt-0.5">{user.username}</div>
-            </div>
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 uppercase font-semibold">
-              {user.role}
-            </span>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Nav Links List with completely hidden scrollbar */}
         <nav className="flex-1 px-3 space-y-1 mt-1 overflow-y-auto no-scrollbar pb-6 relative z-10">
