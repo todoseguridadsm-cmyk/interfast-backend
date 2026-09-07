@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   UserMinus, RotateCcw, Trash2, Search, AlertCircle, 
-  Wifi, WifiOff, Calendar, Clock, X, CheckSquare, Square
+  Wifi, WifiOff, Calendar, Clock, X, CheckSquare, Square, PlusCircle
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://interfast-backend-95ww.onrender.com/api';
@@ -22,6 +22,19 @@ export default function RetirosList() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleNotes, setScheduleNotes] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Estado para el modal de nuevo cliente para retiro manual
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientDni, setNewClientDni] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [newClientCity, setNewClientCity] = useState('San Martín');
+  const [newClientNode, setNewClientNode] = useState('');
+  const [newClientIp, setNewClientIp] = useState('');
+  const [newClientObservation, setNewClientObservation] = useState('');
+  const [newClientScheduleDate, setNewClientScheduleDate] = useState('');
+  const [savingNewClient, setSavingNewClient] = useState(false);
 
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : { role: 'STAFF' };
@@ -92,7 +105,6 @@ export default function RetirosList() {
       await axios.patch(`${API_URL}/clients/${clientId}/baja-details`, {
         antennaRetrieved: newVal
       });
-      // Actualizar estado local
       setBajas(prev => prev.map(c => {
         if (c.id === clientId) {
           const reqs = c.cancellationRequests || [];
@@ -155,6 +167,46 @@ export default function RetirosList() {
     }
   };
 
+  const handleCreateManualBaja = async (e) => {
+    e.preventDefault();
+    if (!newClientName.trim()) {
+      alert('Por favor ingresa el nombre del cliente');
+      return;
+    }
+    try {
+      setSavingNewClient(true);
+      const res = await axios.post(`${API_URL}/clients/bajas/manual`, {
+        name: newClientName,
+        dni: newClientDni,
+        phone: newClientPhone,
+        address: newClientAddress,
+        city: newClientCity,
+        mainNode: newClientNode,
+        ipNumber: newClientIp,
+        observation: newClientObservation,
+        scheduledRemovalAt: newClientScheduleDate || null,
+        scheduledRemovalNotes: newClientObservation || null
+      });
+      alert(`✅ Retiro registrado correctamente (${res.data.client?.name})`);
+      setShowAddModal(false);
+      // Reset form
+      setNewClientName('');
+      setNewClientDni('');
+      setNewClientPhone('');
+      setNewClientAddress('');
+      setNewClientNode('');
+      setNewClientIp('');
+      setNewClientObservation('');
+      setNewClientScheduleDate('');
+      fetchBajas();
+    } catch (err) {
+      console.error(err);
+      alert('❌ Error al agregar cliente para retiro: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSavingNewClient(false);
+    }
+  };
+
   const handleRestore = async (id) => {
     if (!window.confirm('¿Dar de alta nuevamente a este cliente? Volverá a la sección principal como ACTIVO.')) return;
     try {
@@ -202,10 +254,22 @@ export default function RetirosList() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {canManageClients && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-600 hover:bg-orange-700 text-white transition-colors shadow-2xs whitespace-nowrap cursor-pointer"
+              title="Cargar un cliente que no está en la base pero requiere retiro de antena"
+            >
+              <PlusCircle size={15} />
+              <span>+ Cargar Retiro de Antena</span>
+            </button>
+          )}
+
           <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap">
             {filteredBajas.length} clientes
           </span>
+
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input
@@ -213,7 +277,7 @@ export default function RetirosList() {
               placeholder="Buscar nombre, DNI, TK..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1 border border-slate-200 bg-slate-50 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 w-full md:w-52 transition-all"
+              className="pl-8 pr-3 py-1 border border-slate-200 bg-slate-50 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 w-full md:w-48 transition-all"
             />
           </div>
         </div>
@@ -332,7 +396,7 @@ export default function RetirosList() {
                             onClick={() => handleEnableService(client.id)}
                             disabled={actionLoading === client.id}
                             title="Dar servicio"
-                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             Dar
                           </button>
@@ -340,7 +404,7 @@ export default function RetirosList() {
                             onClick={() => handleDisableService(client.id)}
                             disabled={actionLoading === client.id}
                             title="Cortar servicio"
-                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             Cortar
                           </button>
@@ -352,7 +416,7 @@ export default function RetirosList() {
                     <td className="py-2.5 px-2 text-center whitespace-nowrap">
                       <button
                         onClick={() => handleToggleAntenna(client.id, isAntennaRetrieved)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all cursor-pointer ${
                           isAntennaRetrieved 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -377,7 +441,7 @@ export default function RetirosList() {
                     <td className="py-2.5 px-2 text-center whitespace-nowrap">
                       <button
                         onClick={() => handleOpenScheduleModal(client)}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${
                           scheduledDate 
                             ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' 
                             : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
@@ -404,14 +468,14 @@ export default function RetirosList() {
                             <button 
                               onClick={() => handleRestore(client.id)} 
                               title="Restablecer cliente a ACTIVO" 
-                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded border border-transparent hover:border-emerald-200 transition-colors"
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded border border-transparent hover:border-emerald-200 transition-colors cursor-pointer"
                             >
                               <RotateCcw size={14} />
                             </button>
                             <button 
                               onClick={() => handleDelete(client.id)} 
                               title="Eliminar definitivamente" 
-                              className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors"
+                              className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors cursor-pointer"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -438,7 +502,7 @@ export default function RetirosList() {
               </h3>
               <button 
                 onClick={() => setScheduleModalClient(null)} 
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -481,7 +545,7 @@ export default function RetirosList() {
               <button
                 type="button"
                 onClick={() => setScheduleModalClient(null)}
-                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -489,11 +553,173 @@ export default function RetirosList() {
                 type="button"
                 disabled={savingSchedule}
                 onClick={handleSaveSchedule}
-                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 cursor-pointer"
               >
                 {savingSchedule ? 'Guardando...' : 'Guardar Agenda'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Cargar Cliente Directamente a Retiro de Antena */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <PlusCircle className="text-orange-600" size={18} />
+                Cargar Retiro de Antena (Cliente no registrado / Histórico)
+              </h3>
+              <button 
+                onClick={() => setShowAddModal(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateManualBaja} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Nombre y Apellido *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: Pepa María Laura"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    DNI (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 30551482"
+                    value={newClientDni}
+                    onChange={(e) => setNewClientDni(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Teléfono / Celular
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 2634513527"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Dirección (Domicilio de Retiro)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: B° Trebol M D / C 22"
+                    value={newClientAddress}
+                    onChange={(e) => setNewClientAddress(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Localidad
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: San Martín"
+                    value={newClientCity}
+                    onChange={(e) => setNewClientCity(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Nodo / Zona (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Borde / Vialidad"
+                    value={newClientNode}
+                    onChange={(e) => setNewClientNode(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    IP Asignada (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 192.168.20.96"
+                    value={newClientIp}
+                    onChange={(e) => setNewClientIp(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Fecha y Hora de Visita Técnica (Opcional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={newClientScheduleDate}
+                  onChange={(e) => setNewClientScheduleDate(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Notas / Observaciones del Retiro
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej: Antena en mástil de 6 metros. El cliente avisa que está por la tarde."
+                  value={newClientObservation}
+                  onChange={(e) => setNewClientObservation(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                />
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingNewClient}
+                  className="px-4 py-2 text-xs font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {savingNewClient ? 'Guardando...' : 'Guardar y Registrar Retiro'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

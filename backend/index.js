@@ -1244,6 +1244,61 @@ app.patch('/api/clients/:id/baja-details', async (req, res) => {
   }
 });
 
+// Endpoint para cargar manualmente clientes directamente en BAJAS / RETIROS (ej: clientes históricos sin ficha pero con antena para retirar)
+app.post('/api/clients/bajas/manual', async (req, res) => {
+  try {
+    const { name, dni, phone, address, city, mainNode, ipNumber, observation, scheduledRemovalAt, scheduledRemovalNotes } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre del cliente es obligatorio' });
+
+    // Buscar si hay huecos en la secuencia de ID
+    const activeClients = await prisma.client.findMany({ select: { id: true }, orderBy: { id: 'asc' } });
+    let reusableId = null;
+    let expected = 1;
+    for (const c of activeClients) {
+      if (c.id !== expected) {
+        reusableId = expected;
+        break;
+      }
+      expected++;
+    }
+
+    const clientData = {
+      name: name.trim(),
+      dni: dni ? dni.trim() : `BAJA-${Date.now().toString().slice(-4)}`,
+      phone: phone ? phone.trim() : null,
+      address: address ? address.trim() : null,
+      city: city ? city.trim() : 'San Martín',
+      mainNode: mainNode || null,
+      ipNumber: ipNumber ? ipNumber.trim() : null,
+      observation: observation || 'Ingresado manualmente para retiro de antena',
+      status: 'BAJA'
+    };
+
+    if (reusableId) {
+      clientData.id = reusableId;
+    }
+
+    const newClient = await prisma.client.create({ data: clientData });
+
+    // Crear CancellationRequest asociado
+    const cr = await prisma.cancellationRequest.create({
+      data: {
+        clientId: newClient.id,
+        reason: observation || 'Retiro de antena pendiente',
+        status: 'CONFIRMED',
+        antennaRetrieved: false,
+        scheduledRemovalAt: scheduledRemovalAt ? new Date(scheduledRemovalAt) : null,
+        scheduledRemovalNotes: scheduledRemovalNotes || null
+      }
+    });
+
+    res.json({ success: true, client: newClient, cancellationRequest: cr });
+  } catch (error) {
+    console.error('Error al agregar baja manual:', error);
+    res.status(500).json({ error: 'Error al crear cliente en bajas: ' + error.message });
+  }
+});
+
 // Función periódica que verifica clientes en baja cuya fecha de servicio haya vencido
 async function checkScheduledBajasCutoffs() {
   try {
