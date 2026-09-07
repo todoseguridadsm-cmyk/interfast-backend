@@ -851,7 +851,7 @@ app.get('/api/cutoffs', async (req, res) => {
     }
 
     const cutoffs = await prisma.cutoffList.findMany({
-      where: { status: 'PENDING' },
+      where: { status: { in: ['PENDING', 'CUT'] } },
       include: {
         client: { include: { plan: true } }
       },
@@ -1106,37 +1106,27 @@ app.get('/api/clients/bajas', async (req, res) => {
   }
 });
 
-// Endpoint para consultar estado real de Mikrotik para los clientes en BAJA
+// Endpoint para consultar estado para los clientes en BAJA desde la BD local
 app.get('/api/clients/bajas/service-status', async (req, res) => {
   try {
     const bajas = await prisma.client.findMany({
-      where: { status: 'BAJA', ipNumber: { not: null } },
-      select: { id: true, ipNumber: true, mainNode: true }
+      where: { status: 'BAJA' },
+      select: { id: true }
     });
 
-    // Agrupar por nodo
-    const ipsByNode = {};
-    for (const b of bajas) {
-      if (!b.mainNode || !b.ipNumber) continue;
-      if (!ipsByNode[b.mainNode]) ipsByNode[b.mainNode] = [];
-      ipsByNode[b.mainNode].push({ id: b.id, ip: b.ipNumber });
-    }
-
-    const finalStatus = {}; // { clientId: true (cortado) | false (activo) }
-
-    for (const [nodeName, clients] of Object.entries(ipsByNode)) {
-      try {
-        const ips = clients.map(c => c.ip);
-        const mikrotikResult = await mikrotik.checkIpsInCutoffList(ips, nodeName);
-        for (const c of clients) {
-          const cleanIp = c.ip.split('/')[0].trim();
-          finalStatus[c.id] = mikrotikResult[cleanIp] || false;
-        }
-      } catch (err) {
-        console.error(`Error consultando Mikrotik nodo ${nodeName} para bajas:`, err.message);
-        // Fallback a desconocido (null) para este nodo
-        for (const c of clients) finalStatus[c.id] = null;
+    // Consultar CutoffList en la DB local en lugar de Mikrotik para acelerar
+    const cutoffs = await prisma.cutoffList.findMany({
+      where: {
+        clientId: { in: bajas.map(b => b.id) },
+        status: { in: ['PENDING', 'CUT'] }
       }
+    });
+
+    const cutoffClientIds = new Set(cutoffs.map(c => c.clientId));
+    const finalStatus = {}; // { clientId: true (cortado) | false (activo) }
+    
+    for (const b of bajas) {
+      finalStatus[b.id] = cutoffClientIds.has(b.id);
     }
 
     res.json(finalStatus);

@@ -66,12 +66,24 @@ export default function CutoffList() {
 
   const handleExecuteCutoffs = async () => {
     if (selectedCutoffs.length === 0) return;
-    if (!window.confirm(`¿Estás seguro de que deseas ejecutar el corte de servicio en el Mikrotik para los ${selectedCutoffs.length} clientes seleccionados?`)) {
+    
+    // Filtrar solo los que están PENDING para evitar recortes
+    const pendingIdsToCut = selectedCutoffs.filter(id => {
+      const c = cutoffs.find(cutoff => cutoff.id === id);
+      return c && c.status === 'PENDING';
+    });
+    
+    if (pendingIdsToCut.length === 0) {
+      alert('Solo puedes ejecutar cortes sobre clientes que estén en estado "Pendiente".');
+      return;
+    }
+
+    if (!window.confirm(`¿Estás seguro de que deseas ejecutar el corte de servicio en el Mikrotik para los ${pendingIdsToCut.length} clientes seleccionados?`)) {
       return;
     }
     try {
       setExecuting(true);
-      const res = await axios.post(`${backendUrl}/api/cutoffs/execute`, { ids: selectedCutoffs });
+      const res = await axios.post(`${backendUrl}/api/cutoffs/execute`, { ids: pendingIdsToCut });
       alert(res.data.message || 'Cortes ejecutados.');
       setSelectedCutoffs([]);
       fetchCutoffs();
@@ -175,7 +187,7 @@ export default function CutoffList() {
                   onChange={(e) => {
                     if (e.target.checked) {
                       const selectableIds = filteredCutoffs
-                        .filter(c => c.status === 'PENDING')
+                        .filter(c => c.status === 'PENDING' || c.status === 'CUT')
                         .map(c => c.id);
                       setSelectedCutoffs(selectableIds);
                     } else {
@@ -184,7 +196,7 @@ export default function CutoffList() {
                   }}
                   checked={
                     filteredCutoffs.length > 0 && 
-                    selectedCutoffs.length === filteredCutoffs.filter(c => c.status === 'PENDING').length &&
+                    selectedCutoffs.length === filteredCutoffs.filter(c => c.status === 'PENDING' || c.status === 'CUT').length &&
                     selectedCutoffs.length > 0
                   }
                 />
@@ -205,7 +217,7 @@ export default function CutoffList() {
             ) : (
               filteredCutoffs.map(cutoff => {
                 const isSuspended = cutoff.client?.status === 'SUSPENDED';
-                const isSelectable = cutoff.status === 'PENDING';
+                const isSelectable = cutoff.status === 'PENDING' || cutoff.status === 'CUT';
                 
                 return (
                 <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' && !isSuspended ? 'bg-orange-50/30' : (isSuspended ? 'bg-red-50/30' : 'bg-green-50/30')}`}>
