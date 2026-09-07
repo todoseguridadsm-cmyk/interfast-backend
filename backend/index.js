@@ -1148,7 +1148,7 @@ app.put('/api/clients/:id/enable-service', async (req, res) => {
 
     // Borrar de la lista de cortes para que no figure más como suspendido
     await prisma.cutoffList.deleteMany({
-      where: { clientId: id, status: 'PENDING' }
+      where: { clientId: id }
     });
 
     res.json({ success: true, message: `Servicio habilitado para ${client.name} (${client.ipNumber})` });
@@ -2912,11 +2912,14 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         include: { client: true }
       });
 
-      // Auto-habilitar en la BD
+      // Auto-habilitar en la BD y quitar de Cortes
       if (invoiceData && invoiceData.clientId) {
         await prisma.client.update({
           where: { id: invoiceData.clientId },
           data: { status: 'ACTIVE' }
+        });
+        await prisma.cutoffList.deleteMany({
+          where: { clientId: invoiceData.clientId }
         });
         // await ensureCurrentMonthInvoice(invoiceData.clientId); // Desactivado por solicitud del usuario
       }
@@ -3270,6 +3273,12 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
         const targetNode = invoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
         if (targetNode) await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, targetNode);
       } catch (e) { }
+      // Limpiar cola de cortes para este cliente
+      try {
+        await prisma.cutoffList.deleteMany({
+          where: { clientId: invoice.clientId }
+        });
+      } catch(e) {}
     }
 
     await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
@@ -3608,6 +3617,12 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
     } catch (err) {
       console.error(`Error removiendo IP del Mikrotik (Imputación):`, err.message);
     }
+    // Sincronizar Bajas/Cortes borrando el registro de corte
+    try {
+      await prisma.cutoffList.deleteMany({
+        where: { clientId: invoice.clientId }
+      });
+    } catch(err) {}
   }
 
   console.log(`✅ Imputación: Factura N°${invoiceId} cobrada exitosamente ($${transactionAmount}).`);
