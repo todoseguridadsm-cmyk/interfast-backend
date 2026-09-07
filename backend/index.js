@@ -3133,7 +3133,7 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
     let finalPrice = parseFloat(totalAmount);
     if (isNaN(finalPrice) || finalPrice <= 0) finalPrice = parseFloat(invoice.originalAmount);
 
-    const unitPrice = finalPrice * 1.10;
+    const unitPrice = finalPrice;
     if (isNaN(unitPrice) || unitPrice <= 0) throw new Error('Monto inválido para cobrar');
 
     if (!clientMP || !process.env.MP_ACCESS_TOKEN) {
@@ -3504,7 +3504,7 @@ app.post('/api/invoices/:id/mercadopago', async (req, res) => {
           id: `INV-${invoice.id}`,
           title: `Abono de Internet TK${String(invoice.clientId).padStart(3, '0')} - ${invoice.month}/${invoice.year}`,
           quantity: 1,
-          unit_price: Math.round(parseFloat(totalAmount) * 1.10 * 100) / 100
+          unit_price: Math.round(parseFloat(totalAmount) * 100) / 100
         }
       ],
       payer: {
@@ -3609,7 +3609,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
           id: `INV-MULTI-${clientId}`,
           title: `Abonos de Internet TK${String(clientId).padStart(3, '0')} (${invoices.length} facturas)`,
           quantity: 1,
-          unit_price: Math.round(parseFloat(combinedTotal) * 1.10 * 100) / 100
+          unit_price: Math.round(parseFloat(combinedTotal) * 100) / 100
         }
       ],
       payer: {
