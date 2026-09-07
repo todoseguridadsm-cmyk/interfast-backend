@@ -1196,8 +1196,102 @@ app.put('/api/clients/:id/disable-service', async (req, res) => {
   }
 });
 
+// Endpoint unificado para gestionar detalles de BAJA (fecha de servicio, antena retirada, agendamiento de visita)
+app.patch('/api/clients/:id/baja-details', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id);
+    const { keepServiceUntil, antennaRetrieved, scheduledRemovalAt, scheduledRemovalNotes } = req.body;
 
+    let cr = await prisma.cancellationRequest.findFirst({
+      where: { clientId },
+      orderBy: { requestedAt: 'desc' }
+    });
 
+    const updateData = {};
+    if (keepServiceUntil !== undefined) {
+      updateData.keepServiceUntil = keepServiceUntil ? new Date(keepServiceUntil) : null;
+    }
+    if (antennaRetrieved !== undefined) {
+      updateData.antennaRetrieved = Boolean(antennaRetrieved);
+    }
+    if (scheduledRemovalAt !== undefined) {
+      updateData.scheduledRemovalAt = scheduledRemovalAt ? new Date(scheduledRemovalAt) : null;
+    }
+    if (scheduledRemovalNotes !== undefined) {
+      updateData.scheduledRemovalNotes = scheduledRemovalNotes;
+    }
+
+    if (!cr) {
+      cr = await prisma.cancellationRequest.create({
+        data: {
+          clientId,
+          reason: 'Baja de cliente',
+          status: 'CONFIRMED',
+          ...updateData
+        }
+      });
+    } else {
+      cr = await prisma.cancellationRequest.update({
+        where: { id: cr.id },
+        data: updateData
+      });
+    }
+
+    res.json({ success: true, cancellationRequest: cr });
+  } catch (error) {
+    console.error('Error al actualizar detalles de baja:', error);
+    res.status(500).json({ error: 'Error al guardar detalles de la baja' });
+  }
+});
+
+// Función periódica que verifica clientes en baja cuya fecha de servicio haya vencido
+async function checkScheduledBajasCutoffs() {
+  try {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const expiredBajas = await prisma.cancellationRequest.findMany({
+      where: {
+        keepServiceUntil: { lte: today },
+        client: { status: 'BAJA' }
+      },
+      include: { client: { include: { invoices: true } } }
+    });
+
+    for (const baja of expiredBajas) {
+      const client = baja.client;
+      if (!client || !client.ipNumber || !client.mainNode) continue;
+
+      const existingCut = await prisma.cutoffList.findFirst({
+        where: { clientId: client.id }
+      });
+
+      if (!existingCut) {
+        try {
+          await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name} (ID: ${client.id}) - Corte Programado Baja`);
+        } catch (mErr) {
+          console.error(`Error cortando Mikrotik para baja vencida #${client.id}:`, mErr.message);
+        }
+
+        const lastInvoice = client.invoices && client.invoices.length > 0 ? client.invoices[client.invoices.length - 1] : null;
+        await prisma.cutoffList.create({
+          data: {
+            clientId: client.id,
+            invoiceId: lastInvoice ? lastInvoice.id : 0,
+            status: 'CUT'
+          }
+        });
+        console.log(`✂️ [BAJAS] Servicio cortado automáticamente para cliente #${client.id} ${client.name} (Fecha límite alcanzada)`);
+      }
+    }
+  } catch (err) {
+    console.error('Error en checkScheduledBajasCutoffs:', err);
+  }
+}
+
+// Ejecutar verificación de cortes programados de bajas cada 30 minutos
+setInterval(checkScheduledBajasCutoffs, 30 * 60 * 1000);
+setTimeout(checkScheduledBajasCutoffs, 10000); // Y a los 10 segundos de arrancar
 
 app.post('/api/clients', async (req, res) => {
   try {
