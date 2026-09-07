@@ -220,8 +220,8 @@ export default function CutoffList() {
                 const isSelectable = cutoff.status === 'PENDING' || cutoff.status === 'CUT';
                 
                 return (
-                <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' && !isSuspended ? 'bg-orange-50/30' : (isSuspended ? 'bg-red-50/30' : 'bg-green-50/30')}`}>
-                  <td className="px-6 py-4 text-center">
+                <tr key={cutoff.id} className={`hover:bg-slate-50 transition-colors ${cutoff.status === 'PENDING' && !isSuspended ? 'bg-orange-50/30' : (isSuspended || cutoff.status === 'CUT' ? 'bg-red-50/30' : 'bg-green-50/30')}`}>
+                  <td className="px-6 py-4">
                     {isSelectable && (
                       <input 
                         type="checkbox"
@@ -257,6 +257,10 @@ export default function CutoffList() {
                           <Scissors size={14} /> Pendiente de Corte
                         </span>
                       )
+                    ) : cutoff.status === 'CUT' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        <AlertCircle size={14} /> Servicio Cortado
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         <CheckCircle2 size={14} /> Resuelto
