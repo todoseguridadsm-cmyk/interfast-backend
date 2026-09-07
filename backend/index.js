@@ -1354,12 +1354,50 @@ app.put('/api/clients/:id/status', async (req, res) => {
       data: { status },
     });
 
-    // Si se pasa a SUSPENDED, mandamos al Mikrotik a Morosos. Si es ACTIVE, lo sacamos.
+    // Si se pasa a SUSPENDED o BAJA, mandamos al Mikrotik a Morosos y registramos en CutoffList. Si es ACTIVE, lo sacamos.
     if (client.ipNumber && client.mainNode) {
       if (status === 'SUSPENDED' || status === 'BAJA') {
-        try { await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name || 'Cliente'} (ID: ${client.id}) - Corte CRM`); } catch (e) { console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); }
+        try { 
+          await mikrotik.addIpToCutoffList(client.ipNumber, client.mainNode, 'Morosos', `${client.name || 'Cliente'} (ID: ${client.id}) - Corte CRM`); 
+        } catch (e) { 
+          console.error('Mikrotik suspend error', e.message || JSON.stringify(e)); 
+        }
+        
+        // Sincronizar con CutoffList
+        try {
+          const pendingCutoff = await prisma.cutoffList.findFirst({
+            where: { clientId: client.id, status: 'PENDING' }
+          });
+          if (!pendingCutoff) {
+            const clientInvoices = await prisma.invoice.findMany({ where: { clientId: client.id }, orderBy: { id: 'desc' }, take: 1 });
+            await prisma.cutoffList.create({
+              data: {
+                clientId: client.id,
+                invoiceId: clientInvoices.length > 0 ? clientInvoices[0].id : 0,
+                status: 'PENDING'
+              }
+            });
+          }
+        } catch (e) {
+          console.error('Error sincronizando CutoffList al suspender', e);
+        }
+
       } else if (status === 'ACTIVE') {
-        try { await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); } catch (e) { console.error('Mikrotik restore error', e.message || JSON.stringify(e)); }
+        try { 
+          await mikrotik.removeIpFromCutoffList(client.ipNumber, client.mainNode); 
+        } catch (e) { 
+          console.error('Mikrotik restore error', e.message || JSON.stringify(e)); 
+        }
+        
+        // Remover de CutoffList si vuelve a estar activo
+        try {
+          await prisma.cutoffList.deleteMany({
+            where: { clientId: client.id }
+          });
+        } catch (e) {
+          console.error('Error limpiando CutoffList al activar', e);
+        }
+
         await ensureCurrentMonthInvoice(client.id);
       }
     }
@@ -3212,6 +3250,7 @@ app.post('/api/bot/generar-factura-arca', async (req, res) => {
 app.get('/api/unidentified-payments', async (req, res) => {
   try {
     const payments = await prisma.unidentifiedPayment.findMany({
+      where: { payerName: { not: '[ELIMINADO]' } },
       orderBy: { date: 'desc' }
     });
     res.json(payments);
@@ -3254,7 +3293,10 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
 app.delete('/api/unidentified-payments/:id', async (req, res) => {
   try {
     const paymentId = parseInt(req.params.id);
-    await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
+    await prisma.unidentifiedPayment.update({ 
+      where: { id: paymentId },
+      data: { payerName: '[ELIMINADO]' }
+    });
     res.json({ message: 'Pago eliminado con éxito' });
   } catch (error) {
     console.error(error);
