@@ -2376,8 +2376,7 @@ app.post('/api/invoices/:id/afip', async (req, res) => {
   if (!afip) return res.status(400).json({ error: 'Módulo ARCA/AFIP no está configurado (faltan los archivos cert/key en tu carpeta afip_certs).' });
   const result = await emitAfipInvoiceHelper(req.params.id, afip);
   if (!result.success) return res.status(400).json({ error: result.error });
-  sendAutomaticPaidInvoiceNotification(req.params.id);
-  res.json({ message: result.alreadyEmitted ? 'La factura ya contaba con CAE en ARCA.' : 'Comprobante emitido en ARCA con éxito y enviado por WhatsApp.', cae: result.cae });
+  res.json({ message: result.alreadyEmitted ? 'La factura ya contaba con CAE en ARCA.' : 'Comprobante emitido en ARCA con éxito.', cae: result.cae });
 });
 
 app.post('/api/invoices/:id/send-receipt', async (req, res) => {
@@ -3081,9 +3080,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
         });
         // await ensureCurrentMonthInvoice(invoiceData.clientId); // Desactivado por solicitud del usuario
       }
-      // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
-      // Factura fiscal jamás debe dispararse sola al asentar un cobro por Webhook de Mercado Pago.
-      sendAutomaticPaidInvoiceNotification(invoiceId);
+      
       if (invoiceData && invoiceData.client && invoiceData.client.ipNumber) {
         try {
           const targetNode = invoiceData.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
@@ -3735,14 +3732,6 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
         dueDate4: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       }
     });
-
-    if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
-      const phoneClean = invoice.client.phone.replace(/\D/g, '');
-      const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-      const diffMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n⚠️ *Aviso de Diferencia:* Como tu pago fue registrado el día ${new Date().toLocaleDateString('es-AR')}, el total correspondiente a la fecha era de *$${expectedTotalForDate.toFixed(2)}* (${activeTierName}).\n\nPor este motivo, se ha generado automáticamente una factura pendiente por la diferencia de *$${difference.toFixed(2)}* en tu cuenta, la cual podrás abonar más adelante.\n\nTu servicio de Internet ya se encuentra activo. ¡Muchas gracias!`;
-
-      await waSocket.sendMessage(targetPhone, { text: diffMsg }).catch(console.error);
-    }
   }
   // Regla de $200 de diferencia para SALDO A FAVOR
   else if (difference < -200.0) {
@@ -3753,20 +3742,10 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
         where: { id: invoice.clientId },
         data: { walletBalance: { increment: excessCredit } }
       });
-
-      if (waSocket && waStatus === 'CONNECTED' && invoice.client?.phone) {
-        const phoneClean = invoice.client.phone.replace(/\D/g, '');
-        const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
-        const creditMsg = `Hola ${invoice.client.name}! 👋\n\nConfirmamos la acreditación de tu pago por un total de *$${transactionAmount.toFixed(2)}*.\n\n🎉 *Crédito a Favor:* Como el total correspondiente era de *$${expectedTotalForDate.toFixed(2)}*, registramos un saldo a favor en tu cuenta de *$${excessCredit.toFixed(2)}*, el cual se aplicará automáticamente como descuento en tu próxima factura mensual.\n\n¡Muchas gracias!`;
-
-        await waSocket.sendMessage(targetPhone, { text: creditMsg }).catch(console.error);
-      }
     }
   }
 
-  // [MODIFICACIÓN REGLAS 2 Y 14: Desacople Fiscal Total]
-  // Emisión AFIP/ARCA desactivada del flujo automático de cobro por caja.
-  sendAutomaticPaidInvoiceNotification(invoiceId);
+  // [MODIFICACIÓN: Envío automático desactivado. Solo a demanda del cliente o con botón manual del operador]
 
   if (invoice.client && invoice.client.ipNumber) {
     try {
