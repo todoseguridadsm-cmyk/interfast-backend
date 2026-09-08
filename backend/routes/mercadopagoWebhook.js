@@ -178,14 +178,14 @@ router.post('/mercadopago/upload-report', upload.single('file'), async (req, res
       return res.status(400).json({ error: 'No se encontraron comisiones o retenciones en el archivo.' });
     }
 
-    const operador = req.user?.username || 'OPERADOR_MANUAL';
+    const operador = 'MERCADOPAGO';
 
     const m = await prisma.cashMovement.create({
       data: {
         type: 'OUT',
         amount: Number(totalCostos.toFixed(2)),
         category: 'GASTOS_VARIOS',
-        description: `Costos MP - ${req.file.originalname}`,
+        description: `[CAJA: MERCADOPAGO] Costos MP - ${req.file.originalname}`,
         operator: operador,
         userId: parseInt(req.user?.id) || 1
       },

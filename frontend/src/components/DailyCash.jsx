@@ -31,6 +31,11 @@ export default function DailyCash() {
   const [mpFile, setMpFile] = useState(null);
   const [mpLoading, setMpLoading] = useState(false);
 
+  // Banco Roela Manual Upload Modal state
+  const [showRoelaModal, setShowRoelaModal] = useState(false);
+  const [roelaFile, setRoelaFile] = useState(null);
+  const [roelaLoading, setRoelaLoading] = useState(false);
+
   const handleMpUpload = async (e) => {
     e.preventDefault();
     if (!mpFile) return alert('Selecciona el extracto .xlsx de Mercado Pago');
@@ -51,6 +56,29 @@ export default function DailyCash() {
       alert('Error: ' + (err.response?.data?.error || err.message));
     }
     setMpLoading(false);
+  };
+
+  const handleRoelaUpload = async (e) => {
+    e.preventDefault();
+    if (!roelaFile) return alert('Selecciona el extracto .xls o .xlsx de Banco Roela');
+    
+    setRoelaLoading(true);
+    const formData = new FormData();
+    formData.append('file', roelaFile);
+
+    try {
+      const res = await axios.post(`${API}/api/bank/upload-roela-report`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const { breakdown, movement } = res.data;
+      alert(`¡Éxito Banco Roela!\nPeríodo: ${breakdown?.period || 'Extracto'}\nComisiones: $${breakdown?.comisiones}\nImpuestos: $${breakdown?.impuestos}\nTotal Neto registrado: $${movement?.amount}`);
+      setShowRoelaModal(false);
+      setRoelaFile(null);
+      fetchCash();
+    } catch (err) {
+      alert('Error: ' + (err.response?.data?.error || err.message));
+    }
+    setRoelaLoading(false);
   };
 
   // Obtener usuario logueado
@@ -300,13 +328,16 @@ export default function DailyCash() {
           </p>
         </div>
         <div className="flex gap-3 flex-wrap justify-end">
-          <button onClick={() => setShowMpModal(true)} className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-5 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2">
+          <button onClick={() => setShowMpModal(true)} className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 text-sm">
             📁 Subir Excel MP
           </button>
-          <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 transition-all active:scale-95 flex items-center gap-2">
+          <button onClick={() => setShowRoelaModal(true)} className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-3 rounded-xl font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 text-sm">
+            🏛️ Subir Excel BR
+          </button>
+          <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 transition-all active:scale-95 flex items-center gap-2 text-sm">
             <Download size={18} /> Exportar Excel
           </button>
-          <button onClick={() => setShowModal(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2">
+          <button onClick={() => setShowModal(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 text-sm">
             <PlusCircle size={18} /> Registrar Movimiento
           </button>
         </div>
@@ -638,7 +669,7 @@ export default function DailyCash() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
             <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">💙 Conciliación MP</h3>
-            <p className="text-xs font-semibold text-slate-500 mb-5">Sube el reporte mensual .xlsx</p>
+            <p className="text-xs font-semibold text-slate-500 mb-5">Sube el reporte mensual .xlsx de Mercado Pago</p>
             
             <form onSubmit={handleMpUpload}>
               <input 
@@ -650,6 +681,30 @@ export default function DailyCash() {
                 <button type="button" onClick={() => setShowMpModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold p-3 rounded-xl text-xs uppercase transition-all">Cancelar</button>
                 <button type="submit" disabled={mpLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded-xl shadow-lg text-xs uppercase transition-all disabled:opacity-50">
                   {mpLoading ? 'Cargando...' : 'Procesar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL UPLOAD BANCO ROELA ── */}
+      {showRoelaModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+            <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1">🏛️ Conciliación Banco Roela</h3>
+            <p className="text-xs font-semibold text-slate-500 mb-5">Sube el extracto mensual .xls / .xlsx de Banco Roela</p>
+            
+            <form onSubmit={handleRoelaUpload}>
+              <input 
+                type="file" accept=".xlsx, .xls" 
+                onChange={e => setRoelaFile(e.target.files[0])} 
+                className="mb-5 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" 
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowRoelaModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold p-3 rounded-xl text-xs uppercase transition-all">Cancelar</button>
+                <button type="submit" disabled={roelaLoading} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-xl shadow-lg text-xs uppercase transition-all disabled:opacity-50">
+                  {roelaLoading ? 'Cargando...' : 'Procesar'}
                 </button>
               </div>
             </form>
