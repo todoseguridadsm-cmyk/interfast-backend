@@ -62,10 +62,8 @@ router.post('/bank/upload-roela-report', upload.single('file'), async (req, res)
       return res.status(400).json({ error: 'No se encontraron las columnas de Descripción e Importe en el extracto.' });
     }
 
-    let comisiones = 0;
-    let impuestos = 0;
-    let totalNeto = 0;
-    let itemsCount = 0;
+    let totalComisionesImpuestos = 0;
+    const specificDebits = {};
 
     for (let i = headerRowIdx + 1; i < rows.length; i++) {
       const row = rows[i];
@@ -90,46 +88,80 @@ router.post('/bank/upload-roela-report', upload.single('file'), async (req, res)
       const isComision = dLower.includes('com.') || dLower.includes('comision') || dLower.includes('mantenimiento') || dLower.includes('siro');
 
       if (isImpuesto || isComision) {
-        // En extracto bancario: importe negativo es débito/costo; positivo es devolución/crédito
-        const costo = -importe;
-        totalNeto += costo;
-        if (isImpuesto) impuestos += costo;
-        if (isComision) comisiones += costo;
-        itemsCount++;
+        totalComisionesImpuestos += (-importe);
+      } else {
+        // Débitos directos, transferencias salientes o pagos de servicios
+        if (dLower.includes('debito directo') || dLower.includes('rechazos de debito') || (importe < 0 && !dLower.includes('transf.inter') && !dLower.includes('credin'))) {
+          const groupKey = desc.replace(/^RECHAZOS DE\s+/i, '').trim();
+          if (!specificDebits[groupKey]) {
+            specificDebits[groupKey] = { originalDesc: groupKey, total: 0, count: 0 };
+          }
+          specificDebits[groupKey].total += (-importe);
+          specificDebits[groupKey].count++;
+        }
       }
     }
 
-    if (totalNeto <= 0) {
-      return res.status(400).json({ error: 'No se detectaron gastos ni comisiones en el archivo subido.' });
+    const operadorName = req.user?.username || 'tkip';
+    const userId = parseInt(req.user?.id) || 1;
+    const createdMovements = [];
+
+    // 1. Registrar Comisiones e Impuestos de Roela si existen
+    if (totalComisionesImpuestos > 0) {
+      const mComisiones = await prisma.cashMovement.create({
+        data: {
+          type: 'OUT',
+          amount: Number(totalComisionesImpuestos.toFixed(2)),
+          category: 'GASTOS_VARIOS',
+          description: `[CAJA: BANCO_ROELA] Costos Banco Roela - ${req.file.originalname} (Por: ${operadorName})`,
+          operator: 'BANCO_ROELA',
+          createdAt: new Date(),
+          userId
+        },
+        include: { user: { select: { username: true } } }
+      });
+      createdMovements.push(mComisiones);
     }
 
-    const operadorName = req.user?.username || 'tkip';
-    const description = `[CAJA: BANCO_ROELA] Costos Banco Roela - ${req.file.originalname} (Por: ${operadorName})`;
+    // 2. Registrar cada Débito Directo / Servicio discriminado
+    for (const [key, item] of Object.entries(specificDebits)) {
+      const netAmount = Number(item.total.toFixed(2));
+      if (netAmount > 0) {
+        const mDebito = await prisma.cashMovement.create({
+          data: {
+            type: 'OUT',
+            amount: netAmount,
+            category: 'GASTOS_VARIOS',
+            description: `[CAJA: BANCO_ROELA] ${item.originalDesc} (Por: ${operadorName})`,
+            operator: 'BANCO_ROELA',
+            createdAt: new Date(),
+            userId
+          },
+          include: { user: { select: { username: true } } }
+        });
+        createdMovements.push(mDebito);
+      }
+    }
 
-    const movement = await prisma.cashMovement.create({
-      data: {
-        type: 'OUT',
-        amount: Number(totalNeto.toFixed(2)),
-        category: 'GASTOS_VARIOS',
-        description,
-        operator: 'BANCO_ROELA',
-        createdAt: new Date(),
-        userId: parseInt(req.user?.id) || 1
-      },
-      include: { user: { select: { username: true } } }
-    });
+    if (createdMovements.length === 0) {
+      return res.status(400).json({ error: 'No se detectaron egresos ni débitos en el archivo subido.' });
+    }
 
-    console.log(`✅ Upload Roela Report: Conciliado por $${totalNeto.toFixed(2)} (${req.file.originalname})`);
+    const totalGeneralNeto = createdMovements.reduce((acc, m) => acc + m.amount, 0);
+
+    console.log(`✅ Upload Roela Report: Creados ${createdMovements.length} movimientos por un total de $${totalGeneralNeto.toFixed(2)}`);
     res.json({
-      message: 'Extracto de Banco Roela procesado con éxito',
-      movement,
+      message: 'Extracto de Banco Roela procesado y discriminado con éxito',
+      movements: createdMovements,
+      movement: createdMovements[0],
+      totalEgresos: Number(totalGeneralNeto.toFixed(2)),
       breakdown: {
         period: period || 'No especificado',
         filename: req.file.originalname,
-        comisiones: Number(comisiones.toFixed(2)),
-        impuestos: Number(impuestos.toFixed(2)),
-        totalNeto: Number(totalNeto.toFixed(2)),
-        itemsCount
+        comisionesEImpuestos: Number(totalComisionesImpuestos.toFixed(2)),
+        debitosDirectos: Object.entries(specificDebits)
+          .filter(([_, it]) => it.total > 0)
+          .map(([k, it]) => ({ concepto: it.originalDesc, monto: Number(it.total.toFixed(2)) }))
       }
     });
 
