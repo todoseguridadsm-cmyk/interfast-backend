@@ -103,8 +103,8 @@ router.post('/bank/upload-roela-report', upload.single('file'), async (req, res)
       return res.status(400).json({ error: 'No se detectaron gastos ni comisiones en el archivo subido.' });
     }
 
-    const description = `[CAJA: BANCO_ROELA] Gastos y Comisiones Banco Roela - ${period || req.file.originalname}`;
-    const targetDate = extractedEndDate || new Date();
+    const operadorName = req.user?.username || 'tkip';
+    const description = `[CAJA: BANCO_ROELA] Costos Banco Roela - ${req.file.originalname} (Por: ${operadorName})`;
 
     const movement = await prisma.cashMovement.create({
       data: {
@@ -113,18 +113,19 @@ router.post('/bank/upload-roela-report', upload.single('file'), async (req, res)
         category: 'GASTOS_VARIOS',
         description,
         operator: 'BANCO_ROELA',
-        createdAt: targetDate,
+        createdAt: new Date(),
         userId: parseInt(req.user?.id) || 1
       },
       include: { user: { select: { username: true } } }
     });
 
-    console.log(`✅ Upload Roela Report: Conciliado por $${totalNeto.toFixed(2)} (${period || req.file.originalname})`);
+    console.log(`✅ Upload Roela Report: Conciliado por $${totalNeto.toFixed(2)} (${req.file.originalname})`);
     res.json({
       message: 'Extracto de Banco Roela procesado con éxito',
       movement,
       breakdown: {
         period: period || 'No especificado',
+        filename: req.file.originalname,
         comisiones: Number(comisiones.toFixed(2)),
         impuestos: Number(impuestos.toFixed(2)),
         totalNeto: Number(totalNeto.toFixed(2)),
