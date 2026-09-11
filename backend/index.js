@@ -20,6 +20,7 @@ const mikrotik = require('./mikrotik');
 const qrcodeTerminal = require('qrcode-terminal');
 const QRCode = require('qrcode');
 require('dotenv').config();
+const { getArgentinaDate, getInvoiceTierStatus } = require('./utils/tierHelper');
 
 const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -2086,39 +2087,15 @@ app.get('/api/invoices', async (req, res) => {
       orderBy: { dueDate: 'desc' }
     });
 
-    // Motor Dinámico de Mora Ponderada (Tiered)
+    // Motor Dinámico de Mora Ponderada (Tiered) respetando horario de Argentina (hasta día 10 inclusive V1 sin recargo)
     const dynamicInvoices = invoices.map(inv => {
-      const today = new Date();
-      let totalAmount = inv.priceV1 || inv.originalAmount;
-      let calculatedLateFee = 0;
-      let isLate = false;
-
-      if (inv.status === 'PENDING') {
-        const d1 = new Date(inv.dueDate1 || inv.dueDate);
-        const d2 = new Date(inv.dueDate2 || inv.dueDate);
-        const d3 = new Date(inv.dueDate3 || inv.dueDate);
-
-        // Si hoy es mayor a Vencimiento 3, paga Precio 4 (deuda fija).
-        if (today > d3 && inv.priceV4) {
-          isLate = true;
-          totalAmount = inv.priceV4;
-          calculatedLateFee = totalAmount - inv.originalAmount;
-        }
-        // Si no pasó el V3, pero sí pasó el V2, paga Precio 3.
-        else if (today > d2 && inv.priceV3) {
-          isLate = true;
-          totalAmount = inv.priceV3;
-          calculatedLateFee = totalAmount - inv.originalAmount;
-        }
-        // Si no pasó el V2, pero sí pasó el V1, paga Precio 2.
-        else if (today > d1 && inv.priceV2) {
-          isLate = true;
-          totalAmount = inv.priceV2;
-          calculatedLateFee = totalAmount - inv.originalAmount;
-        }
-      }
-
-      return { ...inv, isLate, calculatedLateFee, totalAmount };
+      const tierStatus = getInvoiceTierStatus(inv);
+      return {
+        ...inv,
+        isLate: tierStatus.isLate,
+        calculatedLateFee: tierStatus.calculatedLateFee,
+        totalAmount: tierStatus.totalAmount
+      };
     });
     res.json(dynamicInvoices);
   } catch (error) {
@@ -2577,29 +2554,16 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
 
         const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
-        const today = new Date();
-        let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
-        let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
-        expirationDate.setHours(23, 59, 59, 999);
-
-        if (inv.dueDate1) {
-          const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-          const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-          const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-          const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
-
-          if (today > d3 && inv.priceV4) {
-            totalAmountWithFee = inv.priceV4;
-            expirationDate = d4;
-          } else if (today > d2 && inv.priceV3) {
-            totalAmountWithFee = inv.priceV3;
-            expirationDate = d3;
-          } else if (today > d1 && inv.priceV2) {
-            totalAmountWithFee = inv.priceV2;
-            expirationDate = d2;
-          } else {
-            expirationDate = d1;
-          }
+        const tierStatus = getInvoiceTierStatus(inv);
+        const totalAmountWithFee = tierStatus.totalAmount;
+        let expirationDate = tierStatus.limit1;
+        if (tierStatus.activeTier === 'V2') expirationDate = tierStatus.limit2;
+        else if (tierStatus.activeTier === 'V3') expirationDate = tierStatus.limit3;
+        else if (tierStatus.activeTier === 'V4') {
+          const invMonth = inv.month || (inv.dueDate ? new Date(inv.dueDate).getMonth() + 1 : 1);
+          const invYear = inv.year || (inv.dueDate ? new Date(inv.dueDate).getFullYear() : 2026);
+          const day4 = (inv.dueDate4 ? new Date(inv.dueDate4).getDate() : null) || 22;
+          expirationDate = new Date(invYear, invMonth - 1, day4, 23, 59, 59, 999);
         }
 
         let paymentLink = '';
@@ -2686,29 +2650,16 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
 
       const targetPhone = phone.startsWith('54') ? `${phone}@s.whatsapp.net` : `549${phone}@s.whatsapp.net`;
 
-      const today = new Date();
-      let totalAmountWithFee = inv.priceV1 || inv.originalAmount;
-      let expirationDate = new Date(inv.dueDate1 || inv.dueDate);
-      expirationDate.setHours(23, 59, 59, 999);
-
-      if (inv.dueDate1) {
-        const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-        const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-        const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-        const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
-
-        if (today > d3 && inv.priceV4) {
-          totalAmountWithFee = inv.priceV4;
-          expirationDate = d4;
-        } else if (today > d2 && inv.priceV3) {
-          totalAmountWithFee = inv.priceV3;
-          expirationDate = d3;
-        } else if (today > d1 && inv.priceV2) {
-          totalAmountWithFee = inv.priceV2;
-          expirationDate = d2;
-        } else {
-          expirationDate = d1;
-        }
+      const tierStatus = getInvoiceTierStatus(inv);
+      const totalAmountWithFee = tierStatus.totalAmount;
+      let expirationDate = tierStatus.limit1;
+      if (tierStatus.activeTier === 'V2') expirationDate = tierStatus.limit2;
+      else if (tierStatus.activeTier === 'V3') expirationDate = tierStatus.limit3;
+      else if (tierStatus.activeTier === 'V4') {
+        const invMonth = inv.month || (inv.dueDate ? new Date(inv.dueDate).getMonth() + 1 : 1);
+        const invYear = inv.year || (inv.dueDate ? new Date(inv.dueDate).getFullYear() : 2026);
+        const day4 = (inv.dueDate4 ? new Date(inv.dueDate4).getDate() : null) || 22;
+        expirationDate = new Date(invYear, invMonth - 1, day4, 23, 59, 59, 999);
       }
 
       let paymentLink = '';
@@ -3219,23 +3170,17 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
     });
     if (!invoice) return res.status(404).send('Factura no encontrada');
 
-    const today = new Date();
-    let expirationDate = new Date(invoice.dueDate);
-    expirationDate.setHours(23, 59, 59, 999);
-    let totalAmount = invoice.priceV1 || invoice.originalAmount;
-
-    if (invoice.dueDate1) {
-      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
-
-      if (today <= d1) { expirationDate = d1; totalAmount = invoice.priceV1 || invoice.originalAmount; }
-      else if (today <= d2) { expirationDate = d2; totalAmount = invoice.priceV2 || invoice.originalAmount; }
-      else if (today <= d3) { expirationDate = d3; totalAmount = invoice.priceV3 || invoice.originalAmount; }
-      else if (today <= d4) { expirationDate = d4; totalAmount = invoice.priceV4 || invoice.originalAmount; }
-      else { expirationDate = null; totalAmount = invoice.priceV4 || invoice.originalAmount; }
+    const tierStatus = getInvoiceTierStatus(invoice);
+    let expirationDate = tierStatus.limit1;
+    if (tierStatus.activeTier === 'V2') expirationDate = tierStatus.limit2;
+    else if (tierStatus.activeTier === 'V3') expirationDate = tierStatus.limit3;
+    else if (tierStatus.activeTier === 'V4') {
+      const invMonth = invoice.month || (invoice.dueDate ? new Date(invoice.dueDate).getMonth() + 1 : 1);
+      const invYear = invoice.year || (invoice.dueDate ? new Date(invoice.dueDate).getFullYear() : 2026);
+      const day4 = (invoice.dueDate4 ? new Date(invoice.dueDate4).getDate() : null) || 22;
+      expirationDate = new Date(invYear, invMonth - 1, day4, 23, 59, 59, 999);
     }
+    let totalAmount = tierStatus.totalAmount;
 
     let finalPrice = parseFloat(totalAmount);
     if (isNaN(finalPrice) || finalPrice <= 0) finalPrice = parseFloat(invoice.originalAmount);
@@ -3382,19 +3327,9 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         if (phoneClean.length < 8) continue;
         const targetPhone = phoneClean.startsWith('54') ? `${phoneClean}@s.whatsapp.net` : `549${phoneClean}@s.whatsapp.net`;
 
-        const today = new Date();
-        let activeV = 'V1';
-        let activeAmount = invoice.priceV1 || invoice.originalAmount;
-
-        if (invoice.dueDate1) {
-          const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-          const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-          const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-
-          if (today > d3 && invoice.priceV4) { activeV = 'V4'; activeAmount = invoice.priceV4; }
-          else if (today > d2 && invoice.priceV3) { activeV = 'V3'; activeAmount = invoice.priceV3; }
-          else if (today > d1 && invoice.priceV2) { activeV = 'V2'; activeAmount = invoice.priceV2; }
-        }
+        const tierStatus = getInvoiceTierStatus(invoice);
+        const activeV = tierStatus.activeTier;
+        const activeAmount = tierStatus.totalAmount;
 
         const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
         const centsVal = getCents999(invoice.clientId || (invoice.client && invoice.client.id) || invoice.id || 1);
@@ -3411,7 +3346,7 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
         let pricesText = '';
         if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
           pricesText += `El total a abonar varía según el día de pago:\n`;
-          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(invoice.priceV1) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if (activeV === 'V1' && invoice.priceV1) pricesText += `Venc. 1 (Hasta el día 10 inclusive): *$${(parseFloat(invoice.priceV1) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
           if ((activeV === 'V1' || activeV === 'V2') && invoice.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(invoice.priceV2) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
           if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && invoice.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(invoice.priceV3) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
           if (invoice.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(invoice.priceV4) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
@@ -3758,23 +3693,9 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
   let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
   let activeTierName = "Vencimiento 1";
 
-  if (invoice.dueDate1) {
-    const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-    const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-    const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-    const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
-
-    if (today > d3 && invoice.priceV4) {
-      expectedAmountForDate = invoice.priceV4;
-      activeTierName = "Vencimiento 4";
-    } else if (today > d2 && invoice.priceV3) {
-      expectedAmountForDate = invoice.priceV3;
-      activeTierName = "Vencimiento 3";
-    } else if (today > d1 && invoice.priceV2) {
-      expectedAmountForDate = invoice.priceV2;
-      activeTierName = "Vencimiento 2";
-    }
-  }
+  const tierStatus = getInvoiceTierStatus(invoice);
+  expectedAmountForDate = tierStatus.totalAmount;
+  activeTierName = `Vencimiento ${tierStatus.activeTier.replace('V', '')}`;
 
   const expectedTotalForDate = expectedAmountForDate;
 
@@ -4972,29 +4893,17 @@ app.get('/api/bot/obtener-factura', async (req, res) => {
       for (const inv of pendingInvoices) {
         let currentAmount = inv.priceV1 || inv.originalAmount;
         let activeV = 'V1';
-        let currentDueDate = inv.dueDate1 ? new Date(inv.dueDate1) : new Date(inv.dueDate || today);
-
-        if (inv.dueDate1) {
-          const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-          const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-          const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
-          const d4 = new Date(inv.dueDate4 || inv.dueDate1); d4.setHours(23, 59, 59, 999);
-
-          if (today > d3 && inv.priceV4) {
-            currentAmount = inv.priceV4;
-            currentDueDate = d4;
-            activeV = 'V4';
-          } else if (today > d2 && inv.priceV3) {
-            currentAmount = inv.priceV3;
-            currentDueDate = d3;
-            activeV = 'V3';
-          } else if (today > d1 && inv.priceV2) {
-            currentAmount = inv.priceV2;
-            currentDueDate = d2;
-            activeV = 'V2';
-          } else {
-            currentDueDate = d1;
-          }
+        const tierStatus = getInvoiceTierStatus(inv);
+        activeV = tierStatus.activeTier;
+        currentAmount = tierStatus.totalAmount;
+        let currentDueDate = tierStatus.limit1;
+        if (activeV === 'V2') currentDueDate = tierStatus.limit2;
+        else if (activeV === 'V3') currentDueDate = tierStatus.limit3;
+        else if (activeV === 'V4') {
+          const invMonth = inv.month || (inv.dueDate ? new Date(inv.dueDate).getMonth() + 1 : 1);
+          const invYear = inv.year || (inv.dueDate ? new Date(inv.dueDate).getFullYear() : 2026);
+          const day4 = (inv.dueDate4 ? new Date(inv.dueDate4).getDate() : null) || 22;
+          currentDueDate = new Date(invYear, invMonth - 1, day4, 23, 59, 59, 999);
         }
         globalActiveV = activeV;
 
@@ -5528,27 +5437,9 @@ cron.schedule('*/10 * * * *', async () => {
 
         console.log(`[Cron MP Sync] Procesando conciliación automática para Factura #${invoiceId} ($${transactionAmount})`);
 
-        const today = new Date();
-        let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
-        let activeTierName = "Vencimiento 1";
-
-        if (invoice.dueDate1) {
-          const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-          const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-          const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-          const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
-
-          if (today > d3 && invoice.priceV4) {
-            expectedAmountForDate = invoice.priceV4;
-            activeTierName = "Vencimiento 4";
-          } else if (today > d2 && invoice.priceV3) {
-            expectedAmountForDate = invoice.priceV3;
-            activeTierName = "Vencimiento 3";
-          } else if (today > d1 && invoice.priceV2) {
-            expectedAmountForDate = invoice.priceV2;
-            activeTierName = "Vencimiento 2";
-          }
-        }
+        const tierStatus = getInvoiceTierStatus(invoice);
+        expectedAmountForDate = tierStatus.totalAmount;
+        activeTierName = `Vencimiento ${tierStatus.activeTier.replace('V', '')}`;
 
         const expectedCentsOffset = ((invoice.clientId || invoice.id || 1) % 1000) / 100;
         const expectedTotalForDate = expectedAmountForDate + expectedCentsOffset;

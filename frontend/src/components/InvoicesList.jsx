@@ -279,19 +279,40 @@ export default function InvoicesList() {
 
 // Utility function to determine the active vencimiento
 const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
+  const invMonth = inv.month || (inv.dueDate ? new Date(inv.dueDate).getMonth() + 1 : (new Date().getMonth() + 1));
+  const invYear = inv.year || (inv.dueDate ? new Date(inv.dueDate).getFullYear() : new Date().getFullYear());
+
+  let day1 = 10;
+  let day2 = 15;
+  let day3 = 20;
+
+  if (inv.dueDate1) {
+    const d1Obj = new Date(inv.dueDate1);
+    if (!isNaN(d1Obj.getTime())) day1 = d1Obj.getDate();
+  }
+  if (inv.dueDate2) {
+    const d2Obj = new Date(inv.dueDate2);
+    if (!isNaN(d2Obj.getTime())) day2 = d2Obj.getDate();
+  }
+  if (inv.dueDate3) {
+    const d3Obj = new Date(inv.dueDate3);
+    if (!isNaN(d3Obj.getTime())) day3 = d3Obj.getDate();
+  }
+
+  // Hasta las 23:59:59.999 del día respectivo
+  const limit1 = new Date(invYear, invMonth - 1, day1, 23, 59, 59, 999);
+  const limit2 = new Date(invYear, invMonth - 1, day2, 23, 59, 59, 999);
+  const limit3 = new Date(invYear, invMonth - 1, day3, 23, 59, 59, 999);
+
   let activeV = 'V1';
   let activeAmount = inv.priceV1 || inv.originalAmount;
-  
-  if (inv.dueDate1) {
-    const d1 = new Date(inv.dueDate1); d1.setHours(23, 59, 59, 999);
-    const d2 = new Date(inv.dueDate2 || inv.dueDate1); d2.setHours(23, 59, 59, 999);
-    const d3 = new Date(inv.dueDate3 || inv.dueDate1); d3.setHours(23, 59, 59, 999);
 
-    if (checkDate > d3 && inv.priceV4) {
+  if (inv.status === 'PENDING') {
+    if (checkDate > limit3 && inv.priceV4) {
       activeV = 'V4'; activeAmount = inv.priceV4;
-    } else if (checkDate > d2 && inv.priceV3) {
+    } else if (checkDate > limit2 && inv.priceV3) {
       activeV = 'V3'; activeAmount = inv.priceV3;
-    } else if (checkDate > d1 && inv.priceV2) {
+    } else if (checkDate > limit1 && inv.priceV2) {
       activeV = 'V2'; activeAmount = inv.priceV2;
     }
   }
@@ -320,7 +341,7 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
     let pricesText = '';
     if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
       pricesText += `El total a abonar varía según el día de pago:\n`;
-      if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Del 1 al 10): *$${(parseFloat(inv.priceV1) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
+      if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Hasta el día 10 inclusive): *$${(parseFloat(inv.priceV1) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
       if ((activeV === 'V1' || activeV === 'V2') && inv.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(inv.priceV2) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
       if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && inv.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(inv.priceV3) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;
       if (inv.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(inv.priceV4) + centsVal).toLocaleString('es-AR', {minimumFractionDigits:2})}*\n`;

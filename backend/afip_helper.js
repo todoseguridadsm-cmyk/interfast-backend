@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const PDFDocument = require('pdfkit');
+const { getInvoiceTierStatus } = require('./utils/tierHelper');
 
 async function emitAfipInvoiceHelper(invoiceId, afipInstance) {
   if (!afipInstance) return { success: false, error: 'Módulo ARCA/AFIP no configurado.' };
@@ -104,28 +105,11 @@ function drawInvoicePDF(doc, invoice) {
   let currentV = 1;
 
   if (invoice.status === 'PENDING') {
-    const today = new Date();
-    let currentAmount = invoice.priceV1 || invoice.originalAmount || 0;
-    if (invoice.dueDate1) {
-      const d1 = new Date(invoice.dueDate1); d1.setHours(23, 59, 59, 999);
-      const d2 = new Date(invoice.dueDate2 || invoice.dueDate1); d2.setHours(23, 59, 59, 999);
-      const d3 = new Date(invoice.dueDate3 || invoice.dueDate1); d3.setHours(23, 59, 59, 999);
-      const d4 = new Date(invoice.dueDate4 || invoice.dueDate1); d4.setHours(23, 59, 59, 999);
-
-      if (today > d3 && invoice.priceV4) {
-        currentAmount = invoice.priceV4;
-        currentV = 4;
-      } else if (today > d2 && invoice.priceV3) {
-        currentAmount = invoice.priceV3;
-        currentV = 3;
-      } else if (today > d1 && invoice.priceV2) {
-        currentAmount = invoice.priceV2;
-        currentV = 2;
-      }
-    }
+    const tierStatus = getInvoiceTierStatus(invoice);
+    currentV = parseInt(tierStatus.activeTier.replace('V', '')) || 1;
     const valCents = ((invoice.clientId || invoice.id || 1) % 1000);
     const centsOffset = valCents / 100;
-    finalAmount = currentAmount + centsOffset;
+    finalAmount = tierStatus.totalAmount + centsOffset;
   } else {
     const paymentsSum = invoice.payments && invoice.payments.length > 0
       ? invoice.payments.reduce((acc, p) => acc + p.amountPaid, 0)
