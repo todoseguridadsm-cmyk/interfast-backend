@@ -20,7 +20,8 @@ import ContentApproval from './components/ContentApproval';
 import UnidentifiedPaymentsList from './components/UnidentifiedPaymentsList';
 import BroadcastList from './components/BroadcastList';
 import ChatCRM from './components/ChatCRM';
-import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle, RefreshCw, Megaphone, MessageCircle } from 'lucide-react';
+import ClientPortal from './components/ClientPortal';
+import { LayoutDashboard, Users, CreditCard, Wifi, Server, ShieldAlert, LogOut, BarChart3, Wallet, Ticket, Store, MessageSquare, Menu, X, Scissors, UserPlus, UserMinus, ShoppingBag, Radio, Globe, FileText, AlertTriangle, RefreshCw, Megaphone, MessageCircle, Smartphone } from 'lucide-react';
 
 // Setup JWT Interceptor
 axios.interceptors.request.use(config => {
@@ -43,6 +44,11 @@ axios.interceptors.response.use(
 function AppContent() {
   const token = localStorage.getItem('token');
   const location = useLocation();
+
+  // Si la ruta es el Portal de Autogestión de Clientes (PWA), renderizar sin exigir login administrativo
+  if (location.pathname === '/portal' || location.pathname === '/mi-cuenta' || location.pathname.startsWith('/portal/')) {
+    return <ClientPortal />;
+  }
   
   if (!token) {
     return <Login />;
@@ -325,6 +331,11 @@ function AppContent() {
                 <span className="flex-1 truncate">Nodos Mikrotik</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_5px_#00f0ff]"></span>
               </Link>
+              <Link onClick={handleLinkClick} to="/portal" target="_blank" className="group flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium text-emerald-400 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.15)]">
+                <Smartphone size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span className="flex-1 truncate font-bold">App / Portal Abonados</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">PWA</span>
+              </Link>
             </>
           )}
         </nav>
@@ -359,6 +370,8 @@ function AppContent() {
             <Route path="/whatsapp" element={user.role === 'ADMIN' ? <WhatsAppStatus /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/users" element={user.role === 'ADMIN' ? <UsersList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
             <Route path="/nodes" element={user.role === 'ADMIN' ? <NodesList /> : <div className="p-8 text-center text-slate-400">Acceso Denegado</div>} />
+            <Route path="/portal" element={<ClientPortal />} />
+            <Route path="/mi-cuenta" element={<ClientPortal />} />
             <Route path="/login" element={<Dashboard />} />
           </Routes>
         </div>

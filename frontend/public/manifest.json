@@ -1,0 +1,17 @@
+{
+  "short_name": "Interfast",
+  "name": "Interfast - Portal del Abonado",
+  "description": "App de autogestión de clientes, pagos y soporte técnico de Interfast Internet",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/portal",
+  "background_color": "#020617",
+  "theme_color": "#06b6d4",
+  "display": "standalone",
+  "orientation": "portrait"
+}

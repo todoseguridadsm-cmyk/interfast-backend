@@ -203,9 +203,12 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/login') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook') || req.path.startsWith('/mercadopago/reports-webhook') || req.path.includes('/mercadopago/redirect') || req.path.startsWith('/leads') || req.path.startsWith('/bot')) return next();
+  if (req.path.startsWith('/auth/login') || req.path.startsWith('/portal') || req.path.startsWith('/test-afip') || req.path.startsWith('/test-ptosventa') || req.path.startsWith('/mercadopago/webhook') || req.path.startsWith('/mercadopago/reports-webhook') || req.path.includes('/mercadopago/redirect') || req.path.startsWith('/leads') || req.path.startsWith('/bot')) return next();
   return authenticateToken(req, res, next);
 });
+
+// Portal de Clientes (App Móvil de Autogestión)
+app.use('/api/portal', require('./routes/portalRoutes'));
 
 // WhatsApp Headless Client variables
 let waStatus = 'DISCONNECTED';
