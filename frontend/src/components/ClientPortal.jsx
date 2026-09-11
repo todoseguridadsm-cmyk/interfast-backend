@@ -36,6 +36,10 @@ export default function ClientPortal() {
   // Tabs: 'overview' | 'invoices' | 'tickets'
   const [activeTab, setActiveTab] = useState('overview');
   
+  // Múltiples cuentas por DNI
+  const [multipleAccounts, setMultipleAccounts] = useState(null); // array de cuentas
+  const [pendingDni, setPendingDni] = useState(''); // DNI guardado para el select
+  
   // Reclamo Modal
   const [ticketModal, setTicketModal] = useState(false);
   const [ticketCategory, setTicketCategory] = useState('Sin Señal');
@@ -108,12 +112,39 @@ export default function ClientPortal() {
         dni: loginDni.trim(),
         phone: loginPhone.trim() || undefined
       });
+      // Múltiples cuentas: mostrar selector
+      if (res.data.multipleAccounts) {
+        setPendingDni(loginDni.trim());
+        setMultipleAccounts(res.data.accounts);
+        return;
+      }
+      // Cuenta única: loguear directamente
       if (res.data.token) {
         localStorage.setItem('portal_token', res.data.token);
         setToken(res.data.token);
       }
     } catch (err) {
       setLoginError(err.response?.data?.error || 'No pudimos verificar tus datos. Verifica tu DNI o contáctanos.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectAccount = async (clientId) => {
+    setLoading(true);
+    setLoginError('');
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/portal/auth/select`, {
+        clientId,
+        dni: pendingDni
+      });
+      if (res.data.token) {
+        localStorage.setItem('portal_token', res.data.token);
+        setMultipleAccounts(null);
+        setToken(res.data.token);
+      }
+    } catch (err) {
+      setLoginError(err.response?.data?.error || 'Error al seleccionar la cuenta.');
     } finally {
       setLoading(false);
     }
@@ -159,6 +190,75 @@ export default function ClientPortal() {
       setTicketSubmitting(false);
     }
   };
+
+  // -------------------------------------------------------------
+  // VISTA 0.5: SELECTOR DE CUENTA (cuando hay múltiples por DNI)
+  // -------------------------------------------------------------
+  if (multipleAccounts) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center p-4 sm:p-6 font-sans relative overflow-hidden">
+        <div className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
+        <div className="max-w-md w-full mx-auto z-10">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 mb-3">
+                <Wifi size={28} />
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">Elegí tu Servicio</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Tu DNI tiene {multipleAccounts.length} servicios registrados. ¿Cuál querés ver?
+              </p>
+            </div>
+
+            {loginError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0" />
+                {loginError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {multipleAccounts.map((acc) => (
+                <button
+                  key={acc.id}
+                  onClick={() => handleSelectAccount(acc.id)}
+                  disabled={loading}
+                  className="w-full text-left p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 hover:border-cyan-500/50 hover:bg-slate-800 transition-all group relative overflow-hidden"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-white text-sm truncate">{acc.name}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 truncate">{acc.address}{acc.city ? ` – ${acc.city}` : ''}</div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono">
+                          {acc.planName}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                          acc.status === 'ACTIVE' 
+                            ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' 
+                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                        }`}>
+                          {acc.status === 'ACTIVE' ? '● Activo' : '● Suspendido'}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-slate-500 group-hover:text-cyan-400 transition-colors shrink-0 ml-2" />
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => { setMultipleAccounts(null); setLoginError(''); }}
+              className="mt-4 w-full py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              ← Volver al inicio
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // -------------------------------------------------------------
   // VISTA 1: LOGIN DEL CLIENTE

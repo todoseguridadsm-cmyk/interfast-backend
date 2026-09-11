@@ -51,29 +51,54 @@ router.post('/auth', async (req, res) => {
       return res.status(400).json({ error: 'DNI inválido' });
     }
 
-    // Buscar cliente por DNI
-    let client = await prisma.client.findFirst({
+    // Buscar TODAS las cuentas del DNI (un titular puede tener varias)
+    let clients = await prisma.client.findMany({
       where: {
-        dni: { contains: cleanDni }
+        dni: { contains: cleanDni },
+        status: { not: 'BAJA' }
       },
-      include: { plan: true }
+      include: { plan: true },
+      orderBy: { id: 'asc' }
     });
 
-    if (!client) {
-      // Intento secundario por CUIT si aplica
-      client = await prisma.client.findFirst({
+    // Intento secundario por CUIT si no encontró por DNI
+    if (clients.length === 0) {
+      clients = await prisma.client.findMany({
         where: {
-          cuit: { contains: cleanDni }
+          cuit: { contains: cleanDni },
+          status: { not: 'BAJA' }
         },
-        include: { plan: true }
+        include: { plan: true },
+        orderBy: { id: 'asc' }
       });
     }
 
-    if (!client) {
+    if (clients.length === 0) {
       return res.status(404).json({
         error: 'No encontramos un servicio registrado con ese número de DNI. Por favor verifica tus datos o contacta a soporte.'
       });
     }
+
+    // Si hay múltiples cuentas, devolver la lista para que el cliente elija
+    // sin generar token todavía (el frontend mostrará un selector)
+    if (clients.length > 1) {
+      return res.json({
+        success: true,
+        multipleAccounts: true,
+        accounts: clients.map(c => ({
+          id: c.id,
+          name: c.name,
+          address: c.address || 'Sin dirección registrada',
+          city: c.city || '',
+          status: c.status,
+          planName: c.plan?.name || 'Sin Plan',
+          megas: c.plan?.megas || 0
+        }))
+      });
+    }
+
+    // Cuenta única: loguear directamente
+    const client = clients[0];
 
     // Validar teléfono opcionalmente si se envía
     if (phone) {
@@ -97,6 +122,7 @@ router.post('/auth', async (req, res) => {
 
     res.json({
       success: true,
+      multipleAccounts: false,
       token,
       client: {
         id: client.id,
@@ -113,6 +139,60 @@ router.post('/auth', async (req, res) => {
   } catch (error) {
     console.error('Error en /api/portal/auth:', error);
     res.status(500).json({ error: 'Error al iniciar sesión en el portal' });
+  }
+});
+
+// 1b. Seleccionar cuenta específica (cuando hay múltiples por DNI)
+router.post('/auth/select', async (req, res) => {
+  try {
+    const { clientId, dni } = req.body;
+    if (!clientId || !dni) {
+      return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    const cleanDni = String(dni).replace(/\D/g, '');
+
+    // Verificar que el clientId pertenece al DNI ingresado (seguridad)
+    const client = await prisma.client.findFirst({
+      where: {
+        id: parseInt(clientId),
+        OR: [
+          { dni: { contains: cleanDni } },
+          { cuit: { contains: cleanDni } }
+        ]
+      },
+      include: { plan: true }
+    });
+
+    if (!client) {
+      return res.status(403).json({ error: 'No se pudo verificar la identidad del titular.' });
+    }
+
+    // Generar token de 60 días
+    const token = jwt.sign(
+      { clientId: client.id, dni: client.dni, type: 'CLIENT_PORTAL' },
+      JWT_SECRET,
+      { expiresIn: '60d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      client: {
+        id: client.id,
+        name: client.name,
+        dni: client.dni,
+        address: client.address,
+        city: client.city,
+        status: client.status,
+        planName: client.plan?.name || 'PLAN ESTÁNDAR',
+        megas: client.plan?.megas || 30
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en /api/portal/auth/select:', error);
+    res.status(500).json({ error: 'Error al seleccionar la cuenta' });
   }
 });
 
