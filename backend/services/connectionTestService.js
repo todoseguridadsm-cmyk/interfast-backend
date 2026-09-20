@@ -73,7 +73,7 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    // Nivel 2: Diagnóstico Avanzado vía mANTBox
+    // Nivel 2: Diagnóstico Avanzado vía mANTBox (Fetch Interno)
     console.log(`[ConnectionTest] Ping exitoso. Buscando MAC address en CCR ARP...`);
     
     let cpeMac = null;
@@ -111,72 +111,44 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    console.log(`[ConnectionTest] Panel encontrado: ${panel.ipAddress}. Creando Túnel NAT Estático en puerto ${staticNatPort}...`);
-    const commentLabel = `TempPortalDiag_Panel_${panel.ipAddress}`;
-
-    // Limpieza proactiva de túneles anteriores
+    console.log(`[ConnectionTest] Panel encontrado: ${panel.ipAddress}. Ejecutando consulta interna /tool fetch desde CCR...`);
+    
+    let rfData = null;
     try {
-      const existingRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
-      for (const rule of existingRules) {
-        if (rule['.id']) await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
+      const fetchResult = await mikrotikClient.rosApi.write('/tool/fetch', [
+        `=url=http://${panel.ipAddress}/rest/interface/wireless/registration-table`,
+        `=user=${panel.user || 'admin'}`,
+        `=password=${panel.password || ''}`,
+        '=output=user',
+        '=as-value='
+      ]);
+      
+      const responseData = fetchResult.find(item => item.data);
+      if (responseData && responseData.data) {
+        const jsonData = JSON.parse(responseData.data);
+        const clientReg = jsonData.find(entry => entry['mac-address'] === cpeMac || entry['mac-address']?.toLowerCase() === cpeMac?.toLowerCase());
+        
+        if (clientReg) {
+          rfData = {
+            signal: parseInt(clientReg['signal-strength']?.replace('dBm', '').trim() || clientReg['signal-strength'] || '-100'),
+            txSignal: parseInt(clientReg['tx-signal-strength']?.replace('dBm', '').trim() || clientReg['tx-signal-strength'] || '-100'),
+            txCcq: parseInt(clientReg['tx-ccq'] || '0'),
+            rxCcq: parseInt(clientReg['rx-ccq'] || '0'),
+            uptime: clientReg['uptime']
+          };
+          console.log(`[ConnectionTest] Métricas extraídas: Señal ${rfData.signal}, CCQ ${rfData.txCcq}%`);
+        } else {
+          console.log(`[ConnectionTest] MAC ${cpeMac} no encontrada en el JSON devuelto por la mANTBox.`);
+        }
+      } else {
+        console.log(`[ConnectionTest] No se recibió el campo 'data' en el fetch. Resultado:`, fetchResult);
       }
     } catch (e) {
-      // Ignorar errores de limpieza proactiva
-    }
-
-    // Regla Dst-NAT
-    await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
-      '=chain=dstnat', 
-      '=protocol=tcp', 
-      `=dst-port=${staticNatPort}`, 
-      '=action=dst-nat', 
-      `=to-addresses=${panel.ipAddress}`, 
-      '=to-ports=8728', 
-      `=comment=${commentLabel}`
-    ]);
-
-    // Regla Src-NAT (Hairpinning)
-    await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
-      '=chain=srcnat',
-      `=dst-address=${panel.ipAddress}`,
-      '=protocol=tcp',
-      '=dst-port=8728',
-      '=action=masquerade',
-      `=comment=${commentLabel}`
-    ]);
-
-    console.log(`[ConnectionTest] Conectando a mANTBox vía CCR: ${node.host}:${staticNatPort}`);
-    
-    panelApi = new RouterOSClient({
-      host: node.host,
-      port: staticNatPort,
-      user: panel.user || 'admin',
-      password: panel.password || '',
-      timeout: 10000,
-      keepalive: true
-    });
-
-    await panelApi.connect();
-    console.log(`[ConnectionTest] Conectado a mANTBox. Extrayendo métricas para MAC ${cpeMac}...`);
-
-    let rfData = null;
-    const regTable = await panelApi.menu('/interface/wireless/registration-table').where('mac-address', cpeMac).get();
-    
-    if (regTable && regTable.length > 0) {
-      const clientReg = regTable[0];
-      rfData = {
-        signal: parseInt(clientReg['signal-strength']?.replace('dBm', '').trim() || '-100'),
-        txSignal: parseInt(clientReg['tx-signal-strength']?.replace('dBm', '').trim() || '-100'),
-        txCcq: parseInt(clientReg['tx-ccq'] || '0'),
-        rxCcq: parseInt(clientReg['rx-ccq'] || '0'),
-        uptime: clientReg['uptime']
-      };
-    } else {
-      console.log(`[ConnectionTest] MAC ${cpeMac} no encontrada en registration-table de la mANTBox.`);
+      console.log(`[ConnectionTest] Error en consulta interna a mANTBox:`, e.message);
     }
 
     // CASO 4: Falla de Radiofrecuencia (Degradada)
-    if (rfData && (rfData.signal < -76 || rfData.txCcq < 70)) {
+    if (rfData && (rfData.signal < -75 || rfData.txCcq < 70)) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
@@ -205,25 +177,9 @@ async function runConnectionTest(clientDni) {
 
   } catch (error) {
     console.error('[ConnectionTest] Error general:', error);
-    return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico de RF.' };
+    return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico de red.' };
   } finally {
-    if (panelApi) {
-      panelApi.close();
-    }
     if (mikrotikClient) {
-      console.log(`[ConnectionTest] Limpiando Túnel NAT del panel en CCR...`);
-      try {
-        const rulesToRemove = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=TempPortalDiag_Panel_${clientDni}`]); // En el finally no tenemos scope fácil a panel.ipAddress, usamos otra estrategia
-        // Mejor limpiamos todas las que contengan TempPortalDiag_Panel
-        const allRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', []);
-        for (const rule of allRules) {
-          if (rule.comment && rule.comment.startsWith('TempPortalDiag_Panel_')) {
-            await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
-          }
-        }
-      } catch (e) {
-        console.error('[ConnectionTest] Error limpiando túnel NAT:', e.message);
-      }
       mikrotikClient.close();
     }
   }
