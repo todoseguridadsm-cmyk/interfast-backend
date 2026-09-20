@@ -208,13 +208,15 @@ export default function ClientPortal() {
   };
 
   const openMercadoPagoApp = () => {
-    // Al crear un elemento <a> y hacerle click en el mismo hilo (sin setTimeout),
-    // evitamos que Chrome o Safari bloqueen la apertura nativa de la app por seguridad.
-    const link = document.createElement('a');
-    link.href = "mercadopago://"; // El scheme nativo puro funciona mejor sin intent si se hace en el mismo hilo
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    if (isIOS) {
+      window.location.href = "mercadopago://";
+    } else {
+      // Usamos intent sin restringir el 'package' para evitar que Chrome asuma que no está 
+      // instalada (debido a las restricciones de visibilidad de Android 11+) y mande al PlayStore.
+      window.location.href = "intent://#Intent;action=android.intent.action.VIEW;scheme=mercadopago;end";
+    }
   };
 
   const handleCopyAlias = () => {
