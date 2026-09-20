@@ -235,37 +235,50 @@ router.get('/me', authenticatePortalClient, async (req, res) => {
       take: 12
     });
 
-    // Factura activa pendiente
-    const pendingInvoice = invoices.find(i => i.status === 'PENDING');
+    // Facturas activas pendientes
+    const pendingInvoices = invoices.filter(i => i.status === 'PENDING').reverse(); // reverse para orden cronológico
     let activeBill = null;
 
-    if (pendingInvoice) {
-      const tierStatus = getInvoiceTierStatus(pendingInvoice);
+    if (pendingInvoices.length > 0) {
       const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
-      const centsVal = getCents999(client.id || pendingInvoice.id || 1);
+      const centsVal = getCents999(client.id || 1);
       
-      const totalConCentavos = Math.round((parseFloat(tierStatus.totalAmount) + centsVal) * 100) / 100;
-      const baseOriginalConCentavos = Math.round((parseFloat(pendingInvoice.priceV1 || pendingInvoice.originalAmount) + centsVal) * 100) / 100;
+      let totalSum = 0;
+      const detailedPending = pendingInvoices.map(inv => {
+        const tierStatus = getInvoiceTierStatus(inv);
+        const total = Math.round(parseFloat(tierStatus.totalAmount) * 100) / 100;
+        totalSum += total;
+        
+        return {
+          invoiceId: inv.id,
+          period: `${String(inv.month).padStart(2, '0')}/${inv.year}`,
+          month: inv.month,
+          year: inv.year,
+          activeTier: tierStatus.activeTier,
+          isLate: tierStatus.isLate,
+          calculatedLateFee: tierStatus.calculatedLateFee,
+          baseAmount: Math.round(parseFloat(inv.priceV1 || inv.originalAmount) * 100) / 100,
+          totalAmount: total,
+          dueDate1: inv.dueDate1 || inv.dueDate,
+          dueDate2: inv.dueDate2 || null,
+          dueDate3: inv.dueDate3 || null,
+          dueDate4: inv.dueDate4 || null,
+          mpLink: `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`,
+          pdfUrl: `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}&v=${tierStatus.activeTier}`
+        };
+      });
+
+      // Sumar los centavos dinámicos 1 sola vez al gran total
+      totalSum = Math.round((totalSum + centsVal) * 100) / 100;
 
       activeBill = {
-        invoiceId: pendingInvoice.id,
-        period: `${String(pendingInvoice.month).padStart(2, '0')}/${pendingInvoice.year}`,
-        month: pendingInvoice.month,
-        year: pendingInvoice.year,
-        activeTier: tierStatus.activeTier,
-        isLate: tierStatus.isLate,
-        calculatedLateFee: tierStatus.calculatedLateFee,
-        baseAmount: baseOriginalConCentavos,
-        totalAmount: totalConCentavos,
+        totalAmount: totalSum,
         centsOffset: centsVal,
-        dueDate1: pendingInvoice.dueDate1 || pendingInvoice.dueDate,
-        dueDate2: pendingInvoice.dueDate2 || null,
-        dueDate3: pendingInvoice.dueDate3 || null,
-        dueDate4: pendingInvoice.dueDate4 || null,
-        aliasMercadoPago: 'INTERFASTSM',
-        mpLink: `https://interfast-backend-95ww.onrender.com/api/invoices/${pendingInvoice.id}/mercadopago/redirect`,
-        debitoLink: `https://interfast-backend-95ww.onrender.com/api/invoices/${pendingInvoice.id}/mercadopago/debito`,
-        pdfUrl: `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${pendingInvoice.id}&v=${tierStatus.activeTier}`
+        invoices: detailedPending, // Array de facturas impagas detalladas
+        multiplePending: detailedPending.length > 1,
+        singleMpLink: detailedPending.length === 1 ? detailedPending[0].mpLink : null,
+        singlePdfUrl: detailedPending.length === 1 ? detailedPending[0].pdfUrl : null,
+        aliasMercadoPago: 'INTERFASTSM'
       };
     }
 
@@ -303,14 +316,18 @@ router.get('/me', authenticatePortalClient, async (req, res) => {
         } : null
       },
       activeBill,
-      invoicesHistory: invoices.map(inv => ({
-        id: inv.id,
-        period: `${String(inv.month).padStart(2, '0')}/${inv.year}`,
-        amount: inv.originalAmount,
-        status: inv.status,
-        dueDate: inv.dueDate,
-        pdfUrl: `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`
-      })),
+      invoicesHistory: invoices.map(inv => {
+        const tierStatus = getInvoiceTierStatus(inv);
+        return {
+          id: inv.id,
+          period: `${String(inv.month).padStart(2, '0')}/${inv.year}`,
+          amount: inv.originalAmount,
+          status: inv.status,
+          dueDate: inv.dueDate,
+          mpLink: `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`,
+          pdfUrl: `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}&v=${tierStatus.activeTier}`
+        };
+      }),
       tickets: tickets.map(t => ({
         id: t.id,
         title: t.title,

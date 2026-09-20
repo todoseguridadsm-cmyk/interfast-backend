@@ -448,10 +448,10 @@ export default function ClientPortal() {
             </span>
           </div>
 
-          <h2 className="text-lg font-black text-white leading-snug">{client?.name}</h2>
-          <p className="text-xs text-slate-400 mt-0.5 font-mono">DNI: {client?.dni} • {client?.city || 'San Martín, Mendoza'}</p>
+          <h2 className="text-xl font-black text-white leading-snug">{client?.name}</h2>
+          <p className="text-sm text-slate-400 mt-0.5 font-mono">DNI: {client?.dni} • {client?.city || 'San Martín, Mendoza'}</p>
           
-          <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex justify-between items-center text-xs">
+          <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex justify-between items-center text-sm">
             <span className="text-slate-400">Plan Contratado:</span>
             <span className="font-bold text-slate-200">{client?.plan?.name || 'PLAN HOGAR'}</span>
           </div>
@@ -462,65 +462,78 @@ export default function ClientPortal() {
           {activeBill ? (
             <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900/90 border-2 border-cyan-500/30 rounded-3xl p-5 sm:p-6 shadow-[0_0_30px_rgba(6,182,212,0.15)] relative overflow-hidden">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                  <Clock size={14} /> Factura Período {activeBill.period}
+                <span className="text-sm font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                  <Clock size={16} /> 
+                  {activeBill.multiplePending ? 'Múltiples Facturas' : `Factura Período ${activeBill.invoices[0].period}`}
                 </span>
-                <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
-                  Pendiente de Pago
+                <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                  Pendiente
                 </span>
               </div>
 
-              {/* Monto Principal */}
               <div className="mb-5">
-                <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-                  Total a abonar hoy:
+                <div className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">
+                  Total adeudado hoy:
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 font-mono tracking-tight">
+                  <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 font-mono tracking-tight">
                     ${activeBill.totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </span>
                   <button
                     onClick={() => handleCopyAmount(activeBill.totalAmount)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all text-xs flex items-center gap-1"
+                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all text-xs flex items-center gap-1"
                     title="Copiar monto exacto"
                   >
-                    {copiedAmount ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                    {copiedAmount ? <CheckCircle2 size={16} className="text-emerald-400" /> : <Copy size={16} />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {activeBill.activeTier === 'V1' ? (
-                    <span className="text-emerald-400 font-semibold">
-                      ✓ Tarifa Base Vencimiento 1 (Hasta el día 10 inclusive)
+                <p className="text-xs text-slate-400 mt-2">
+                  {activeBill.multiplePending ? (
+                    <span className="text-amber-400 font-semibold">
+                      ⚠️ Registras {activeBill.invoices.length} facturas impagas. Este es el total acumulado.
                     </span>
                   ) : (
-                    <span className="text-amber-400 font-semibold">
-                      ⚠️ Tarifa actualizada con recargo por vencimiento ({activeBill.activeTier})
-                    </span>
+                    activeBill.invoices[0].activeTier === 'V1' ? (
+                      <span className="text-emerald-400 font-semibold">
+                        ✓ Tarifa Base Vencimiento 1 (Hasta el día 10 inclusive)
+                      </span>
+                    ) : (
+                      <span className="text-amber-400 font-semibold">
+                        ⚠️ Tarifa actualizada con recargo por vencimiento ({activeBill.invoices[0].activeTier})
+                      </span>
+                    )
                   )}
                 </p>
               </div>
 
               {/* Botones de Acción Inmediata */}
               <div className="space-y-2.5">
-                {/* 1. Botón Mercado Pago */}
-                <a
-                  href={activeBill.mpLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
-                >
-                  <CreditCard size={18} />
-                  <span>Pagar con Mercado Pago / Tarjetas</span>
-                  <ExternalLink size={15} />
-                </a>
+                {/* 1. Botón Mercado Pago o Aviso Múltiple */}
+                {activeBill.multiplePending ? (
+                  <div className="w-full py-4 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold text-sm text-center">
+                    <p className="mb-1 uppercase tracking-wider font-bold">Múltiples Facturas</p>
+                    <p className="text-slate-400 text-xs">Realizá una transferencia por el total, o abona cada mes desde el listado de abajo.</p>
+                  </div>
+                ) : (
+                  <a
+                    href={activeBill.singleMpLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
+                  >
+                    <CreditCard size={18} />
+                    <span>Pagar con Mercado Pago / Tarjetas</span>
+                    <ExternalLink size={15} />
+                  </a>
+                )}
 
                 {/* 2. Botón Transferencia / Alias */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
+                <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
                   <div className="text-left">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                    <span className="text-xs uppercase font-bold text-slate-400 block tracking-wider">
                       Alias Transferencia (Sin Comisión)
                     </span>
-                    <span className="text-sm font-black font-mono text-cyan-300">INTERFASTSM</span>
+                    <span className="text-base font-black font-mono text-cyan-300">INTERFASTSM</span>
                   </div>
                   <button
                     onClick={handleCopyAlias}
@@ -548,20 +561,22 @@ export default function ClientPortal() {
                       setTicketDescription(`Informo pago de $${activeBill.totalAmount} mediante transferencia.`);
                       setTicketModal(true);
                     }}
-                    className="w-full py-3 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    className="w-full py-3.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold text-sm transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    <Send size={15} />
+                    <Send size={16} />
                     <span>Informar Pago</span>
                   </button>
-                  <a
-                    href={activeBill.pdfUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <Download size={15} />
-                    <span>Descargar PDF</span>
-                  </a>
+                  {activeBill.singlePdfUrl && (
+                    <a
+                      href={activeBill.singlePdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-sm transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Download size={16} />
+                      <span>Descargar PDF</span>
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -570,8 +585,8 @@ export default function ClientPortal() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 mb-3 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
                 <CheckCircle2 size={30} />
               </div>
-              <h3 className="text-xl font-black text-white">¡Estás al día!</h3>
-              <p className="text-xs text-slate-400 mt-1">
+              <h3 className="text-2xl font-black text-white">¡Estás al día!</h3>
+              <p className="text-sm text-slate-400 mt-2">
                 No registras facturas pendientes de pago en este momento. ¡Muchas gracias por tu puntualidad!
               </p>
             </div>
@@ -588,8 +603,8 @@ export default function ClientPortal() {
               <MessageSquare size={20} />
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">Reclamo Técnico</span>
-              <span className="text-[10px] text-slate-400">Reportar problema de conexión</span>
+              <span className="text-sm font-bold text-white block">Reclamo Técnico</span>
+              <span className="text-xs text-slate-400">Reportar problema de conexión</span>
             </div>
           </button>
 
@@ -603,16 +618,16 @@ export default function ClientPortal() {
               <PhoneCall size={20} />
             </div>
             <div>
-              <span className="text-xs font-bold text-white block">WhatsApp Directo</span>
-              <span className="text-[10px] text-slate-400">Atención personalizada</span>
+              <span className="text-sm font-bold text-white block">WhatsApp Directo</span>
+              <span className="text-xs text-slate-400">Atención personalizada</span>
             </div>
           </a>
         </section>
 
         {/* Card 4: Historial de Facturas y Pagos */}
         <section className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-            <FileText size={16} className="text-cyan-400" />
+          <h3 className="text-base font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+            <FileText size={18} className="text-cyan-400" />
             Historial de Facturación
           </h3>
 
@@ -632,7 +647,7 @@ export default function ClientPortal() {
 
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold ${
                         inv.status === 'PAID'
                           ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                           : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
@@ -640,14 +655,24 @@ export default function ClientPortal() {
                     >
                       {inv.status === 'PAID' ? 'PAGADA' : 'PENDIENTE'}
                     </span>
+                    {inv.status === 'PENDING' && (
+                      <a
+                        href={inv.mpLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all font-bold text-xs"
+                      >
+                        Pagar
+                      </a>
+                    )}
                     <a
                       href={inv.pdfUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="p-1.5 rounded-lg bg-slate-900 text-cyan-400 hover:bg-slate-800 border border-slate-800 transition-all"
+                      className="p-2 rounded-lg bg-slate-900 text-cyan-400 hover:bg-slate-800 border border-slate-800 transition-all"
                       title="Descargar PDF"
                     >
-                      <Download size={14} />
+                      <Download size={16} />
                     </a>
                   </div>
                 </div>
