@@ -76,218 +76,23 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    // Nivel 2: Diagnóstico Avanzado (Túnel NAT Dinámico)
-    console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Preparando reglas NAT efímeras...`);
-    
-    const randomPort = Math.floor(Math.random() * (65000 - 60000 + 1)) + 60000;
-    const commentLabel = `TempPortalDiag_${cpeIp}`;
+    // Nivel 2: Diagnóstico Avanzado (Bloqueado temporalmente por Firewall)
+    // El puerto aleatorio del túnel NAT está siendo dropeado por el firewall perimetral del WISP.
+    // Hasta definir una ruta alternativa, devolvemos éxito en base al ping del Nivel 1.
+    console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Túnel NAT deshabilitado por bloqueo de firewall.`);
 
-    // Limpieza proactiva: Si el proceso de Render crasheó en un intento anterior, borramos las reglas huérfanas
-    try {
-      const existingRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
-      for (const rule of existingRules) {
-        if (rule['.id']) {
-          await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
-          console.log(`[ConnectionTest] Regla huérfana eliminada en CCR para ${cpeIp}`);
-        }
-      }
-    } catch (e) {
-      console.log('[ConnectionTest] No se requirió limpieza proactiva o falló:', e.message);
-    }
-
-    console.log(`[ConnectionTest] Conectado al CCR. Creando regla Dst-NAT efímera en puerto: ${randomPort} y Src-NAT`);
-    const natResult = await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
-      '=chain=dstnat', 
-      '=protocol=tcp', 
-      `=dst-port=${randomPort}`, 
-      '=action=dst-nat', 
-      `=to-addresses=${cpeIp}`, 
-      '=to-ports=8728', 
-      `=comment=${commentLabel}`
-    ]);
-    
-    natRuleId = natResult[0]?.ret;
-
-    // Regla Src-NAT (Masquerade) para evitar que el CPE descarte el paquete o falle el ruteo asimétrico
-    let srcNatRuleId = null;
-    const srcNatResult = await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
-      '=chain=srcnat',
-      `=dst-address=${cpeIp}`,
-      '=protocol=tcp',
-      '=dst-port=8728',
-      '=action=masquerade',
-      `=comment=${commentLabel}`
-    ]);
-    srcNatRuleId = srcNatResult[0]?.ret;
-
-    console.log(`[ConnectionTest] Intentando conectar al CPE vía NAT en: ${node.host}:${randomPort}`);
-    
-    // Conectamos al CPE a través del puerto desviado en la IP pública del CCR
-    cpeApi = new RouterOSClient({
-      host: node.host,
-      port: randomPort,
-      user: CPE_USERNAME,
-      password: CPE_PASSWORD,
-      timeout: 10000,
-      keepalive: true
-    });
-
-    await cpeApi.connect();
-    console.log(`[ConnectionTest] ¡Conectado exitosamente al CPE ${cpeIp}! Extrayendo métricas...`);
-
-    // --- 1. SEÑAL INALÁMBRICA Y ESTADO DE ETHERNET ---
-    let signalData = null;
-    let signalWarning = false;
-    let ethernetWarning = false;
-    
-    try {
-      const regTable = await cpeApi.menu('/interface/wireless/registration-table').get();
-      if (regTable && regTable.length > 0) {
-        signalData = {
-          tx: regTable[0]['tx-signal-strength'],
-          rx: regTable[0]['rx-signal-strength'],
-          ccq: regTable[0]['tx-ccq'] || regTable[0]['rx-ccq'],
-          txRate: regTable[0]['tx-rate'] || 'N/A'
-        };
-        
-        const dbm = parseInt(signalData.tx.replace('dBm', '').trim());
-        if (dbm < -78) { // Señal muy degradada
-          signalWarning = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error leyendo registro inalámbrico en ${cpeIp}:`, e.message);
-    }
-
-    try {
-      // Verificamos si negocia a 10Mbps (Cable dañado o sulfatado)
-      const ethMonitor = await cpeApi.menu('/interface/ethernet/monitor').where('name', 'ether1').where('once', '').get();
-      if (ethMonitor && ethMonitor.length > 0) {
-        if (ethMonitor[0].rate === '10Mbps') {
-          ethernetWarning = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error verificando monitor ethernet en ${cpeIp}:`, e.message);
-    }
-
-    // --- 2. DETECCIÓN DEL ROUTER INTERNO Y PING ---
-    let routerIp = null;
-    let routerPingSuccess = false;
-    try {
-      const dhcpLeases = await cpeApi.menu('/ip/dhcp-server/lease').where('status', 'bound').get();
-      if (dhcpLeases && dhcpLeases.length > 0) {
-        routerIp = dhcpLeases[0].address;
-      } else {
-        const arpTable = await cpeApi.menu('/ip/arp').whereNot('interface', 'wlan1').get();
-        const validArp = arpTable.find(a => a.address && !a.address.startsWith('169.254') && !a.address.endsWith('.255'));
-        if (validArp) routerIp = validArp.address;
-      }
-
-      if (routerIp) {
-        const pingResult = await cpeApi.menu('/ping').where('address', routerIp).where('count', '3').get();
-        const received = pingResult.reduce((acc, p) => acc + (parseInt(p.received) || 0), 0);
-        if (received > 0) {
-          routerPingSuccess = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error buscando/pingueando router interno en ${cpeIp}:`, e.message);
-    }
-
-    // --- 3. EVALUACIÓN Y TICKETS (Matriz Prescriptiva) ---
-
-    // CASO 2: Falla Física de Cable (10Mbps)
-    if (ethernetWarning) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[FALLA FÍSICA] Cable UTP dañado o no-link en ether1',
-          description: `**Acción/Repuesto para el Técnico:** Llevar crimpeadora, conectores RJ45 y tramo de cable UTP para rearmar bajada/patchcord.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
-          status: 'OPEN',
-          priority: 'HIGH'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'Detectamos un falso contacto en el cable de red que conecta el transformador con tu router Wi-Fi. Revisa que las fichas estén bien apretadas.',
-        troubleshooting: 'No fuerces ni dobles el cable abruptamente.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 3: Falla de Router Wi-Fi
-    if (!routerPingSuccess) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[EQUIPO LOCAL] Falla en Router Wi-Fi domiciliario',
-          description: `**Acción/Repuesto para el Técnico:** Llevar router Wi-Fi de recambio o realizar reinicio de fábrica en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | IP Router: ${routerIp || 'Desconocida'}`,
-          status: 'OPEN',
-          priority: 'NORMAL'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'Tu antena funciona bien, pero tu router Wi-Fi no responde. Desenchúfalo de la corriente por 30 segundos y vuelve a probar.',
-        troubleshooting: 'Verifica que el cable celeste/gris esté conectado en el puerto Internet o WAN del router.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 4: Falla de Radiofrecuencia
-    if (signalWarning) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[RF / SEÑAL] Señal degradada',
-          description: `**Niveles:** TX ${signalData?.tx} | RX ${signalData?.rx} | CCQ ${signalData?.ccq}%\n**Acción/Repuesto para el Técnico:** Llevar escalera/arnés para realineación de antena o aumento de caño por posible obstáculo (árbol).`,
-          status: 'OPEN',
-          priority: 'NORMAL'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'La señal entre la central y tu antena presenta interferencias o desalineación climática. Derivamos la calibración a un técnico.',
-        troubleshooting: 'No toques ni intentes orientar la antena. Ya coordinamos la visita.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 5: Todo OK
+    // CASO 5: Todo OK (Temporal)
     return {
       status: 'ok',
-      signal: signalData ? `${signalData.tx} / ${signalData.rx} (CCQ: ${signalData.ccq})` : 'Datos no disponibles',
-      message: 'Equipos comunicándose con el nodo correctamente. Si notas lentitud en alguna app, te sugerimos reiniciar tu dispositivo celular.'
+      signal: `Ping OK (Pérdida: ${packetLoss}%)`,
+      message: 'La antena está comunicándose correctamente con el Nodo. (Métricas de RF suspendidas temporalmente por restricciones de red).'
     };
 
   } catch (error) {
     console.error('[ConnectionTest] Error general:', error);
     return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico avanzado.' };
   } finally {
-    if (cpeApi) {
-      cpeApi.close();
-    }
-    
-    // Limpieza de las reglas NAT
     if (mikrotikClient) {
-      console.log(`[ConnectionTest] Eliminando Túnel NAT del CCR para ${cpeIp}...`);
-      try {
-        const rulesToRemove = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
-        for (const rule of rulesToRemove) {
-          if (rule['.id']) {
-            await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
-          }
-        }
-      } catch (e) {
-        console.error('[ConnectionTest] Error eliminando túnel NAT final:', e.message);
-      }
       mikrotikClient.close();
     }
   }
