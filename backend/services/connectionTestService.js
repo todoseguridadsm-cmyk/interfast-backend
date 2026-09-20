@@ -80,7 +80,20 @@ async function runConnectionTest(clientDni) {
     console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Creando Túnel NAT en el CCR...`);
     
     const randomPort = Math.floor(Math.random() * (65000 - 60000 + 1)) + 60000;
-    const commentLabel = `TempPortalDiag_${cpeIp}_${randomPort}`;
+    const commentLabel = `TempPortalDiag_${cpeIp}`;
+
+    // Limpieza proactiva: Si el proceso de Render crasheó en un intento anterior, borramos la regla huérfana
+    try {
+      const existingRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
+      for (const rule of existingRules) {
+        if (rule['.id']) {
+          await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
+          console.log(`[ConnectionTest] Regla huérfana eliminada en CCR para ${cpeIp}`);
+        }
+      }
+    } catch (e) {
+      console.log('[ConnectionTest] No se requirió limpieza proactiva o falló:', e.message);
+    }
 
     const natResult = await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
       '=chain=dstnat', 
