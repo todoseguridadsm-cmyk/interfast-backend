@@ -631,7 +631,7 @@ export default function ClientPortal() {
           </button>
 
           <a
-            href="whatsapp://send?phone=5492634654246"
+            href="whatsapp://send?phone=5492634513933"
             className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
