@@ -208,15 +208,12 @@ export default function ClientPortal() {
   };
 
   const openMercadoPagoApp = () => {
-    const isAndroid = /android/i.test(navigator.userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     
-    if (isAndroid) {
-      window.location.href = "intent://#Intent;package=com.mercadopago.wallet;scheme=mercadopago;end";
-    } else if (isIOS) {
+    if (isIOS) {
       window.location.href = "mercadopago://";
     } else {
-      window.open("https://www.mercadopago.com.ar", "_blank");
+      window.location.href = "intent://#Intent;package=com.mercadopago.wallet;scheme=mercadopago;end";
     }
   };
 
@@ -601,21 +598,12 @@ export default function ClientPortal() {
 
               {/* Botones de Acción Inmediata */}
               <div className="space-y-2.5">
-                {/* 1. Botón Mercado Pago o Aviso Múltiple */}
-                {activeBill.multiplePending ? (
+                {/* Aviso Múltiple (Si aplica) */}
+                {activeBill.multiplePending && (
                   <div className="w-full py-4 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold text-sm text-center">
                     <p className="mb-1 uppercase tracking-wider font-bold">Múltiples Facturas</p>
                     <p className="text-slate-400 text-xs">Realizá una transferencia por el total, o abona cada mes desde el listado de abajo.</p>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => handlePayTransfer(activeBill.totalAmount)}
-                    className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
-                  >
-                    <CreditCard size={18} />
-                    <span>Abrir Mercado Pago</span>
-                    <ExternalLink size={15} />
-                  </button>
                 )}
 
                 {/* 2. Botón Transferencia / Alias */}
