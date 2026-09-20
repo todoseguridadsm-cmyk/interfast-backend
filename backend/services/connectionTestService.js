@@ -28,7 +28,7 @@ async function runConnectionTest(clientDni) {
       host: cpeIp,
       user: CPE_USERNAME,
       password: CPE_PASSWORD,
-      timeout: 5,
+      timeout: 10000,
       keepalive: true
     });
 
