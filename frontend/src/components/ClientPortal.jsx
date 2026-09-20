@@ -208,10 +208,10 @@ export default function ClientPortal() {
   };
 
   const openMercadoPagoApp = () => {
-    // Usamos el "App Link" (Universal Link) oficial de Mercado Pago.
-    // En móviles modernos (iOS y Android), el sistema operativo intercepta esta URL 
-    // y abre la aplicación nativa automáticamente si está instalada.
-    window.location.href = "https://link.mercadopago.com.ar/";
+    // La forma más ruda y directa de despertar la app. 
+    // mercadopago:// funciona nativamente en iOS y Android.
+    // Al no usar "intent://" evitamos que Chrome intente buscar el package y nos mande al Play Store por error.
+    window.location.href = "mercadopago://";
   };
 
   const handleCopyAlias = () => {
