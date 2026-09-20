@@ -3455,42 +3455,7 @@ app.get('/api/unidentified-payments', async (req, res) => {
   }
 });
 
-app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
-  try {
-    const { invoiceId } = req.body;
-    const paymentId = parseInt(req.params.id);
-
-    const payment = await prisma.unidentifiedPayment.findUnique({ where: { id: paymentId } });
-    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
-
-    const invoice = await prisma.invoice.findUnique({ where: { id: parseInt(invoiceId) }, include: { client: true } });
-    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
-
-    await prisma.invoice.update({
-      where: { id: parseInt(invoiceId) },
-      data: { status: 'PAID', paymentMethod: 'MERCADOPAGO', paymentDate: payment.date }
-    });
-
-    if (invoice.client && invoice.client.ipNumber) {
-      try {
-        const targetNode = invoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
-        if (targetNode) await mikrotik.removeIpFromCutoffList(invoice.client.ipNumber, targetNode);
-      } catch (e) { }
-      // Limpiar cola de cortes para este cliente
-      try {
-        await prisma.cutoffList.deleteMany({
-          where: { clientId: invoice.clientId }
-        });
-      } catch(e) {}
-    }
-
-    await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
-    res.json({ message: 'Pago asignado con éxito' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al asignar pago' });
-  }
-});
+// Ruta /api/unidentified-payments/:id/assign consolidada más abajo
 
 app.delete('/api/unidentified-payments/:id', async (req, res) => {
   try {
@@ -3681,7 +3646,7 @@ app.post('/api/invoices/mercadopago/multi', async (req, res) => {
 
 // 6. Mercado Pago Webhook
 
-const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentIdStr, mpFee = 0, mpTax = 0) => {
+const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentIdStr, mpFee = 0, mpTax = 0, paymentDate = null) => {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: { client: true }
@@ -3693,10 +3658,11 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
   }
 
   const today = new Date();
+  const checkDate = paymentDate ? new Date(paymentDate) : today;
   let expectedAmountForDate = invoice.priceV1 || invoice.originalAmount;
   let activeTierName = "Vencimiento 1";
 
-  const tierStatus = getInvoiceTierStatus(invoice);
+  const tierStatus = getInvoiceTierStatus(invoice, checkDate);
   expectedAmountForDate = tierStatus.totalAmount;
   activeTierName = `Vencimiento ${tierStatus.activeTier.replace('V', '')}`;
 
@@ -3717,7 +3683,8 @@ const processInvoiceImputation = async (invoiceId, transactionAmount, mpPaymentI
       mpFee: mpFee,
       mpTax: mpTax,
       lateFeeApplied: 0,
-      mpPaymentId: mpPaymentIdStr
+      mpPaymentId: mpPaymentIdStr,
+      paymentDate: checkDate
     }
   });
 
@@ -3994,7 +3961,7 @@ app.post('/api/unidentified-payments/:id/assign', async (req, res) => {
     const invoice = await prisma.invoice.findUnique({ where: { id: parseInt(invoiceId) }, include: { client: true } });
     if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
 
-    const success = await processInvoiceImputation(invoice.id, payment.amount, payment.mpPaymentId || String(paymentId), 0, 0);
+    const success = await processInvoiceImputation(invoice.id, payment.amount, payment.mpPaymentId || String(paymentId), 0, 0, payment.date);
 
     if (success) {
       await prisma.unidentifiedPayment.delete({ where: { id: paymentId } });
