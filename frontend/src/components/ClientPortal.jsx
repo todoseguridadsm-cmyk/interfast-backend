@@ -442,7 +442,7 @@ export default function ClientPortal() {
               <p className="text-[11px] text-slate-400">
                 ¿Problemas para ingresar? Escríbenos a soporte:{' '}
                 <a
-                  href="https://wa.me/5492634654246?text=Hola%20Interfast,%20necesito%20ayuda%20para%20ingresar%20a%20mi%20portal"
+                  href="https://wa.me/5492634513933?text=Hola%20Interfast,%20necesito%20ayuda%20para%20ingresar%20a%20mi%20portal"
                   target="_blank"
                   rel="noreferrer"
                   className="text-cyan-400 font-bold hover:underline"
