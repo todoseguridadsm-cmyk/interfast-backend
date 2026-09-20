@@ -80,7 +80,8 @@ export default function ClientPortal() {
     if (!authToken) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${BACKEND_URL}/api/portal/me`, {
+      const ts = new Date().getTime();
+      const res = await axios.get(`${BACKEND_URL}/api/portal/me?_cb=${ts}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       setClientData(res.data);
