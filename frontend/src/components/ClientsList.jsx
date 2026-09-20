@@ -429,7 +429,7 @@ export default function ClientsList() {
               placeholder="Buscar por N°, DNI o Nombre..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow text-sm bg-white text-slate-900 placeholder:text-slate-400"
             />
           </div>
         </div>
@@ -581,7 +581,7 @@ export default function ClientsList() {
       {/* Modal Nuevo Cliente */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 overflow-y-auto pt-10 pb-10">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in duration-200 text-slate-900">
             <div className="flex justify-between items-center p-5 border-b border-slate-100">
               <h3 className="text-xl font-bold text-slate-900">
                 {editingId 
@@ -593,37 +593,37 @@ export default function ClientsList() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-5 overflow-y-auto max-h-[80vh] custom-scrollbar">
+            <form onSubmit={handleSubmit} className="p-5 overflow-y-auto max-h-[80vh] custom-scrollbar text-slate-900">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                 
                 {/* Personal Data */}
                 <div className="md:col-span-8">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-                  <input required type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Juan Pérez" />
+                  <input required type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Ej: Juan Pérez" />
                 </div>
                 <div className="md:col-span-4">
                   <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
-                  <input required type="text" name="dni" value={formData.dni} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="12345678" />
+                  <input required type="text" name="dni" value={formData.dni} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="12345678" />
                 </div>
                 
                 {formData.taxCondition === 'RESPONSABLE_INSCRIPTO' && (
                   <div className="md:col-span-12">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Razón Social</label>
-                    <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Ej: Empresa S.A." />
+                    <input type="text" name="businessName" value={formData.businessName} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Ej: Empresa S.A." />
                   </div>
                 )}
 
                 {/* Tax Data */}
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
-                  <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Datos Impositivos (AFIP)</h4>
+                  <h4 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider text-xs">Datos Impositivos (AFIP)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">C.U.I.T / C.U.I.L</label>
-                      <input type="text" name="cuit" value={formData.cuit} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Opcional..." />
+                      <input type="text" name="cuit" value={formData.cuit} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Opcional..." />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Condición Frente al IVA</label>
-                      <select name="taxCondition" value={formData.taxCondition} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                      <select name="taxCondition" value={formData.taxCondition} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium">
                         <option value="CONSUMIDOR_FINAL">Consumidor Final</option>
                         <option value="RESPONSABLE_INSCRIPTO">Responsable Inscripto</option>
                         <option value="MONOTRIBUTISTA">Monotributista</option>
@@ -632,7 +632,7 @@ export default function ClientsList() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Estado de la Cuenta</label>
-                      <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white font-bold">
+                      <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-bold">
                         <option value="PENDING" className="text-blue-600">Pendiente de Alta</option>
                         <option value="ACTIVE" className="text-emerald-700">Activo</option>
                         <option value="SUSPENDED" className="text-orange-600">Suspendido</option>
@@ -640,7 +640,7 @@ export default function ClientsList() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Categoría</label>
-                      <select name="isVip" value={formData.isVip} onChange={(e) => setFormData({ ...formData, isVip: e.target.value === 'true' })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white font-bold">
+                      <select name="isVip" value={formData.isVip} onChange={(e) => setFormData({ ...formData, isVip: e.target.value === 'true' })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-bold">
                         <option value="false">Clásico</option>
                         <option value="true" className="text-amber-600">VIP - Sin Cortes</option>
                       </select>
@@ -650,54 +650,54 @@ export default function ClientsList() {
 
                 {/* Contact and Address */}
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
-                  <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Contacto y Ubicación</h4>
+                  <h4 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider text-xs">Contacto y Ubicación</h4>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-4">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="correo@ejemplo.com" />
+                      <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="correo@ejemplo.com" />
                     </div>
                     <div className="md:col-span-4">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono Principal</label>
-                      <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="1122334455" />
+                      <input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="1122334455" />
                     </div>
                     <div className="md:col-span-4">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono Secundario</label>
-                      <input type="text" name="phone2" value={formData.phone2} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Opcional..." />
+                      <input type="text" name="phone2" value={formData.phone2} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Opcional..." />
                     </div>
                     <div className="md:col-span-6">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Dirección Física</label>
-                      <input type="text" name="address" value={formData.address} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Calle Falsa 123" />
+                      <input type="text" name="address" value={formData.address} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Calle Falsa 123" />
                     </div>
                     <div className="md:col-span-6">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Dirección Fiscal</label>
-                      <input type="text" name="fiscalAddress" value={formData.fiscalAddress} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ej: Av. San Martín 456" />
+                      <input type="text" name="fiscalAddress" value={formData.fiscalAddress} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Ej: Av. San Martín 456" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Ciudad</label>
-                      <input type="text" name="city" value={formData.city} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ciudad" />
+                      <input type="text" name="city" value={formData.city} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Ciudad" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Cód. Postal</label>
-                      <input type="text" name="zipCode" value={formData.zipCode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="5570" />
+                      <input type="text" name="zipCode" value={formData.zipCode} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="5570" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Provincia</label>
-                      <input type="text" name="province" value={formData.province} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Provincia" />
+                      <input type="text" name="province" value={formData.province} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Provincia" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Alta</label>
-                      <input type="date" name="registrationDate" value={formData.registrationDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                      <input type="date" name="registrationDate" value={formData.registrationDate} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium" />
                     </div>
                     <div className="md:col-span-12">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones (Máx. 100 caracteres)</label>
-                      <textarea name="observation" value={formData.observation} onChange={handleInputChange} maxLength="100" rows="2" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" placeholder="Notas sobre el cliente..."></textarea>
+                      <textarea name="observation" value={formData.observation} onChange={handleInputChange} maxLength="100" rows="2" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none bg-white text-slate-900 font-medium placeholder:text-slate-400" placeholder="Notas sobre el cliente..."></textarea>
                     </div>
                   </div>
                 </div>
                 
                 {/* Hardware Grid Panel */}
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">
-                  <h4 className="text-sm font-bold text-slate-800 mb-3 text-slate-500 uppercase tracking-wider text-xs">Datos de Conexión (Red)</h4>
+                  <h4 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider text-xs">Datos de Conexión (Red)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-4">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Nodo Matriz</label>
@@ -707,7 +707,7 @@ export default function ClientsList() {
                         onChange={(e) => {
                           setFormData({ ...formData, nodeRefId: parseInt(e.target.value), panelRefId: '' });
                         }} 
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium"
                       >
                         <option value="">Seleccione un nodo...</option>
                         {nodes.map(node => (
@@ -716,13 +716,13 @@ export default function ClientsList() {
                       </select>
                     </div>
                     <div className="md:col-span-4">
-                      <label className="block text-xs font-medium text-slate-500 mb-1">Panel Sectorial</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Panel Sectorial</label>
                       <select 
                         name="panelRefId" 
                         value={formData.panelRefId || ''} 
                         onChange={(e) => setFormData({ ...formData, panelRefId: parseInt(e.target.value) })} 
                         disabled={!formData.nodeRefId} 
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-slate-50 disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium disabled:bg-slate-50 disabled:cursor-not-allowed"
                       >
                         <option value="">Seleccione un panel...</option>
                         {/* Se asume que la variable 'panels' está en el estado superior */}
@@ -732,8 +732,8 @@ export default function ClientsList() {
                       </select>
                     </div>
                     <div className="md:col-span-4">
-                      <label className="block text-xs font-medium text-slate-500 mb-1">Número de IP Asignada</label>
-                      <input type="text" name="ipNumber" value={formData.ipNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono text-sm font-bold border-l-4 border-l-blue-500" placeholder="192.168.1.50" />
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Número de IP Asignada</label>
+                      <input type="text" name="ipNumber" value={formData.ipNumber} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-sm font-bold border-l-4 border-l-blue-500 bg-white text-slate-900 placeholder:text-slate-400" placeholder="192.168.1.50" />
                     </div>
                   </div>
                   

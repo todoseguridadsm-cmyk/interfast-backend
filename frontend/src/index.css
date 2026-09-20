@@ -5,6 +5,10 @@
     background-color: theme('colors.slate.50');
     color: theme('colors.slate.900');
   }
+
+  input, select, textarea {
+    color: #0f172a;
+  }
 }
 
 /* Hide scrollbar completely while maintaining smooth scrolling */
