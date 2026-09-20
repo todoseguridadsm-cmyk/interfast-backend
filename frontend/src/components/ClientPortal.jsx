@@ -207,6 +207,19 @@ export default function ClientPortal() {
     window.history.pushState(null, '', ' ');
   };
 
+  const openMercadoPagoApp = () => {
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    if (isAndroid) {
+      window.location.href = "intent://#Intent;package=com.mercadopago.wallet;scheme=mercadopago;end";
+    } else if (isIOS) {
+      window.location.href = "mercadopago://";
+    } else {
+      window.open("https://www.mercadopago.com.ar", "_blank");
+    }
+  };
+
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('INTERFASTSM');
     setCopiedAlias(true);
@@ -214,7 +227,7 @@ export default function ClientPortal() {
     
     // Intentar abrir app de Mercado Pago
     setTimeout(() => {
-      window.location.href = 'mercadopago://';
+      openMercadoPagoApp();
     }, 300);
   };
 
@@ -224,7 +237,7 @@ export default function ClientPortal() {
     
     // Intentar abrir app de Mercado Pago
     setTimeout(() => {
-      window.location.href = 'mercadopago://';
+      openMercadoPagoApp();
     }, 300);
   };
 
@@ -667,15 +680,6 @@ export default function ClientPortal() {
               <p className="text-sm text-slate-400 mt-2">
                 No registras facturas pendientes de pago en este momento. ¡Muchas gracias por tu puntualidad!
               </p>
-              
-              {/* DEBUG INFORMATIVO TEMPORAL */}
-              <div className="mt-4 p-3 bg-red-900/50 border border-red-500/50 rounded-xl text-left font-mono text-[10px] text-red-200">
-                DEBUG INFO PARA SOPORTE: <br/>
-                ClientID: {client?.id} <br/>
-                Historial (Total): {invoicesHistory?.length || 0} <br/>
-                Pendientes en Historial: {invoicesHistory?.filter(i => i.status === 'PENDING').length || 0} <br/>
-                ¿Existe ActiveBill?: {activeBill ? 'SI' : 'NO'}
-              </div>
             </div>
           )}
         </section>
@@ -726,7 +730,7 @@ export default function ClientPortal() {
                   <div>
                     <span className="font-bold text-slate-200 block">Período {inv.period}</span>
                     <span className="text-[11px] font-mono text-slate-400">
-                      ${inv.amount?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                      ${(inv.totalAmount || inv.amount)?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
 
