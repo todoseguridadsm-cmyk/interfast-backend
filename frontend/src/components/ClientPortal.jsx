@@ -137,7 +137,7 @@ export default function ClientPortal() {
         documentId: sanitizedDocument
       }, {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 8000 // 8 segundos de límite
+        timeout: 35000 // 35 segundos para permitir salto NAT multipunto
       });
 
       const data = response.data;
