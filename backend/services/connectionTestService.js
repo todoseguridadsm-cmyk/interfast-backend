@@ -1,12 +1,12 @@
+const { RouterOSClient } = require('routeros-client');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { connectToMikrotik } = require('../mikrotik');
 
-const CPE_USERNAME = 'admin'; 
-const CPE_PASSWORD = process.env.CPE_PASSWORD || 'Bran5570'; 
-
 async function runConnectionTest(clientDni) {
   let mikrotikClient = null;
+  let panelApi = null;
+  const staticNatPort = 65432;
 
   try {
     const client = await prisma.client.findFirst({
@@ -73,23 +73,157 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    // Nivel 2: Diagnóstico Avanzado (Bloqueado temporalmente por Firewall)
-    // El puerto aleatorio del túnel NAT está siendo dropeado por el firewall perimetral del WISP.
-    // Hasta definir una ruta alternativa, devolvemos éxito en base al ping del Nivel 1.
-    console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Túnel NAT deshabilitado por bloqueo de firewall.`);
+    // Nivel 2: Diagnóstico Avanzado vía mANTBox
+    console.log(`[ConnectionTest] Ping exitoso. Buscando MAC address en CCR ARP...`);
+    
+    let cpeMac = null;
+    try {
+      const arpResults = await mikrotikClient.rosApi.write('/ip/arp/print', [`?address=${cpeIp}`]);
+      if (arpResults && arpResults.length > 0) {
+        cpeMac = arpResults[0]['mac-address'];
+      }
+    } catch (e) {
+      console.log(`[ConnectionTest] Error leyendo ARP:`, e.message);
+    }
 
-    // CASO 5: Todo OK (Temporal)
+    if (!cpeMac) {
+      return {
+        status: 'ok',
+        signal: `Ping OK (${packetLoss}%) | MAC: Desconocida`,
+        message: 'La antena está conectada, pero no pudimos validar la señal RF (Falta MAC en tabla ARP).'
+      };
+    }
+
+    if (!client.panelRefId) {
+      return {
+        status: 'ok',
+        signal: `Ping OK (${packetLoss}%) | MAC: ${cpeMac}`,
+        message: 'La antena está conectada (Sin panel asociado en BD para medir RF).'
+      };
+    }
+
+    const panel = await prisma.panel.findUnique({ where: { id: client.panelRefId } });
+    if (!panel || !panel.ipAddress) {
+      return {
+        status: 'ok',
+        signal: `Ping OK (${packetLoss}%) | MAC: ${cpeMac}`,
+        message: 'La antena está conectada (Panel sin IP configurada en BD).'
+      };
+    }
+
+    console.log(`[ConnectionTest] Panel encontrado: ${panel.ipAddress}. Creando Túnel NAT Estático en puerto ${staticNatPort}...`);
+    const commentLabel = `TempPortalDiag_Panel_${panel.ipAddress}`;
+
+    // Limpieza proactiva de túneles anteriores
+    try {
+      const existingRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
+      for (const rule of existingRules) {
+        if (rule['.id']) await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
+      }
+    } catch (e) {
+      // Ignorar errores de limpieza proactiva
+    }
+
+    // Regla Dst-NAT
+    await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
+      '=chain=dstnat', 
+      '=protocol=tcp', 
+      `=dst-port=${staticNatPort}`, 
+      '=action=dst-nat', 
+      `=to-addresses=${panel.ipAddress}`, 
+      '=to-ports=8728', 
+      `=comment=${commentLabel}`
+    ]);
+
+    // Regla Src-NAT (Hairpinning)
+    await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
+      '=chain=srcnat',
+      `=dst-address=${panel.ipAddress}`,
+      '=protocol=tcp',
+      '=dst-port=8728',
+      '=action=masquerade',
+      `=comment=${commentLabel}`
+    ]);
+
+    console.log(`[ConnectionTest] Conectando a mANTBox vía CCR: ${node.host}:${staticNatPort}`);
+    
+    panelApi = new RouterOSClient({
+      host: node.host,
+      port: staticNatPort,
+      user: panel.user || 'admin',
+      password: panel.password || '',
+      timeout: 10000,
+      keepalive: true
+    });
+
+    await panelApi.connect();
+    console.log(`[ConnectionTest] Conectado a mANTBox. Extrayendo métricas para MAC ${cpeMac}...`);
+
+    let rfData = null;
+    const regTable = await panelApi.menu('/interface/wireless/registration-table').where('mac-address', cpeMac).get();
+    
+    if (regTable && regTable.length > 0) {
+      const clientReg = regTable[0];
+      rfData = {
+        signal: parseInt(clientReg['signal-strength']?.replace('dBm', '').trim() || '-100'),
+        txSignal: parseInt(clientReg['tx-signal-strength']?.replace('dBm', '').trim() || '-100'),
+        txCcq: parseInt(clientReg['tx-ccq'] || '0'),
+        rxCcq: parseInt(clientReg['rx-ccq'] || '0'),
+        uptime: clientReg['uptime']
+      };
+    } else {
+      console.log(`[ConnectionTest] MAC ${cpeMac} no encontrada en registration-table de la mANTBox.`);
+    }
+
+    // CASO 4: Falla de Radiofrecuencia (Degradada)
+    if (rfData && (rfData.signal < -76 || rfData.txCcq < 70)) {
+      const ticket = await prisma.ticket.create({
+        data: {
+          clientId: client.id,
+          title: '[RF / SEÑAL] Señal degradada',
+          description: `**Métricas Reales (mANTBox):** Señal ${rfData.signal} dBm | TX ${rfData.txSignal} dBm | CCQ TX ${rfData.txCcq}% / RX ${rfData.rxCcq}%\n**Acción/Repuesto para el Técnico:** Llevar escalera/arnés para realineación de antena SXT o aumento de caño por posible obstáculo (árbol).`,
+          status: 'OPEN',
+          priority: 'NORMAL'
+        }
+      });
+
+      return {
+        status: 'error',
+        error: 'La señal inalámbrica entre la central y tu antena está fuera de los parámetros óptimos (interferencias o desalineación). Ya abrimos un ticket para que un técnico calibre la antena.',
+        troubleshooting: 'No toques ni intentes orientar la antena. Espera el contacto de nuestro equipo.',
+        ticketCreated: true,
+        ticketId: ticket.id
+      };
+    }
+
+    // CASO 5: Todo OK
     return {
       status: 'ok',
-      signal: `Ping OK (Pérdida: ${packetLoss}%)`,
-      message: 'La antena está comunicándose correctamente con el Nodo. (Métricas de RF suspendidas temporalmente por restricciones de red).'
+      signal: rfData ? `${rfData.signal}dBm (CCQ: ${rfData.txCcq}%)` : `Ping OK (${packetLoss}%)`,
+      message: 'Tu antena cuenta con una conexión óptima a la red central. Si notas lentitud en alguna app, el problema podría estar dentro de tu router Wi-Fi local. Reinícialo.'
     };
 
   } catch (error) {
     console.error('[ConnectionTest] Error general:', error);
-    return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico avanzado.' };
+    return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico de RF.' };
   } finally {
+    if (panelApi) {
+      panelApi.close();
+    }
     if (mikrotikClient) {
+      console.log(`[ConnectionTest] Limpiando Túnel NAT del panel en CCR...`);
+      try {
+        const rulesToRemove = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=TempPortalDiag_Panel_${clientDni}`]); // En el finally no tenemos scope fácil a panel.ipAddress, usamos otra estrategia
+        // Mejor limpiamos todas las que contengan TempPortalDiag_Panel
+        const allRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', []);
+        for (const rule of allRules) {
+          if (rule.comment && rule.comment.startsWith('TempPortalDiag_Panel_')) {
+            await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
+          }
+        }
+      } catch (e) {
+        console.error('[ConnectionTest] Error limpiando túnel NAT:', e.message);
+      }
       mikrotikClient.close();
     }
   }
