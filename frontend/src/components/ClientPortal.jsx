@@ -208,15 +208,10 @@ export default function ClientPortal() {
   };
 
   const openMercadoPagoApp = () => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    
-    if (isIOS) {
-      window.location.href = "mercadopago://";
-    } else {
-      // Usamos intent sin restringir el 'package' para evitar que Chrome asuma que no está 
-      // instalada (debido a las restricciones de visibilidad de Android 11+) y mande al PlayStore.
-      window.location.href = "intent://#Intent;action=android.intent.action.VIEW;scheme=mercadopago;end";
-    }
+    // Usamos el "App Link" (Universal Link) oficial de Mercado Pago.
+    // En móviles modernos (iOS y Android), el sistema operativo intercepta esta URL 
+    // y abre la aplicación nativa automáticamente si está instalada.
+    window.location.href = "https://link.mercadopago.com.ar/";
   };
 
   const handleCopyAlias = () => {

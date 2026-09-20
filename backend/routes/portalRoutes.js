@@ -318,10 +318,14 @@ router.get('/me', authenticatePortalClient, async (req, res) => {
       activeBill,
       invoicesHistory: invoices.map(inv => {
         const tierStatus = getInvoiceTierStatus(inv);
+        // Si está pendiente, calculamos con recargo. Si ya está pagada, mostramos el original.
+        const finalAmount = inv.status === 'PENDING' ? tierStatus.totalAmount : inv.originalAmount;
+        
         return {
           id: inv.id,
           period: `${String(inv.month).padStart(2, '0')}/${inv.year}`,
           amount: inv.originalAmount,
+          totalAmount: finalAmount,
           status: inv.status,
           dueDate: inv.dueDate,
           mpLink: `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/redirect`,
