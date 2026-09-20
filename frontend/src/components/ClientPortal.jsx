@@ -207,28 +207,22 @@ export default function ClientPortal() {
     window.history.pushState(null, '', ' ');
   };
 
-  const openMercadoPagoApp = () => {
-    // La forma más ruda y directa de despertar la app. 
-    // mercadopago:// funciona nativamente en iOS y Android.
-    // Al no usar "intent://" evitamos que Chrome intente buscar el package y nos mande al Play Store por error.
-    window.location.href = "mercadopago://";
+  const getMercadoPagoHref = () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) return "mercadopago://";
+    // El tag <a> nativo en Android maneja perfectamente los intent:// y evita el bloqueo de Chrome.
+    return "intent://#Intent;scheme=mercadopago;package=com.mercadopago.wallet;end";
   };
 
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('INTERFASTSM');
     setCopiedAlias(true);
     setTimeout(() => setCopiedAlias(false), 2000);
-    
-    // Intentar abrir app de Mercado Pago INMEDIATAMENTE (sin setTimeout)
-    openMercadoPagoApp();
   };
 
   const handlePayTransfer = (amount) => {
     navigator.clipboard.writeText('INTERFASTSM');
     alert(`Alias INTERFASTSM copiado.\nAbre Mercado Pago o tu banco y transfiere el monto exacto: $${amount}.`);
-    
-    // Intentar abrir app de Mercado Pago INMEDIATAMENTE
-    openMercadoPagoApp();
   };
 
   const handleCopyAmount = (amount) => {
@@ -606,8 +600,15 @@ export default function ClientPortal() {
                     </span>
                     <span className="text-base font-black font-mono text-cyan-300">INTERFASTSM</span>
                   </div>
-                  <button
-                    onClick={handleCopyAlias}
+                  <a
+                    href={getMercadoPagoHref()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      navigator.clipboard.writeText('INTERFASTSM');
+                      setCopiedAlias(true);
+                      setTimeout(() => setCopiedAlias(false), 2000);
+                    }}
                     className="px-3.5 py-2 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-bold text-xs hover:bg-cyan-500/25 transition-all flex items-center gap-1.5"
                   >
                     {copiedAlias ? (
@@ -725,12 +726,15 @@ export default function ClientPortal() {
                       {inv.status === 'PAID' ? 'PAGADA' : 'PENDIENTE'}
                     </span>
                     {inv.status === 'PENDING' && (
-                      <button
+                      <a
+                        href={getMercadoPagoHref()}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         onClick={() => handlePayTransfer(inv.totalAmount || inv.amount)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all font-bold text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all font-bold text-xs inline-block text-center cursor-pointer"
                       >
                         Pagar
-                      </button>
+                      </a>
                     )}
                     <a
                       href={inv.pdfUrl}
