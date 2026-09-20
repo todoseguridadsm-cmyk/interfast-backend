@@ -1,4 +1,3 @@
-const { RouterOSClient } = require('routeros-client');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { connectToMikrotik } = require('../mikrotik');
@@ -8,8 +7,6 @@ const CPE_PASSWORD = process.env.CPE_PASSWORD || 'Bran5570';
 
 async function runConnectionTest(clientDni) {
   let mikrotikClient = null;
-  let cpeApi = null;
-  let natRuleId = null;
 
   try {
     const client = await prisma.client.findFirst({
