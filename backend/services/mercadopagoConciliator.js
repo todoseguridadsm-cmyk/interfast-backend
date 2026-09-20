@@ -23,6 +23,8 @@ const levenshteinDistance = (a, b) => {
   return matrix[b.length][a.length];
 };
 
+const { getInvoiceTierStatus } = require('../utils/tierHelper');
+
 const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, paymentId, operator = 'MERCADOPAGO_WEBHOOK') => {
   // Check if it already exists to prevent duplicate processing
   const existingPayment = await prisma.payment.findUnique({
@@ -95,8 +97,17 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
   }
 
   if (matchedInvoice) {
-    const invoiceAmount = matchedInvoice.priceV1 || matchedInvoice.originalAmount;
-    const difference = transactionAmount - invoiceAmount;
+    const paymentDate = mpPayment.date_approved || mpPayment.date_created || new Date();
+    const tierStatus = getInvoiceTierStatus(matchedInvoice, new Date(paymentDate));
+    const invoiceAmount = tierStatus.totalAmount;
+    
+    // Obtenemos los centavos del id del cliente para saber el monto exacto esperado
+    const getCents999 = (cId) => (((parseInt(cId) % 999) + 1) / 100);
+    const expectedCents = getCents999(matchedInvoice.clientId);
+    const expectedExactAmount = invoiceAmount + expectedCents;
+    
+    // Calculamos la diferencia contra el monto exacto con centavos
+    const difference = transactionAmount - expectedExactAmount;
 
     await prisma.$transaction(async (tx) => {
       await tx.payment.create({
