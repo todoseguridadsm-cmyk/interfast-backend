@@ -39,7 +39,7 @@ async function runConnectionTest(clientDni) {
     }
 
     // Nivel 1: Conexión al CCR (Nodo Principal)
-    console.log(`[ConnectionTest] Conectando al CCR del nodo: ${client.mainNode}`);
+    console.log(`[ConnectionTest] Intentando conectar al CCR: ${node.host}:${node.port} (Nodo: ${client.mainNode})`);
     const conn = await connectToMikrotik(client.mainNode);
     mikrotikClient = conn.client;
 
@@ -77,12 +77,12 @@ async function runConnectionTest(clientDni) {
     }
 
     // Nivel 2: Diagnóstico Avanzado (Túnel NAT Dinámico)
-    console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Creando Túnel NAT en el CCR...`);
+    console.log(`[ConnectionTest] CPE ${cpeIp} respondió al ping. Preparando reglas NAT efímeras...`);
     
     const randomPort = Math.floor(Math.random() * (65000 - 60000 + 1)) + 60000;
     const commentLabel = `TempPortalDiag_${cpeIp}`;
 
-    // Limpieza proactiva: Si el proceso de Render crasheó en un intento anterior, borramos la regla huérfana
+    // Limpieza proactiva: Si el proceso de Render crasheó en un intento anterior, borramos las reglas huérfanas
     try {
       const existingRules = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
       for (const rule of existingRules) {
@@ -95,6 +95,7 @@ async function runConnectionTest(clientDni) {
       console.log('[ConnectionTest] No se requirió limpieza proactiva o falló:', e.message);
     }
 
+    console.log(`[ConnectionTest] Conectado al CCR. Creando regla Dst-NAT efímera en puerto: ${randomPort} y Src-NAT`);
     const natResult = await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
       '=chain=dstnat', 
       '=protocol=tcp', 
@@ -107,7 +108,19 @@ async function runConnectionTest(clientDni) {
     
     natRuleId = natResult[0]?.ret;
 
-    console.log(`[ConnectionTest] Túnel NAT creado en puerto ${randomPort}. Conectando al CPE...`);
+    // Regla Src-NAT (Masquerade) para evitar que el CPE descarte el paquete o falle el ruteo asimétrico
+    let srcNatRuleId = null;
+    const srcNatResult = await mikrotikClient.rosApi.write('/ip/firewall/nat/add', [
+      '=chain=srcnat',
+      `=dst-address=${cpeIp}`,
+      '=protocol=tcp',
+      '=dst-port=8728',
+      '=action=masquerade',
+      `=comment=${commentLabel}`
+    ]);
+    srcNatRuleId = srcNatResult[0]?.ret;
+
+    console.log(`[ConnectionTest] Intentando conectar al CPE vía NAT en: ${node.host}:${randomPort}`);
     
     // Conectamos al CPE a través del puerto desviado en la IP pública del CCR
     cpeApi = new RouterOSClient({
@@ -262,15 +275,18 @@ async function runConnectionTest(clientDni) {
       cpeApi.close();
     }
     
-    // Limpieza de la regla NAT
+    // Limpieza de las reglas NAT
     if (mikrotikClient) {
-      if (natRuleId) {
-        console.log(`[ConnectionTest] Eliminando Túnel NAT ${natRuleId} del CCR...`);
-        try {
-          await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${natRuleId}`]);
-        } catch (e) {
-          console.error('[ConnectionTest] Error eliminando túnel NAT por ID:', e.message);
+      console.log(`[ConnectionTest] Eliminando Túnel NAT del CCR para ${cpeIp}...`);
+      try {
+        const rulesToRemove = await mikrotikClient.rosApi.write('/ip/firewall/nat/print', [`?comment=${commentLabel}`]);
+        for (const rule of rulesToRemove) {
+          if (rule['.id']) {
+            await mikrotikClient.rosApi.write('/ip/firewall/nat/remove', [`=.id=${rule['.id']}`]);
+          }
         }
+      } catch (e) {
+        console.error('[ConnectionTest] Error eliminando túnel NAT final:', e.message);
       }
       mikrotikClient.close();
     }
