@@ -589,6 +589,15 @@ export default function ClientPortal() {
               <p className="text-sm text-slate-400 mt-2">
                 No registras facturas pendientes de pago en este momento. ¡Muchas gracias por tu puntualidad!
               </p>
+              
+              {/* DEBUG INFORMATIVO TEMPORAL */}
+              <div className="mt-4 p-3 bg-red-900/50 border border-red-500/50 rounded-xl text-left font-mono text-[10px] text-red-200">
+                DEBUG INFO PARA SOPORTE: <br/>
+                ClientID: {client?.id} <br/>
+                Historial (Total): {invoicesHistory?.length || 0} <br/>
+                Pendientes en Historial: {invoicesHistory?.filter(i => i.status === 'PENDING').length || 0} <br/>
+                ¿Existe ActiveBill?: {activeBill ? 'SI' : 'NO'}
+              </div>
             </div>
           )}
         </section>
