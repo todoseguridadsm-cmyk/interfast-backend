@@ -51,7 +51,18 @@ export default function ClientPortal() {
   const [ticketModal, setTicketModal] = useState(false);
   const [ticketCategory, setTicketCategory] = useState('Sin Señal');
   const [ticketDescription, setTicketDescription] = useState('');
-  const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [ticketStatus, setTicketStatus] = useState('idle'); // idle, loading, success, error
+
+  // ==========================================
+  // ESTADOS PRUEBA DE CONEXIÓN
+  // ==========================================
+  const [connectionTestModal, setConnectionTestModal] = useState(false);
+  const [connectionTestStatus, setConnectionTestStatus] = useState('idle'); // idle, testing_antenna, testing_router, testing_signal, success, error, support_ticket_created
+  const [connectionTestResult, setConnectionTestResult] = useState(null);
+
+  // ==========================================
+  // OBTENER HISTORIAL DE FACTURAS
+  // ==========================================
   
   // Copy Feedback
   const [copiedAlias, setCopiedAlias] = useState(false);
@@ -98,6 +109,33 @@ export default function ClientPortal() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRunConnectionTest = async () => {
+    const sanitizedDocument = client?.dni || loginDni;
+    setConnectionTestStatus('testing_antenna');
+    setConnectionTestResult(null);
+    try {
+      const response = await axios.post(`${BACKEND_URL}/api/portal/connection-test`, {
+        documentId: sanitizedDocument
+      }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = response.data;
+      setConnectionTestResult(data);
+      if (data.ticketCreated) {
+        setConnectionTestStatus('support_ticket_created');
+      } else if (data.status === 'ok') {
+        setConnectionTestStatus('success');
+      } else {
+        setConnectionTestStatus('error');
+      }
+    } catch (err) {
+      console.error(err);
+      setConnectionTestResult({ error: err.response?.data?.error || err.message, status: 'error' });
+      setConnectionTestStatus('error');
     }
   };
 
@@ -235,7 +273,7 @@ export default function ClientPortal() {
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!ticketDescription.trim()) return;
-    setTicketSubmitting(true);
+    setTicketStatus('loading');
     try {
       await axios.post(`${BACKEND_URL}/api/portal/tickets`, {
         category: ticketCategory,
@@ -247,11 +285,11 @@ export default function ClientPortal() {
       alert('¡Reclamo técnico registrado con éxito! Nuestro equipo técnico se pondrá en contacto a la brevedad.');
       setTicketModal(false);
       setTicketDescription('');
+      setTicketStatus('success');
       fetchClientData(token);
     } catch (err) {
+      setTicketStatus('error');
       alert(err.response?.data?.error || 'Error al registrar el reclamo.');
-    } finally {
-      setTicketSubmitting(false);
     }
   };
 
@@ -864,6 +902,135 @@ export default function ClientPortal() {
           </div>
         </div>
       )}
+
+      {/* MODAL: PRUEBA DE CONEXIÓN */}
+      {connectionTestModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-700">
+            <div className="bg-slate-800/50 px-5 py-4 border-b border-slate-700 flex justify-between items-center">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <Activity className="text-emerald-400" size={20} />
+                Prueba de Conexión
+              </h3>
+              <button
+                onClick={() => {
+                  setConnectionTestModal(false);
+                  setConnectionTestStatus('idle');
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors"
+                disabled={connectionTestStatus.startsWith('testing_')}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-5">
+              {connectionTestStatus === 'idle' && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 text-sm flex gap-3">
+                    <AlertTriangle size={24} className="shrink-0 text-amber-400" />
+                    <p>Asegúrate de estar <strong>conectado a la red WiFi de tu casa</strong> (y no usar datos móviles) antes de ejecutar esta prueba.</p>
+                  </div>
+                  <button
+                    onClick={handleRunConnectionTest}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20"
+                  >
+                    <Play size={18} />
+                    Iniciar Diagnóstico
+                  </button>
+                </div>
+              )}
+
+              {connectionTestStatus.startsWith('testing_') && (
+                <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Wifi size={24} className="text-emerald-500 animate-pulse" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold text-lg mb-1">Comprobando sistema</h4>
+                    <p className="text-slate-400 text-sm">
+                      {connectionTestStatus === 'testing_antenna' && 'Conectando con antena exterior...'}
+                      {connectionTestStatus === 'testing_router' && 'Verificando router interno...'}
+                      {connectionTestStatus === 'testing_signal' && 'Midiendo niveles de señal...'}
+                      {connectionTestStatus.startsWith('testing_') && 'Esto puede tomar hasta 15 segundos'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {connectionTestStatus === 'success' && connectionTestResult && (
+                <div className="py-4 space-y-4">
+                  <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 size={32} className="text-emerald-400" />
+                  </div>
+                  <h4 className="text-white font-bold text-center text-lg">Conexión Excelente</h4>
+                  <p className="text-slate-300 text-sm text-center">Tus equipos están operando de forma óptima.</p>
+                  <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700/50 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-400">Antena:</span><span className="text-emerald-400 font-mono">EN LÍNEA</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Router WiFi:</span><span className="text-emerald-400 font-mono">CONECTADO</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Señal TX/RX:</span><span className="text-cyan-400 font-mono">{connectionTestResult.signal || 'N/A'}</span></div>
+                  </div>
+                </div>
+              )}
+
+              {connectionTestStatus === 'error' && connectionTestResult && (
+                <div className="py-4 space-y-4">
+                  <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <AlertTriangle size={32} className="text-rose-400" />
+                  </div>
+                  <h4 className="text-white font-bold text-center text-lg">Problema Detectado</h4>
+                  <p className="text-slate-300 text-sm text-center">{connectionTestResult.error || 'No pudimos completar el diagnóstico.'}</p>
+                  {connectionTestResult.troubleshooting && (
+                    <div className="bg-rose-900/30 p-3 rounded-xl border border-rose-500/30">
+                      <h5 className="text-rose-300 font-bold text-xs mb-1 uppercase tracking-wider">¿Qué puedo hacer?</h5>
+                      <p className="text-rose-200 text-sm">{connectionTestResult.troubleshooting}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setConnectionTestModal(false);
+                      setTicketModal(true);
+                      setTicketCategory('Problema Tecnico');
+                    }}
+                    className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-all text-sm mt-2"
+                  >
+                    Abrir Ticket Manualmente
+                  </button>
+                </div>
+              )}
+
+              {connectionTestStatus === 'support_ticket_created' && connectionTestResult && (
+                <div className="py-4 space-y-4">
+                  <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <AlertTriangle size={32} className="text-amber-400" />
+                  </div>
+                  <h4 className="text-white font-bold text-center text-lg">Ticket Generado Automáticamente</h4>
+                  <p className="text-slate-300 text-sm text-center">Hemos detectado una anomalía que requiere intervención técnica. Un ticket de soporte ha sido abierto a tu nombre.</p>
+                  
+                  <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700/50 space-y-2 text-sm mt-4">
+                    <div className="flex justify-between"><span className="text-slate-400">Falla detectada:</span><span className="text-amber-400 font-mono text-right">{connectionTestResult.error}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Nº Ticket:</span><span className="text-white font-bold">#{connectionTestResult.ticketId || 'N/A'}</span></div>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      setConnectionTestModal(false);
+                      setConnectionTestStatus('idle');
+                    }}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold transition-all mt-4"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

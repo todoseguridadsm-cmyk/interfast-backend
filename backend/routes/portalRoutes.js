@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { getInvoiceTierStatus } = require('../utils/tierHelper');
+const { runConnectionTest } = require('../services/connectionTestService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'TKIP_SUPER_PRIVATE_KEY_2026';
 
@@ -385,6 +386,20 @@ router.post('/tickets', authenticatePortalClient, async (req, res) => {
   } catch (error) {
     console.error('Error en POST /api/portal/tickets:', error);
     res.status(500).json({ error: 'Error al registrar el reclamo' });
+  }
+});
+
+// Prueba de Conexión Automática (Diagnóstico)
+router.post('/connection-test', async (req, res) => {
+  try {
+    const { documentId } = req.body;
+    if (!documentId) return res.status(400).json({ error: 'Faltan datos de sesión' });
+
+    const result = await runConnectionTest(documentId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error en connection-test:', error);
+    res.status(500).json({ error: 'Error del servidor al ejecutar el diagnóstico.' });
   }
 });
 
