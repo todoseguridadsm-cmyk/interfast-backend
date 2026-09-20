@@ -37,19 +37,22 @@ async function runConnectionTest(clientDni) {
     } catch (err) {
       console.error(`[ConnectionTest] Falló conexión a antena ${cpeIp}:`, err.message);
       
+      // CASO 1: CPE Inaccesible / Timeout
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
-          category: 'Sin Señal',
-          description: '[DIAGNÓSTICO AUTOMÁTICO] La antena exterior (CPE) no responde a la conexión. Posible corte de energía, POE dañado o cable principal cortado.',
-          status: 'OPEN'
+          category: 'Problema Tecnico',
+          title: '[CRÍTICO] Antena Offline / Sin alimentación',
+          description: `**Acción/Repuesto para el Técnico:** Llevar fuente PoE de repuesto, tester de red exterior y verificar suministro eléctrico en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
+          status: 'OPEN',
+          priority: 'HIGH'
         }
       });
 
       return {
         status: 'error',
-        error: 'No pudimos comunicarnos con tu antena exterior.',
-        troubleshooting: 'Por favor verifica que el transformador negro (POE) esté enchufado a la corriente y tenga la luz encendida. Verifica que los cables LAN y POE estén bien firmes.',
+        error: 'No detectamos conexión con tu equipo exterior. Por favor, verifica que la fuente de alimentación negra (PoE) tenga la luz encendida y esté bien enchufada.',
+        troubleshooting: 'Asegúrate también de que los cables LAN y POE estén firmemente conectados.',
         ticketCreated: true,
         ticketId: ticket.id
       };
@@ -117,68 +120,79 @@ async function runConnectionTest(clientDni) {
 
     api.close();
 
-    // --- 3. EVALUACIÓN Y TICKETS ---
-    if (signalWarning) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          category: 'Problema Tecnico',
-          description: `[DIAGNÓSTICO AUTOMÁTICO] Señal degradada detectada. TX: ${signalData.tx}, RX: ${signalData.rx}, CCQ: ${signalData.ccq}`,
-          status: 'OPEN'
-        }
-      });
+    // --- 3. EVALUACIÓN Y TICKETS (Matriz Prescriptiva) ---
 
-      return {
-        status: 'error',
-        error: 'Hemos detectado que la calidad de la señal de tu antena está por debajo del nivel óptimo.',
-        troubleshooting: 'No toques ni muevas la antena exterior. Ya hemos generado un ticket para que un técnico revise la alineación o posibles obstrucciones (árboles, construcciones).',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
+    // CASO 2: Falla Física de Cable (10Mbps)
     if (ethernetWarning) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
           category: 'Problema Tecnico',
-          description: `[DIAGNÓSTICO AUTOMÁTICO] [ALERTA FÍSICA] La antena reporta que el cable de red (ether1) está negociando a 10Mbps. Probable cable dañado, corto o ficha sulfatada.`,
-          status: 'OPEN'
+          title: '[FALLA FÍSICA] Cable UTP dañado o no-link en ether1',
+          description: `**Acción/Repuesto para el Técnico:** Llevar crimpeadora, conectores RJ45 y tramo de cable UTP para rearmar bajada/patchcord.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
+          status: 'OPEN',
+          priority: 'HIGH'
         }
       });
 
       return {
         status: 'error',
-        error: 'Tu antena presenta un problema físico en el cable de red (velocidad degradada a 10Mbps).',
-        troubleshooting: 'El cable que baja de la antena puede estar dañado o humedecido. Generamos un ticket para que un técnico revise el cableado físico.',
+        error: 'Detectamos un falso contacto en el cable de red que conecta el transformador con tu router Wi-Fi. Revisa que las fichas estén bien apretadas.',
+        troubleshooting: 'No fuerces ni dobles el cable abruptamente.',
         ticketCreated: true,
         ticketId: ticket.id
       };
     }
 
+    // CASO 3: Falla de Router Wi-Fi
     if (!routerPingSuccess) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
           category: 'Problema Tecnico',
-          description: `[DIAGNÓSTICO AUTOMÁTICO] Router interno no detectado / no responde a ping desde el CPE. IP Router: ${routerIp || 'Desconocida'}`,
-          status: 'OPEN'
+          title: '[EQUIPO LOCAL] Falla en Router Wi-Fi domiciliario',
+          description: `**Acción/Repuesto para el Técnico:** Llevar router Wi-Fi de recambio o realizar reinicio de fábrica en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | IP Router: ${routerIp || 'Desconocida'}`,
+          status: 'OPEN',
+          priority: 'NORMAL'
         }
       });
 
       return {
         status: 'error',
-        error: 'Tu antena exterior funciona perfecto, pero no podemos comunicarnos con tu router WiFi dentro de casa.',
-        troubleshooting: 'Verifica que el cable que sale del puerto LAN del POE esté firmemente conectado a la toma WAN/Internet (generalmente azul) de tu router WiFi. Reinicia tu router desenchufándolo 10 segundos.',
+        error: 'Tu antena funciona bien, pero tu router Wi-Fi no responde. Desenchúfalo de la corriente por 30 segundos y vuelve a probar.',
+        troubleshooting: 'Verifica que el cable celeste/gris esté conectado en el puerto Internet o WAN del router.',
         ticketCreated: true,
         ticketId: ticket.id
       };
     }
 
+    // CASO 4: Falla de Radiofrecuencia
+    if (signalWarning) {
+      const ticket = await prisma.ticket.create({
+        data: {
+          clientId: client.id,
+          category: 'Problema Tecnico',
+          title: '[RF / SEÑAL] Señal degradada',
+          description: `**Niveles:** TX ${signalData.tx} | RX ${signalData.rx} | CCQ ${signalData.ccq}%\n**Acción/Repuesto para el Técnico:** Llevar escalera/arnés para realineación de antena o aumento de caño por posible obstáculo (árbol).`,
+          status: 'OPEN',
+          priority: 'NORMAL'
+        }
+      });
+
+      return {
+        status: 'error',
+        error: 'La señal entre la central y tu antena presenta interferencias o desalineación climática. Derivamos la calibración a un técnico.',
+        troubleshooting: 'No toques ni intentes orientar la antena. Ya coordinamos la visita.',
+        ticketCreated: true,
+        ticketId: ticket.id
+      };
+    }
+
+    // CASO 5: Todo OK
     return {
       status: 'ok',
       signal: signalData ? `${signalData.tx} / ${signalData.rx} (CCQ: ${signalData.ccq})` : 'Datos no disponibles',
-      message: 'Equipos funcionando correctamente.'
+      message: 'Equipos funcionando correctamente. Si notas lentitud en alguna app, te sugerimos reiniciar tu dispositivo celular.'
     };
 
   } catch (error) {
