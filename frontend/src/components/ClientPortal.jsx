@@ -519,12 +519,12 @@ export default function ClientPortal() {
   const { client, activeBill, invoicesHistory, tickets, recentPayments } = clientData || {};
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24 sm:pb-12 relative overflow-x-hidden">
+    <div className="min-h-[100dvh] flex flex-col bg-slate-950 text-slate-100 font-sans pb-4 sm:pb-6 relative overflow-x-hidden">
       {/* Glow ambient background */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-96 bg-gradient-to-b from-cyan-500/10 via-emerald-500/5 to-transparent blur-[100px] pointer-events-none" />
 
       {/* Header Móvil */}
-      <header className="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3.5 sm:px-6">
+      <header className="z-30 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3.5 sm:px-6">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-emerald-400 p-0.5 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
@@ -573,7 +573,7 @@ export default function ClientPortal() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-xl mx-auto px-4 sm:px-6 pt-3 space-y-3">
+      <main className="flex-1 flex flex-col justify-center max-w-xl mx-auto px-4 sm:px-6 py-4 space-y-3 w-full">
         
         {/* Card 1: Tarjeta de Servicio del Cliente */}
         <section className="bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/90 rounded-3xl p-4 shadow-lg relative overflow-hidden">
