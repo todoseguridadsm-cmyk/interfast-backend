@@ -396,6 +396,8 @@ export default function ClientPortal() {
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   placeholder="Ej: 30884836"
                   value={loginDni}
@@ -410,6 +412,8 @@ export default function ClientPortal() {
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   placeholder="Ej: 3456"
                   value={loginPhone}
