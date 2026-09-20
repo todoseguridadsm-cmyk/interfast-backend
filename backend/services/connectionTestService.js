@@ -1,11 +1,9 @@
-const { RouterOSClient } = require('routeros-client');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
-const CPE_USERNAME = 'admin'; 
-const CPE_PASSWORD = process.env.CPE_PASSWORD || 'Bran5570'; 
+const { connectToMikrotik } = require('../mikrotik');
 
 async function runConnectionTest(clientDni) {
+  let mikrotikClient = null;
   try {
     const client = await prisma.client.findFirst({
       where: { dni: clientDni }
@@ -23,20 +21,29 @@ async function runConnectionTest(clientDni) {
         troubleshooting: 'El sistema no detecta una IP asignada. Por favor, abre un ticket manual para que lo revisemos.'
       };
     }
+    
+    if (!client.mainNode) {
+      return { status: 'error', error: 'El cliente no tiene un nodo principal asignado.' };
+    }
 
-    const api = new RouterOSClient({
-      host: cpeIp,
-      user: CPE_USERNAME,
-      password: CPE_PASSWORD,
-      timeout: 10000,
-      keepalive: true
-    });
+    // Nivel 1: Conexión al CCR (Nodo Principal)
+    console.log(`[ConnectionTest] Conectando al CCR del nodo: ${client.mainNode}`);
+    const conn = await connectToMikrotik(client.mainNode);
+    mikrotikClient = conn.client;
 
-    try {
-      await api.connect();
-    } catch (err) {
-      console.error(`[ConnectionTest] Falló conexión a antena ${cpeIp}:`, err.message);
-      
+    // Ping al CPE desde el CCR
+    console.log(`[ConnectionTest] Realizando ping a ${cpeIp} desde el CCR...`);
+    const pingResults = await mikrotikClient.rosApi.write('/ping', [`=address=${cpeIp}`, '=count=3']);
+    
+    let packetLoss = 100;
+    if (pingResults && pingResults.length > 0) {
+      const lastResult = pingResults[pingResults.length - 1];
+      packetLoss = parseInt(lastResult['packet-loss'] || '100', 10);
+    }
+
+    console.log(`[ConnectionTest] Ping a ${cpeIp} -> Pérdida: ${packetLoss}%`);
+
+    if (packetLoss === 100) {
       // CASO 1: CPE Inaccesible / Timeout
       const ticket = await prisma.ticket.create({
         data: {
@@ -57,143 +64,26 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    // --- 1. SEÑAL INALÁMBRICA Y ESTADO DE ETHERNET ---
-    let signalData = null;
-    let signalWarning = false;
-    let ethernetWarning = false;
+    // Nivel 2: Diagnóstico Avanzado (Stub temporal hasta próxima instrucción)
+    // El CPE respondió al ping. 
+    console.log(`[ConnectionTest] CPE ${cpeIp} respondió correctamente. Preparando extracción de RF...`);
+
+    // TODO: Extraer RF (Señal/CCQ) y Ethernet desde el CCR
     
-    try {
-      const regTable = await api.menu('/interface/wireless/registration-table').get();
-      if (regTable && regTable.length > 0) {
-        signalData = {
-          tx: regTable[0]['tx-signal-strength'],
-          rx: regTable[0]['rx-signal-strength'],
-          ccq: regTable[0]['tx-ccq'] || regTable[0]['rx-ccq'],
-          txRate: regTable[0]['tx-rate'] || 'N/A'
-        };
-        
-        const dbm = parseInt(signalData.tx.replace('dBm', '').trim());
-        if (dbm < -78) { // Señal muy degradada
-          signalWarning = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error leyendo registro inalambrico en ${cpeIp}:`, e.message);
-    }
-
-    try {
-      // Verificamos si negocia a 10Mbps (Cable dañado o sulfatado)
-      const ethMonitor = await api.menu('/interface/ethernet/monitor').where('name', 'ether1').where('once', '').get();
-      if (ethMonitor && ethMonitor.length > 0) {
-        if (ethMonitor[0].rate === '10Mbps') {
-          ethernetWarning = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error verificando monitor ethernet en ${cpeIp}:`, e.message);
-    }
-
-    // --- 2. DETECCIÓN DEL ROUTER INTERNO Y PING ---
-    let routerIp = null;
-    let routerPingSuccess = false;
-    try {
-      const dhcpLeases = await api.menu('/ip/dhcp-server/lease').where('status', 'bound').get();
-      if (dhcpLeases && dhcpLeases.length > 0) {
-        routerIp = dhcpLeases[0].address;
-      } else {
-        const arpTable = await api.menu('/ip/arp').whereNot('interface', 'wlan1').get();
-        const validArp = arpTable.find(a => a.address && !a.address.startsWith('169.254') && !a.address.endsWith('.255'));
-        if (validArp) routerIp = validArp.address;
-      }
-
-      if (routerIp) {
-        const pingResult = await api.menu('/ping').where('address', routerIp).where('count', '3').get();
-        const received = pingResult.reduce((acc, p) => acc + (parseInt(p.received) || 0), 0);
-        if (received > 0) {
-          routerPingSuccess = true;
-        }
-      }
-    } catch (e) {
-      console.log(`[ConnectionTest] Error buscando/pingueando router interno en ${cpeIp}:`, e.message);
-    }
-
-    api.close();
-
-    // --- 3. EVALUACIÓN Y TICKETS (Matriz Prescriptiva) ---
-
-    // CASO 2: Falla Física de Cable (10Mbps)
-    if (ethernetWarning) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[FALLA FÍSICA] Cable UTP dañado o no-link en ether1',
-          description: `**Acción/Repuesto para el Técnico:** Llevar crimpeadora, conectores RJ45 y tramo de cable UTP para rearmar bajada/patchcord.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
-          status: 'OPEN',
-          priority: 'HIGH'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'Detectamos un falso contacto en el cable de red que conecta el transformador con tu router Wi-Fi. Revisa que las fichas estén bien apretadas.',
-        troubleshooting: 'No fuerces ni dobles el cable abruptamente.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 3: Falla de Router Wi-Fi
-    if (!routerPingSuccess) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[EQUIPO LOCAL] Falla en Router Wi-Fi domiciliario',
-          description: `**Acción/Repuesto para el Técnico:** Llevar router Wi-Fi de recambio o realizar reinicio de fábrica en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | IP Router: ${routerIp || 'Desconocida'}`,
-          status: 'OPEN',
-          priority: 'NORMAL'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'Tu antena funciona bien, pero tu router Wi-Fi no responde. Desenchúfalo de la corriente por 30 segundos y vuelve a probar.',
-        troubleshooting: 'Verifica que el cable celeste/gris esté conectado en el puerto Internet o WAN del router.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 4: Falla de Radiofrecuencia
-    if (signalWarning) {
-      const ticket = await prisma.ticket.create({
-        data: {
-          clientId: client.id,
-          title: '[RF / SEÑAL] Señal degradada',
-          description: `**Niveles:** TX ${signalData.tx} | RX ${signalData.rx} | CCQ ${signalData.ccq}%\n**Acción/Repuesto para el Técnico:** Llevar escalera/arnés para realineación de antena o aumento de caño por posible obstáculo (árbol).`,
-          status: 'OPEN',
-          priority: 'NORMAL'
-        }
-      });
-
-      return {
-        status: 'error',
-        error: 'La señal entre la central y tu antena presenta interferencias o desalineación climática. Derivamos la calibración a un técnico.',
-        troubleshooting: 'No toques ni intentes orientar la antena. Ya coordinamos la visita.',
-        ticketCreated: true,
-        ticketId: ticket.id
-      };
-    }
-
-    // CASO 5: Todo OK
+    // CASO 5: Todo OK (Temporal)
     return {
       status: 'ok',
-      signal: signalData ? `${signalData.tx} / ${signalData.rx} (CCQ: ${signalData.ccq})` : 'Datos no disponibles',
-      message: 'Equipos funcionando correctamente. Si notas lentitud en alguna app, te sugerimos reiniciar tu dispositivo celular.'
+      signal: `Ping OK (Pérdida: ${packetLoss}%)`,
+      message: 'Equipos comunicándose con el nodo correctamente. Fase 2 de RF pendiente de implementación.'
     };
 
   } catch (error) {
     console.error('[ConnectionTest] Error general:', error);
-    return { status: 'error', error: 'Ocurrió un error inesperado al realizar el diagnóstico.' };
+    return { status: 'error', error: 'Ocurrió un error al conectar con el nodo principal.' };
+  } finally {
+    if (mikrotikClient) {
+      mikrotikClient.close();
+    }
   }
 }
 

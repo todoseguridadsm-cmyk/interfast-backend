@@ -731,10 +731,7 @@ export default function ClientPortal() {
         {/* Card 3: Accesos Rápidos (Soporte Técnico / Reclamos) */}
         <section className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => {
-              setConnectionTestModal(true);
-              handleRunConnectionTest();
-            }}
+            onClick={() => setConnectionTestModal(true)}
             className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
             <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
