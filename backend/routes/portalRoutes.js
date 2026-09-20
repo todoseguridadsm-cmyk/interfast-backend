@@ -45,6 +45,9 @@ router.post('/auth', async (req, res) => {
     if (!dni) {
       return res.status(400).json({ error: 'Por favor, ingresa tu número de DNI' });
     }
+    if (!phone) {
+      return res.status(400).json({ error: 'Por favor, ingresa tu número de teléfono registrado o sus últimos 4 dígitos' });
+    }
 
     const cleanDni = String(dni).replace(/\D/g, '');
     if (cleanDni.length < 6) {
@@ -100,17 +103,23 @@ router.post('/auth', async (req, res) => {
     // Cuenta única: loguear directamente
     const client = clients[0];
 
-    // Validar teléfono opcionalmente si se envía
-    if (phone) {
-      const cleanPhoneInput = String(phone).replace(/\D/g, '');
-      const clientPhoneClean = String(client.phone || '').replace(/\D/g, '');
-      if (cleanPhoneInput.length >= 4 && clientPhoneClean.length >= 4) {
-        const lastFourInput = cleanPhoneInput.slice(-4);
-        const lastFourClient = clientPhoneClean.slice(-4);
-        if (lastFourInput !== lastFourClient) {
-          return res.status(400).json({ error: 'El número de teléfono o los últimos 4 dígitos no coinciden con nuestros registros.' });
-        }
+    // Validar teléfono de forma OBLIGATORIA
+    const cleanPhoneInput = String(phone).replace(/\D/g, '');
+    const clientPhoneClean = String(client.phone || '').replace(/\D/g, '');
+    
+    if (clientPhoneClean.length >= 4) {
+      if (cleanPhoneInput.length < 4) {
+        return res.status(400).json({ error: 'Por favor, ingresa al menos los últimos 4 dígitos de tu número de teléfono.' });
       }
+      const lastFourInput = cleanPhoneInput.slice(-4);
+      const lastFourClient = clientPhoneClean.slice(-4);
+      if (lastFourInput !== lastFourClient) {
+        return res.status(400).json({ error: 'El número de teléfono o los últimos 4 dígitos no coinciden con nuestros registros de seguridad.' });
+      }
+    } else {
+      // Si el cliente no tiene un teléfono válido registrado en la base de datos,
+      // no le permitimos loguearse por seguridad (deberán actualizarlo).
+      return res.status(403).json({ error: 'No tienes un teléfono registrado válido en el sistema. Por favor, comunícate con soporte para actualizar tus datos de seguridad.' });
     }
 
     // Generar token de 60 días para permanencia en la PWA
@@ -145,7 +154,7 @@ router.post('/auth', async (req, res) => {
 // 1b. Seleccionar cuenta específica (cuando hay múltiples por DNI)
 router.post('/auth/select', async (req, res) => {
   try {
-    const { clientId, dni } = req.body;
+    const { clientId, dni, phone } = req.body;
     if (!clientId || !dni) {
       return res.status(400).json({ error: 'Datos incompletos' });
     }
@@ -166,6 +175,23 @@ router.post('/auth/select', async (req, res) => {
 
     if (!client) {
       return res.status(403).json({ error: 'No se pudo verificar la identidad del titular.' });
+    }
+
+    // Validar teléfono también al seleccionar cuenta
+    const cleanPhoneInput = String(phone).replace(/\D/g, '');
+    const clientPhoneClean = String(client.phone || '').replace(/\D/g, '');
+    
+    if (clientPhoneClean.length >= 4) {
+      if (cleanPhoneInput.length < 4) {
+        return res.status(400).json({ error: 'Por favor, ingresa al menos los últimos 4 dígitos de tu número de teléfono.' });
+      }
+      const lastFourInput = cleanPhoneInput.slice(-4);
+      const lastFourClient = clientPhoneClean.slice(-4);
+      if (lastFourInput !== lastFourClient) {
+        return res.status(400).json({ error: 'El número de teléfono no coincide con los registros del titular.' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Titular sin teléfono registrado válido. Por favor comunícate con soporte.' });
     }
 
     // Generar token de 60 días

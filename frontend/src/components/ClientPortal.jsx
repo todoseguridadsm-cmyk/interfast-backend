@@ -39,6 +39,7 @@ export default function ClientPortal() {
   // Múltiples cuentas por DNI
   const [multipleAccounts, setMultipleAccounts] = useState(null); // array de cuentas
   const [pendingDni, setPendingDni] = useState(''); // DNI guardado para el select
+  const [pendingPhone, setPendingPhone] = useState(''); // Teléfono guardado para el select
   
   // Reclamo Modal
   const [ticketModal, setTicketModal] = useState(false);
@@ -110,11 +111,12 @@ export default function ClientPortal() {
     try {
       const res = await axios.post(`${BACKEND_URL}/api/portal/auth`, {
         dni: loginDni.trim(),
-        phone: loginPhone.trim() || undefined
+        phone: loginPhone.trim()
       });
       // Múltiples cuentas: mostrar selector
       if (res.data.multipleAccounts) {
         setPendingDni(loginDni.trim());
+        setPendingPhone(loginPhone.trim());
         setMultipleAccounts(res.data.accounts);
         return;
       }
@@ -136,7 +138,8 @@ export default function ClientPortal() {
     try {
       const res = await axios.post(`${BACKEND_URL}/api/portal/auth/select`, {
         clientId,
-        dni: pendingDni
+        dni: pendingDni,
+        phone: pendingPhone
       });
       if (res.data.token) {
         localStorage.setItem('portal_token', res.data.token);
@@ -330,11 +333,12 @@ export default function ClientPortal() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Celular registrado <span className="text-slate-500 text-[10px] font-normal">(Opcional)</span>
+                  Teléfono registrado (Últimos 4 dígitos o completo)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: 2634123456"
+                  required
+                  placeholder="Ej: 3456"
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
                   className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-700/80 text-white placeholder-slate-500 font-mono text-base focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition-all"
@@ -536,16 +540,29 @@ export default function ClientPortal() {
                   </button>
                 </div>
 
-                {/* 3. Botón Descargar PDF */}
-                <a
-                  href={activeBill.pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-xs transition-all flex items-center justify-center gap-2"
-                >
-                  <Download size={15} />
-                  <span>Descargar Factura Oficial PDF</span>
-                </a>
+                {/* 3. Botón Informar Transferencia / Descargar PDF */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setTicketCategory('Aviso de Pago');
+                      setTicketDescription(`Informo pago de $${activeBill.totalAmount} mediante transferencia.`);
+                      setTicketModal(true);
+                    }}
+                    className="w-full py-3 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Send size={15} />
+                    <span>Informar Pago</span>
+                  </button>
+                  <a
+                    href={activeBill.pdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Download size={15} />
+                    <span>Descargar PDF</span>
+                  </a>
+                </div>
               </div>
             </div>
           ) : (
@@ -702,7 +719,8 @@ export default function ClientPortal() {
                 >
                   <option value="Sin Señal">🔴 Sin Conexión a Internet</option>
                   <option value="Lentitud">🟡 Internet Lento / Microcortes</option>
-                  <option value="Facturación">💳 Consulta de Facturación / Pagos</option>
+                  <option value="Aviso de Pago">💸 Informar Pago / Transferencia</option>
+                  <option value="Facturación">💳 Consulta de Facturación</option>
                   <option value="Cambio de Domicilio">🏠 Solicitud de Traslado</option>
                   <option value="Otro">💬 Otra Consulta</option>
                 </select>
