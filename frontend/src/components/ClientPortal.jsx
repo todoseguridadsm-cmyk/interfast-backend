@@ -39,13 +39,13 @@ export default function ClientPortal() {
   // Múltiples cuentas por DNI
   const [multipleAccounts, setMultipleAccounts] = useState(() => {
     if (window.location.hash === '#select') {
-      const stored = sessionStorage.getItem('portal_multiple_accounts');
+      const stored = localStorage.getItem('portal_multiple_accounts');
       return stored ? JSON.parse(stored) : null;
     }
     return null;
   }); // array de cuentas
-  const [pendingDni, setPendingDni] = useState(() => sessionStorage.getItem('portal_pending_dni') || ''); // DNI guardado para el select
-  const [pendingPhone, setPendingPhone] = useState(() => sessionStorage.getItem('portal_pending_phone') || ''); // Teléfono guardado para el select
+  const [pendingDni, setPendingDni] = useState(() => localStorage.getItem('portal_pending_dni') || ''); // DNI guardado para el select
+  const [pendingPhone, setPendingPhone] = useState(() => localStorage.getItem('portal_pending_phone') || ''); // Teléfono guardado para el select
   
   // Reclamo Modal
   const [ticketModal, setTicketModal] = useState(false);
@@ -103,7 +103,9 @@ export default function ClientPortal() {
 
   useEffect(() => {
     if (token && window.location.hash !== '#portal') {
-      window.history.replaceState(null, '', '#portal');
+      // Usar pushState para garantizar que el historial tenga al menos 2 entradas
+      // Esto evita que el botón físico "Atrás" cierre la PWA instantáneamente
+      window.history.pushState(null, '', '#portal');
     }
     if (token) {
       fetchClientData(token);
@@ -114,7 +116,7 @@ export default function ClientPortal() {
     const handlePopState = () => {
       const hash = window.location.hash;
       if (hash === '#select') {
-        const storedAccounts = sessionStorage.getItem('portal_multiple_accounts');
+        const storedAccounts = localStorage.getItem('portal_multiple_accounts');
         if (storedAccounts) {
           setMultipleAccounts(JSON.parse(storedAccounts));
           setToken(''); // Ocultar el portal para mostrar la vista de selección
@@ -154,9 +156,9 @@ export default function ClientPortal() {
         setPendingDni(loginDni.trim());
         setPendingPhone(loginPhone.trim());
         setMultipleAccounts(res.data.accounts);
-        sessionStorage.setItem('portal_multiple_accounts', JSON.stringify(res.data.accounts));
-        sessionStorage.setItem('portal_pending_dni', loginDni.trim());
-        sessionStorage.setItem('portal_pending_phone', loginPhone.trim());
+        localStorage.setItem('portal_multiple_accounts', JSON.stringify(res.data.accounts));
+        localStorage.setItem('portal_pending_dni', loginDni.trim());
+        localStorage.setItem('portal_pending_phone', loginPhone.trim());
         window.history.pushState(null, '', '#select');
         return;
       }
@@ -196,6 +198,9 @@ export default function ClientPortal() {
 
   const handleLogout = () => {
     localStorage.removeItem('portal_token');
+    localStorage.removeItem('portal_multiple_accounts');
+    localStorage.removeItem('portal_pending_dni');
+    localStorage.removeItem('portal_pending_phone');
     setToken('');
     setClientData(null);
     setMultipleAccounts(null);
@@ -475,18 +480,18 @@ export default function ClientPortal() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {sessionStorage.getItem('portal_multiple_accounts') && (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {localStorage.getItem('portal_multiple_accounts') && (
               <button
                 onClick={() => {
                   setToken('');
-                  setMultipleAccounts(JSON.parse(sessionStorage.getItem('portal_multiple_accounts')));
+                  setMultipleAccounts(JSON.parse(localStorage.getItem('portal_multiple_accounts')));
                   window.history.pushState(null, '', '#select');
                 }}
                 title="Mis otros servicios"
-                className="hidden sm:flex p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-all text-xs font-medium items-center gap-1.5"
+                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-all text-[10px] sm:text-xs font-medium flex items-center gap-1.5"
               >
-                Mis Cuentas
+                Cuentas
               </button>
             )}
             <button
