@@ -210,8 +210,9 @@ export default function ClientPortal() {
   const getMercadoPagoHref = () => {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isIOS) return "mercadopago://";
-    // El tag <a> nativo en Android maneja perfectamente los intent:// y evita el bloqueo de Chrome.
-    return "intent://#Intent;scheme=mercadopago;package=com.mercadopago.wallet;end";
+    // Intent explícito de Launcher para Android (equivale a tocar el ícono de la app en el inicio)
+    // No requiere que la app declare un scheme, simplemente fuerza abrir el package.
+    return "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.mercadopago.wallet;end";
   };
 
   const handleCopyAlias = () => {
