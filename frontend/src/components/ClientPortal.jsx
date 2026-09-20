@@ -623,7 +623,7 @@ export default function ClientPortal() {
                         <span>Copiar Alias</span>
                       </>
                     )}
-                  </button>
+                  </a>
                 </div>
 
                 {/* 3. Botón Informar Transferencia / Descargar PDF */}
