@@ -370,28 +370,26 @@ export default function ClientPortal() {
         </header>
 
         {/* Login Form Container */}
-        <main className="max-w-md w-full mx-auto my-auto py-8 z-10">
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 mb-3 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-                <ShieldCheck size={28} />
+        <main className="max-w-md w-full mx-auto my-auto py-4 sm:py-8 z-10">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mb-4 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+                <ShieldCheck size={32} />
               </div>
-              <h2 className="text-2xl font-black text-white tracking-tight">Bienvenido</h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Consulta tu estado de cuenta, abona en 1 clic y gestiona tu servicio de Internet.
-              </p>
+              <h2 className="text-3xl font-black text-white mb-2">Bienvenido</h2>
+              <p className="text-sm text-slate-400">Consulta tu estado de cuenta, abona en 1 clic y gestiona tu servicio de internet.</p>
             </div>
 
             {loginError && (
-              <div className="mb-4 p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-fadeIn">
-                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <div className="mb-6 p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-sm flex items-start gap-2.5 animate-fadeIn">
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
                 <span>{loginError}</span>
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider mb-2">
                   Número de DNI o CUIT
                 </label>
                 <input
@@ -402,13 +400,13 @@ export default function ClientPortal() {
                   placeholder="Ej: 30884836"
                   value={loginDni}
                   onChange={(e) => setLoginDni(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-700/80 text-white placeholder-slate-500 font-mono text-base focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition-all"
+                  className="w-full px-5 py-4 rounded-xl bg-slate-950 border border-slate-700/80 text-white placeholder-slate-500 font-mono text-lg focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Teléfono registrado (Últimos 4 dígitos o completo)
+                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  Teléfono registrado (Últimos 4 o completo)
                 </label>
                 <input
                   type="text"
@@ -418,21 +416,21 @@ export default function ClientPortal() {
                   placeholder="Ej: 3456"
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl bg-slate-950 border border-slate-700/80 text-white placeholder-slate-500 font-mono text-base focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition-all"
+                  className="w-full px-5 py-4 rounded-xl bg-slate-950 border border-slate-700/80 text-white placeholder-slate-500 font-mono text-lg focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 focus:outline-none transition-all"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] hover:shadow-[0_0_35px_rgba(6,182,212,0.6)] transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full py-4.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-base uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] hover:shadow-[0_0_35px_rgba(6,182,212,0.6)] transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? (
-                  <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <span>Ingresar a Mi Cuenta</span>
-                    <ChevronRight size={18} />
+                    <ChevronRight size={20} />
                   </>
                 )}
               </button>
@@ -481,12 +479,9 @@ export default function ClientPortal() {
               </div>
             </div>
             <div>
-              <h1 className="text-base font-black tracking-tight bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent leading-none">
+              <h1 className="text-lg font-black tracking-tight bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent leading-none">
                 INTERFAST
               </h1>
-              <p className="text-[10px] text-slate-400 font-medium truncate max-w-[160px] sm:max-w-none">
-                {client?.name || 'Mi Cuenta'}
-              </p>
             </div>
           </div>
 
@@ -524,11 +519,11 @@ export default function ClientPortal() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
+      <main className="max-w-xl mx-auto px-4 sm:px-6 pt-3 space-y-3">
         
         {/* Card 1: Tarjeta de Servicio del Cliente */}
-        <section className="bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/90 rounded-3xl p-5 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
+        <section className="bg-gradient-to-br from-slate-900/90 to-slate-950/90 border border-slate-800/90 rounded-3xl p-4 shadow-lg relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Servicio Activo
@@ -538,10 +533,10 @@ export default function ClientPortal() {
             </span>
           </div>
 
-          <h2 className="text-xl font-black text-white leading-snug">{client?.name}</h2>
-          <p className="text-sm text-slate-400 mt-0.5 font-mono">DNI: {client?.dni} • {client?.city || 'San Martín, Mendoza'}</p>
+          <h2 className="text-lg font-black text-white leading-snug">{client?.name}</h2>
+          <p className="text-xs text-slate-400 mt-0.5 font-mono">DNI: {client?.dni} • {client?.city || 'San Martín, Mendoza'}</p>
           
-          <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex justify-between items-center text-sm">
+          <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-between items-center text-sm">
             <span className="text-slate-400">Plan Contratado:</span>
             <span className="font-bold text-slate-200">{client?.plan?.name || 'PLAN HOGAR'}</span>
           </div>
@@ -550,23 +545,23 @@ export default function ClientPortal() {
         {/* Card 2: HERO CARD - Estado de Facturación y Pagos */}
         <section className="relative">
           {activeBill ? (
-            <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900/90 border-2 border-cyan-500/30 rounded-3xl p-5 sm:p-6 shadow-[0_0_30px_rgba(6,182,212,0.15)] relative overflow-hidden">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                  <Clock size={16} /> 
+            <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900/90 border-2 border-cyan-500/30 rounded-3xl p-4 sm:p-5 shadow-[0_0_30px_rgba(6,182,212,0.15)] relative overflow-hidden">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] sm:text-sm font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                  <Clock size={14} /> 
                   {activeBill.multiplePending ? 'Múltiples Facturas' : `Factura Período ${activeBill.invoices[0].period}`}
                 </span>
-                <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                <span className="px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] sm:text-xs font-bold">
                   Pendiente
                 </span>
               </div>
 
-              <div className="mb-5">
-                <div className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">
+              <div className="mb-3">
+                <div className="text-xs sm:text-sm font-medium text-slate-400 uppercase tracking-wider mb-1">
                   Total adeudado hoy:
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 font-mono tracking-tight">
+                  <span className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 font-mono tracking-tight">
                     ${activeBill.totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </span>
                   <button
@@ -640,9 +635,9 @@ export default function ClientPortal() {
                       setTicketDescription(`Informo pago de $${activeBill.totalAmount} mediante transferencia.`);
                       setTicketModal(true);
                     }}
-                    className="w-full py-3.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold text-sm transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                    className="w-full py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    <Send size={16} />
+                    <Send size={14} />
                     <span>Informar Pago</span>
                   </button>
                   {activeBill.singlePdfUrl && (
@@ -650,9 +645,9 @@ export default function ClientPortal() {
                       href={activeBill.singlePdfUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-sm transition-all flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
                     >
-                      <Download size={16} />
+                      <Download size={14} />
                       <span>Descargar PDF</span>
                     </a>
                   )}
@@ -673,37 +668,37 @@ export default function ClientPortal() {
         </section>
 
         {/* Card 3: Accesos Rápidos (Soporte Técnico / Reclamos) */}
-        <section className="grid grid-cols-2 gap-3">
+        <section className="grid grid-cols-2 gap-2">
           <button
             onClick={() => setTicketModal(true)}
-            className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
+            className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <MessageSquare size={20} />
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <MessageSquare size={16} />
             </div>
             <div>
-              <span className="text-sm font-bold text-white block">Reclamo Técnico</span>
-              <span className="text-xs text-slate-400">Reportar problema de conexión</span>
+              <span className="text-xs font-bold text-white block">Reclamo Técnico</span>
+              <span className="text-[10px] text-slate-400 leading-tight">Reportar problema</span>
             </div>
           </button>
 
           <a
             href="whatsapp://send?phone=5492634513933"
-            className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
+            className="p-3 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-              <PhoneCall size={20} />
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+              <PhoneCall size={16} />
             </div>
             <div>
-              <span className="text-sm font-bold text-white block">WhatsApp Directo</span>
-              <span className="text-xs text-slate-400">Atención personalizada</span>
+              <span className="text-xs font-bold text-white block">WhatsApp Directo</span>
+              <span className="text-[10px] text-slate-400 leading-tight">Atención personalizada</span>
             </div>
           </a>
         </section>
 
-        {/* Card 4: Historial de Facturas y Pagos */}
-        <section className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5">
-          <h3 className="text-base font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+        {/* Card 4: Historial de Facturación */}
+        <section className="bg-slate-900/50 rounded-3xl p-4 border border-slate-800 mb-4">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
             <FileText size={18} className="text-cyan-400" />
             Historial de Facturación
           </h3>
