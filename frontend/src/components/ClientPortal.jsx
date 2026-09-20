@@ -37,9 +37,15 @@ export default function ClientPortal() {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Múltiples cuentas por DNI
-  const [multipleAccounts, setMultipleAccounts] = useState(null); // array de cuentas
-  const [pendingDni, setPendingDni] = useState(''); // DNI guardado para el select
-  const [pendingPhone, setPendingPhone] = useState(''); // Teléfono guardado para el select
+  const [multipleAccounts, setMultipleAccounts] = useState(() => {
+    if (window.location.hash === '#select') {
+      const stored = sessionStorage.getItem('portal_multiple_accounts');
+      return stored ? JSON.parse(stored) : null;
+    }
+    return null;
+  }); // array de cuentas
+  const [pendingDni, setPendingDni] = useState(() => sessionStorage.getItem('portal_pending_dni') || ''); // DNI guardado para el select
+  const [pendingPhone, setPendingPhone] = useState(() => sessionStorage.getItem('portal_pending_phone') || ''); // Teléfono guardado para el select
   
   // Reclamo Modal
   const [ticketModal, setTicketModal] = useState(false);
@@ -96,10 +102,39 @@ export default function ClientPortal() {
   };
 
   useEffect(() => {
+    if (token && window.location.hash !== '#portal') {
+      window.history.replaceState(null, '', '#portal');
+    }
     if (token) {
       fetchClientData(token);
     }
   }, [token]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash;
+      if (hash === '#select') {
+        const storedAccounts = sessionStorage.getItem('portal_multiple_accounts');
+        if (storedAccounts) {
+          setMultipleAccounts(JSON.parse(storedAccounts));
+          setToken(''); // Ocultar el portal para mostrar la vista de selección
+        } else {
+          setToken('');
+          setMultipleAccounts(null);
+          window.history.replaceState(null, '', ' ');
+        }
+      } else if (hash === '' || hash === '#login') {
+        setMultipleAccounts(null);
+        setToken('');
+      } else if (hash === '#portal' && localStorage.getItem('portal_token')) {
+        setToken(localStorage.getItem('portal_token'));
+        setMultipleAccounts(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -119,6 +154,10 @@ export default function ClientPortal() {
         setPendingDni(loginDni.trim());
         setPendingPhone(loginPhone.trim());
         setMultipleAccounts(res.data.accounts);
+        sessionStorage.setItem('portal_multiple_accounts', JSON.stringify(res.data.accounts));
+        sessionStorage.setItem('portal_pending_dni', loginDni.trim());
+        sessionStorage.setItem('portal_pending_phone', loginPhone.trim());
+        window.history.pushState(null, '', '#select');
         return;
       }
       // Cuenta única: loguear directamente
@@ -146,6 +185,7 @@ export default function ClientPortal() {
         localStorage.setItem('portal_token', res.data.token);
         setMultipleAccounts(null);
         setToken(res.data.token);
+        window.history.pushState(null, '', '#portal');
       }
     } catch (err) {
       setLoginError(err.response?.data?.error || 'Error al seleccionar la cuenta.');
@@ -158,6 +198,8 @@ export default function ClientPortal() {
     localStorage.removeItem('portal_token');
     setToken('');
     setClientData(null);
+    setMultipleAccounts(null);
+    window.history.pushState(null, '', ' ');
   };
 
   const handleCopyAlias = () => {
@@ -268,7 +310,11 @@ export default function ClientPortal() {
             </div>
 
             <button
-              onClick={() => { setMultipleAccounts(null); setLoginError(''); }}
+              onClick={() => { 
+                setMultipleAccounts(null); 
+                setLoginError(''); 
+                window.history.pushState(null, '', ' ');
+              }}
               className="mt-4 w-full py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
             >
               ← Volver al inicio
@@ -430,6 +476,19 @@ export default function ClientPortal() {
           </div>
 
           <div className="flex items-center gap-2">
+            {sessionStorage.getItem('portal_multiple_accounts') && (
+              <button
+                onClick={() => {
+                  setToken('');
+                  setMultipleAccounts(JSON.parse(sessionStorage.getItem('portal_multiple_accounts')));
+                  window.history.pushState(null, '', '#select');
+                }}
+                title="Mis otros servicios"
+                className="hidden sm:flex p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-all text-xs font-medium items-center gap-1.5"
+              >
+                Mis Cuentas
+              </button>
+            )}
             <button
               onClick={handleInstallClick}
               title="Instalar App en Celular"
