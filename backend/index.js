@@ -3815,6 +3815,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
         }
 
         const transactionAmount = parseFloat(mpPayment.transaction_amount) || 0;
+        const paymentDateStr = mpPayment.date_approved || mpPayment.date_created || null;
         let mpFee = 0;
         let mpTax = 0;
         if (mpPayment.fee_details && Array.isArray(mpPayment.fee_details)) {
@@ -3941,7 +3942,7 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
         }
 
         for (const invoiceId of invoiceIdsToProcess) {
-          await processInvoiceImputation(invoiceId, transactionAmount, String(paymentId), mpFee, mpTax);
+          await processInvoiceImputation(invoiceId, transactionAmount, String(paymentId), mpFee, mpTax, paymentDateStr);
         }
       }
     }
