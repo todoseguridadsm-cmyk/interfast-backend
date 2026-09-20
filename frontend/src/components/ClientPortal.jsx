@@ -208,13 +208,13 @@ export default function ClientPortal() {
   };
 
   const openMercadoPagoApp = () => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    
-    if (isIOS) {
-      window.location.href = "mercadopago://";
-    } else {
-      window.location.href = "intent://#Intent;package=com.mercadopago.wallet;scheme=mercadopago;end";
-    }
+    // Al crear un elemento <a> y hacerle click en el mismo hilo (sin setTimeout),
+    // evitamos que Chrome o Safari bloqueen la apertura nativa de la app por seguridad.
+    const link = document.createElement('a');
+    link.href = "mercadopago://"; // El scheme nativo puro funciona mejor sin intent si se hace en el mismo hilo
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleCopyAlias = () => {
@@ -222,20 +222,16 @@ export default function ClientPortal() {
     setCopiedAlias(true);
     setTimeout(() => setCopiedAlias(false), 2000);
     
-    // Intentar abrir app de Mercado Pago
-    setTimeout(() => {
-      openMercadoPagoApp();
-    }, 300);
+    // Intentar abrir app de Mercado Pago INMEDIATAMENTE (sin setTimeout)
+    openMercadoPagoApp();
   };
 
   const handlePayTransfer = (amount) => {
     navigator.clipboard.writeText('INTERFASTSM');
     alert(`Alias INTERFASTSM copiado.\nAbre Mercado Pago o tu banco y transfiere el monto exacto: $${amount}.`);
     
-    // Intentar abrir app de Mercado Pago
-    setTimeout(() => {
-      openMercadoPagoApp();
-    }, 300);
+    // Intentar abrir app de Mercado Pago INMEDIATAMENTE
+    openMercadoPagoApp();
   };
 
   const handleCopyAmount = (amount) => {
