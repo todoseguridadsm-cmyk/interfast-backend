@@ -162,7 +162,22 @@ export default function ClientPortal() {
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('INTERFASTSM');
     setCopiedAlias(true);
-    setTimeout(() => setCopiedAlias(false), 2500);
+    setTimeout(() => setCopiedAlias(false), 2000);
+    
+    // Intentar abrir app de Mercado Pago
+    setTimeout(() => {
+      window.location.href = 'mercadopago://';
+    }, 300);
+  };
+
+  const handlePayTransfer = (amount) => {
+    navigator.clipboard.writeText('INTERFASTSM');
+    alert(`Alias INTERFASTSM copiado.\nAbre Mercado Pago o tu banco y transfiere el monto exacto: $${amount}.`);
+    
+    // Intentar abrir app de Mercado Pago
+    setTimeout(() => {
+      window.location.href = 'mercadopago://';
+    }, 300);
   };
 
   const handleCopyAmount = (amount) => {
@@ -515,16 +530,14 @@ export default function ClientPortal() {
                     <p className="text-slate-400 text-xs">Realizá una transferencia por el total, o abona cada mes desde el listado de abajo.</p>
                   </div>
                 ) : (
-                  <a
-                    href={activeBill.singleMpLink}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={() => handlePayTransfer(activeBill.totalAmount)}
                     className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
                   >
                     <CreditCard size={18} />
-                    <span>Pagar con Mercado Pago / Tarjetas</span>
+                    <span>Abrir Mercado Pago</span>
                     <ExternalLink size={15} />
-                  </a>
+                  </button>
                 )}
 
                 {/* 2. Botón Transferencia / Alias */}
@@ -618,9 +631,7 @@ export default function ClientPortal() {
           </button>
 
           <a
-            href="https://wa.me/5492634654246"
-            target="_blank"
-            rel="noreferrer"
+            href="whatsapp://send?phone=5492634654246"
             className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -665,14 +676,12 @@ export default function ClientPortal() {
                       {inv.status === 'PAID' ? 'PAGADA' : 'PENDIENTE'}
                     </span>
                     {inv.status === 'PENDING' && (
-                      <a
-                        href={inv.mpLink}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={() => handlePayTransfer(inv.totalAmount || inv.amount)}
                         className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all font-bold text-xs"
                       >
                         Pagar
-                      </a>
+                      </button>
                     )}
                     <a
                       href={inv.pdfUrl}
