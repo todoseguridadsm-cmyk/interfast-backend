@@ -731,15 +731,18 @@ export default function ClientPortal() {
         {/* Card 3: Accesos Rápidos (Soporte Técnico / Reclamos) */}
         <section className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => setTicketModal(true)}
+            onClick={() => {
+              setConnectionTestModal(true);
+              handleRunConnectionTest();
+            }}
             className="p-3 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 hover:border-indigo-400/50 transition-all text-left group shadow-sm flex flex-col justify-between"
           >
             <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <MessageSquare size={16} />
+              <Activity size={16} />
             </div>
             <div>
               <span className="text-xs font-bold text-white block">Reclamo Técnico</span>
-              <span className="text-[10px] text-slate-400 leading-tight">Reportar problema</span>
+              <span className="text-[10px] text-slate-400 leading-tight">Diagnóstico Automático</span>
             </div>
           </button>
 
@@ -997,6 +1000,15 @@ export default function ClientPortal() {
                     <div className="flex justify-between"><span className="text-slate-400">Router WiFi:</span><span className="text-emerald-400 font-mono">CONECTADO</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Señal TX/RX:</span><span className="text-cyan-400 font-mono">{connectionTestResult.signal || 'N/A'}</span></div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setConnectionTestModal(false);
+                      setTicketModal(true);
+                    }}
+                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all text-sm mt-2"
+                  >
+                    Tengo otra consulta (Abrir Ticket)
+                  </button>
                 </div>
               )}
 
