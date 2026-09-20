@@ -912,10 +912,10 @@ export default function ClientPortal() {
                 </button>
                 <button
                   type="submit"
-                  disabled={ticketSubmitting}
+                  disabled={ticketStatus === 'loading'}
                   className="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 text-white text-xs font-bold uppercase tracking-wider shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all flex items-center justify-center gap-2"
                 >
-                  {ticketSubmitting ? (
+                  {ticketStatus === 'loading' ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>

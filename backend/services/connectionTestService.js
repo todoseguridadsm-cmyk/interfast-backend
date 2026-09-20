@@ -41,7 +41,6 @@ async function runConnectionTest(clientDni) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
-          category: 'Problema Tecnico',
           title: '[CRÍTICO] Antena Offline / Sin alimentación',
           description: `**Acción/Repuesto para el Técnico:** Llevar fuente PoE de repuesto, tester de red exterior y verificar suministro eléctrico en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
           status: 'OPEN',
@@ -127,7 +126,6 @@ async function runConnectionTest(clientDni) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
-          category: 'Problema Tecnico',
           title: '[FALLA FÍSICA] Cable UTP dañado o no-link en ether1',
           description: `**Acción/Repuesto para el Técnico:** Llevar crimpeadora, conectores RJ45 y tramo de cable UTP para rearmar bajada/patchcord.\n\n**Datos:** IP Antena: ${cpeIp} | Nodo: ${client.mainNode || 'N/A'}`,
           status: 'OPEN',
@@ -149,7 +147,6 @@ async function runConnectionTest(clientDni) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
-          category: 'Problema Tecnico',
           title: '[EQUIPO LOCAL] Falla en Router Wi-Fi domiciliario',
           description: `**Acción/Repuesto para el Técnico:** Llevar router Wi-Fi de recambio o realizar reinicio de fábrica en domicilio.\n\n**Datos:** IP Antena: ${cpeIp} | IP Router: ${routerIp || 'Desconocida'}`,
           status: 'OPEN',
@@ -171,7 +168,6 @@ async function runConnectionTest(clientDni) {
       const ticket = await prisma.ticket.create({
         data: {
           clientId: client.id,
-          category: 'Problema Tecnico',
           title: '[RF / SEÑAL] Señal degradada',
           description: `**Niveles:** TX ${signalData.tx} | RX ${signalData.rx} | CCQ ${signalData.ccq}%\n**Acción/Repuesto para el Técnico:** Llevar escalera/arnés para realineación de antena o aumento de caño por posible obstáculo (árbol).`,
           status: 'OPEN',
