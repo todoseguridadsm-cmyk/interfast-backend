@@ -55,9 +55,11 @@ async function runConnectionTest(clientDni) {
       };
     }
 
-    // --- 1. SEÑAL INALÁMBRICA ---
+    // --- 1. SEÑAL INALÁMBRICA Y ESTADO DE ETHERNET ---
     let signalData = null;
     let signalWarning = false;
+    let ethernetWarning = false;
+    
     try {
       const regTable = await api.menu('/interface/wireless/registration-table').get();
       if (regTable && regTable.length > 0) {
@@ -77,6 +79,18 @@ async function runConnectionTest(clientDni) {
       console.log(`[ConnectionTest] Error leyendo registro inalambrico en ${cpeIp}:`, e.message);
     }
 
+    try {
+      // Verificamos si negocia a 10Mbps (Cable dañado o sulfatado)
+      const ethMonitor = await api.menu('/interface/ethernet/monitor').where('name', 'ether1').where('once', '').get();
+      if (ethMonitor && ethMonitor.length > 0) {
+        if (ethMonitor[0].rate === '10Mbps') {
+          ethernetWarning = true;
+        }
+      }
+    } catch (e) {
+      console.log(`[ConnectionTest] Error verificando monitor ethernet en ${cpeIp}:`, e.message);
+    }
+
     // --- 2. DETECCIÓN DEL ROUTER INTERNO Y PING ---
     let routerIp = null;
     let routerPingSuccess = false;
@@ -92,7 +106,6 @@ async function runConnectionTest(clientDni) {
 
       if (routerIp) {
         const pingResult = await api.menu('/ping').where('address', routerIp).where('count', '3').get();
-        // pingResult usually returns multiple packets, we check if at least one packet received
         const received = pingResult.reduce((acc, p) => acc + (parseInt(p.received) || 0), 0);
         if (received > 0) {
           routerPingSuccess = true;
@@ -119,6 +132,25 @@ async function runConnectionTest(clientDni) {
         status: 'error',
         error: 'Hemos detectado que la calidad de la señal de tu antena está por debajo del nivel óptimo.',
         troubleshooting: 'No toques ni muevas la antena exterior. Ya hemos generado un ticket para que un técnico revise la alineación o posibles obstrucciones (árboles, construcciones).',
+        ticketCreated: true,
+        ticketId: ticket.id
+      };
+    }
+
+    if (ethernetWarning) {
+      const ticket = await prisma.ticket.create({
+        data: {
+          clientId: client.id,
+          category: 'Problema Tecnico',
+          description: `[DIAGNÓSTICO AUTOMÁTICO] [ALERTA FÍSICA] La antena reporta que el cable de red (ether1) está negociando a 10Mbps. Probable cable dañado, corto o ficha sulfatada.`,
+          status: 'OPEN'
+        }
+      });
+
+      return {
+        status: 'error',
+        error: 'Tu antena presenta un problema físico en el cable de red (velocidad degradada a 10Mbps).',
+        troubleshooting: 'El cable que baja de la antena puede estar dañado o humedecido. Generamos un ticket para que un técnico revise el cableado físico.',
         ticketCreated: true,
         ticketId: ticket.id
       };

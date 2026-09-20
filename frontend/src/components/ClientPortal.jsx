@@ -2,24 +2,40 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Wifi, 
+  Shield, 
+  Zap, 
   CreditCard, 
-  Download, 
-  Copy, 
-  CheckCircle2, 
-  AlertCircle, 
-  HelpCircle, 
-  DownloadCloud, 
-  Smartphone, 
-  LogOut, 
-  Send, 
-  Clock, 
-  ShieldCheck, 
-  FileText, 
   ChevronRight, 
+  LogOut, 
+  CheckCircle2, 
+  Copy, 
+  AlertCircle, 
+  Play, 
+  X, 
+  Activity, 
+  AlertTriangle, 
+  User, 
+  KeyRound, 
+  Smartphone, 
+  LogIn, 
+  CheckSquare, 
+  MessageSquare, 
+  Plus, 
+  Check, 
+  Clock, 
+  Phone, 
+  FileText, 
+  Lock, 
+  ShieldCheck, 
+  Mail, 
+  Server, 
+  WifiOff,
+  Download,
+  HelpCircle,
+  DownloadCloud,
+  Send,
   Sparkles,
   ExternalLink,
-  MessageSquare,
-  Zap,
   PhoneCall
 } from 'lucide-react';
 
@@ -57,7 +73,7 @@ export default function ClientPortal() {
   // ESTADOS PRUEBA DE CONEXIÓN
   // ==========================================
   const [connectionTestModal, setConnectionTestModal] = useState(false);
-  const [connectionTestStatus, setConnectionTestStatus] = useState('idle'); // idle, testing_antenna, testing_router, testing_signal, success, error, support_ticket_created
+  const [connectionTestStatus, setConnectionTestStatus] = useState('idle'); // idle, testing_antenna, testing_router, testing_signal, success, error, support_ticket_created, offline
   const [connectionTestResult, setConnectionTestResult] = useState(null);
 
   // ==========================================
@@ -120,7 +136,8 @@ export default function ClientPortal() {
       const response = await axios.post(`${BACKEND_URL}/api/portal/connection-test`, {
         documentId: sanitizedDocument
       }, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 8000 // 8 segundos de límite
       });
 
       const data = response.data;
@@ -134,8 +151,15 @@ export default function ClientPortal() {
       }
     } catch (err) {
       console.error(err);
-      setConnectionTestResult({ error: err.response?.data?.error || err.message, status: 'error' });
-      setConnectionTestStatus('error');
+      if (err.code === 'ECONNABORTED' || err.message === 'Network Error' || !err.response) {
+        setConnectionTestStatus('offline');
+        setConnectionTestResult({ 
+          clientName: client?.name || loginDni
+        });
+      } else {
+        setConnectionTestResult({ error: err.response?.data?.error || err.message, status: 'error' });
+        setConnectionTestStatus('error');
+      }
     }
   };
 
@@ -999,6 +1023,38 @@ export default function ClientPortal() {
                   >
                     Abrir Ticket Manualmente
                   </button>
+                </div>
+              )}
+
+              {connectionTestStatus === 'offline' && (
+                <div className="py-4 space-y-4">
+                  <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <WifiOff size={32} className="text-rose-400" />
+                  </div>
+                  <h4 className="text-white font-bold text-center text-lg">Sin Conexión a Internet</h4>
+                  
+                  <div className="bg-rose-900/30 p-3 rounded-xl border border-rose-500/30">
+                    <p className="text-rose-200 text-sm leading-relaxed">
+                      ⚠️ No detectamos salida a internet en tu red Wi-Fi. <strong>Desactiva el Wi-Fi de tu teléfono para usar tus datos móviles</strong> y presiona el botón de abajo para enviar el reporte técnico.
+                    </p>
+                  </div>
+                  
+                  <button
+                    onClick={handleRunConnectionTest}
+                    className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm mt-2"
+                  >
+                    <Activity size={18} />
+                    Reintentar Diagnóstico con Datos Móviles
+                  </button>
+
+                  <a
+                    href={`https://wa.me/5492634513933?text=${encodeURIComponent(`Hola soporte, me quedé sin conexión en mi domicilio. Cliente: ${connectionTestResult?.clientName || ''}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-all text-sm mt-2 flex items-center justify-center gap-2"
+                  >
+                    Reportar por WhatsApp
+                  </a>
                 </div>
               )}
 
