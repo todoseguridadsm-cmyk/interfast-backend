@@ -36,7 +36,8 @@ import {
   Send,
   Sparkles,
   ExternalLink,
-  PhoneCall
+  PhoneCall,
+  DollarSign
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://interfast-backend-95ww.onrender.com';
@@ -828,6 +829,17 @@ export default function ClientPortal() {
                         className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-all font-bold text-xs inline-block text-center cursor-pointer"
                       >
                         Pagar
+                      </a>
+                    )}
+                    {inv.status === 'PENDING' && (
+                      <a
+                        href={`${BACKEND_URL}/api/invoices/${inv.id}/mercadopago/redirect`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all"
+                        title="PAGAR EN EFECTIVO/LINK DE PAGO"
+                      >
+                        <DollarSign size={16} />
                       </a>
                     )}
                     <a
