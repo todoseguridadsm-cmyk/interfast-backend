@@ -2533,6 +2533,7 @@ app.delete('/api/invoices/:id', async (req, res) => {
 
 app.post('/api/invoices/mass-notify', async (req, res) => {
   try {
+    const today = new Date();
     const { invoiceIds } = req.body;
 
     let whereClause = { status: 'PENDING' };
@@ -2632,6 +2633,7 @@ app.post('/api/invoices/mass-warning', async (req, res) => {
   }
 
   try {
+    const today = new Date();
     const { invoiceIds } = req.body;
 
     let whereClause = { status: 'PENDING' };
