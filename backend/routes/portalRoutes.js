@@ -123,11 +123,11 @@ router.post('/auth', async (req, res) => {
       return res.status(403).json({ error: 'No tienes un teléfono registrado válido en el sistema. Por favor, comunícate con soporte para actualizar tus datos de seguridad.' });
     }
 
-    // Generar token de 60 días para permanencia en la PWA
+    // Generar token de 1 hora para mayor seguridad
     const token = jwt.sign(
       { clientId: client.id, dni: client.dni, type: 'CLIENT_PORTAL' },
       JWT_SECRET,
-      { expiresIn: '60d' }
+      { expiresIn: '1h' }
     );
 
     res.json({
@@ -195,11 +195,11 @@ router.post('/auth/select', async (req, res) => {
       return res.status(403).json({ error: 'Titular sin teléfono registrado válido. Por favor comunícate con soporte.' });
     }
 
-    // Generar token de 60 días
+    // Generar token de 1 hora
     const token = jwt.sign(
       { clientId: client.id, dni: client.dni, type: 'CLIENT_PORTAL' },
       JWT_SECRET,
-      { expiresIn: '60d' }
+      { expiresIn: '1h' }
     );
 
     res.json({
