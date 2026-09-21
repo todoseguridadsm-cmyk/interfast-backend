@@ -109,9 +109,9 @@ export default function ClientPortal() {
     setDeferredPrompt(null);
   };
 
-  const fetchClientData = async (authToken = token) => {
+  const fetchClientData = async (authToken = token, silent = false) => {
     if (!authToken) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const ts = new Date().getTime();
       const res = await axios.get(`${BACKEND_URL}/api/portal/me?_cb=${ts}`, {
@@ -124,7 +124,7 @@ export default function ClientPortal() {
         handleLogout();
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -172,6 +172,37 @@ export default function ClientPortal() {
     if (token) {
       fetchClientData(token);
     }
+  }, [token]);
+
+  // ==========================================
+  // SINCRONIZACIÓN EN TIEMPO REAL (SWR)
+  // ==========================================
+  useEffect(() => {
+    if (!token) return;
+
+    // 1. Refetch on Focus (Cuando el usuario vuelve a la app)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchClientData(token, true);
+      }
+    };
+    const handleWindowFocus = () => {
+      fetchClientData(token, true);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    // 2. Background Polling (Cada 3 minutos silenciosamente)
+    const intervalId = setInterval(() => {
+      fetchClientData(token, true);
+    }, 180000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(intervalId);
+    };
   }, [token]);
 
   useEffect(() => {
