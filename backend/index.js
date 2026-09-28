@@ -559,7 +559,7 @@ async function generateCutoffList(autoCutoff = false) {
     });
 
     const existingCutoffs = await prisma.cutoffList.findMany({
-      where: { status: 'PENDING' }
+      where: { status: { in: ['PENDING', 'CUT'] } }
     });
     const existingSet = new Set(existingCutoffs.map(c => c.clientId));
 
@@ -3180,10 +3180,8 @@ app.get('/api/invoices/:id/mercadopago/redirect', async (req, res) => {
     if (tierStatus.activeTier === 'V2') expirationDate = tierStatus.limit2;
     else if (tierStatus.activeTier === 'V3') expirationDate = tierStatus.limit3;
     else if (tierStatus.activeTier === 'V4') {
-      const invMonth = invoice.month || (invoice.dueDate ? new Date(invoice.dueDate).getMonth() + 1 : 1);
-      const invYear = invoice.year || (invoice.dueDate ? new Date(invoice.dueDate).getFullYear() : 2026);
-      const day4 = (invoice.dueDate4 ? new Date(invoice.dueDate4).getDate() : null) || 22;
-      expirationDate = new Date(invYear, invMonth - 1, day4, 23, 59, 59, 999);
+      // Para que el 4to vencimiento no caduque en el link de pago
+      expirationDate = null;
     }
     let totalAmount = tierStatus.totalAmount;
 
