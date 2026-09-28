@@ -2598,7 +2598,29 @@ app.post('/api/invoices/mass-notify', async (req, res) => {
         const totalWithCents = totalAmountWithFee + centsVal;
         const totalEs = totalWithCents.toLocaleString('es-AR', { minimumFractionDigits: 2 });
         const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${inv.id}`;
-        let message = `Hola ${inv.client.name}! 👋🏻\n\nTe informamos que implementamos un nuevo sistema de gestión y facturación para mejorar nuestro servicio. Te acercamos el detalle de tu factura de Internet:\n📅 *Período:* ${inv.month}/${inv.year}\n⏰ *Vencimiento:* ${dueDateStr}\n💰 *Total a Abonar:* *$${totalEs}*\n\n📥 *Podés descargar tu factura con los 4 vencimientos en PDF aquí:* \n${pdfUrl}\n\n🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\nPodés abonar al Alias Mercado Pago: *interfastsm*\n👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con los centavos para que el sistema reconozca tu pago en segundos).\nUna vez transferido, envíanos la foto del comprobante por aquí.\n\n💡 *¿Otras opciones de pago?*\n• Si preferís abonar con tarjeta de crédito/débito o en efectivo (Rapipago/PagoFácil), pídeme por aquí el *Link de Pago*.\n• ¡NUEVO! También podés pedirme sumarte al *Débito Automático Mensual* para despreocuparte de los vencimientos.\n\n⚠️ *Si ya realizaste tu pago o transferencia en las últimas horas, por favor desestima este mensaje.*\n\n¡Muchas gracias!`;
+
+        const activeV = tierStatus.activeTier;
+        const originalConCentavos = parseFloat(inv.originalAmount || inv.priceV1 || 0) + centsVal;
+
+        let pricesText = '';
+        if (activeV === 'V1' || activeV === 'V2' || activeV === 'V3' || activeV === 'V4') {
+          pricesText += `El total a abonar varía según el día de pago:\n`;
+          if (activeV === 'V1' && inv.priceV1) pricesText += `Venc. 1 (Hasta el día 10 inclusive): *$${(parseFloat(inv.priceV1) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2') && inv.priceV2) pricesText += `Venc. 2 (Día 11 al 15): *$${(parseFloat(inv.priceV2) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if ((activeV === 'V1' || activeV === 'V2' || activeV === 'V3') && inv.priceV3) pricesText += `Venc. 3 (Día 16 al 20): *$${(parseFloat(inv.priceV3) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          if (inv.priceV4) pricesText += `Venc. 4 (Día 21 al 31): *$${(parseFloat(inv.priceV4) + centsVal).toLocaleString('es-AR', { minimumFractionDigits: 2 })}*\n`;
+          pricesText += '\n';
+        }
+
+        let message = `Hola ${inv.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
+          `📅 *Período:* ${String(inv.month).padStart(2, '0')}/${inv.year}\n` +
+          `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n\n` +
+          `${pricesText}` +
+          `💸 Puedes transferir al alias: *interfastsm*\n\n` +
+          `📱 *¡Nuevo Portal Interfast!*\n` +
+          `Gestioná tu cuenta y servicios técnicos desde la App. Accedé mediante este link:\n` +
+          `👉 https://interfast-backend-95ww.onrender.com/portal\n\n` +
+          `¡Muchas gracias por elegirnos! 🚀`;
         message = obfuscateMessage(message);
 
         await sendWhatsAppMessage(targetPhone, message);
@@ -3356,23 +3378,15 @@ app.post('/api/invoices/mass-reminder', async (req, res) => {
           pricesText += '\n';
         }
 
-        const pdfUrl = `https://interfast-backend-95ww.onrender.com/api/bot/factura-pdf?invoiceId=${invoice.id}&v=${activeV}`;
-        const mpLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/redirect`;
-        const debitoLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${invoice.id}/mercadopago/debito`;
-
         let msg = `Hola ${invoice.client.name}! 👋🏻\n\nTe acercamos el detalle de tu factura de Internet:\n` +
           `📅 *Período:* ${String(invoice.month).padStart(2, '0')}/${invoice.year}\n` +
           `💰 *Monto Original:* $${originalConCentavos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n\n` +
           `${pricesText}` +
-          `📥 *Descargá tu factura PDF aquí:* \n${pdfUrl}\n\n` +
-          `🚀 *MÉTODO RECOMENDADO (Transferencia sin recargos):*\n` +
-          `Podés abonar al Alias Mercado Pago: *INTERFASTSM* (SIN COMISIÓN)\n` +
-          `👉 *Monto exacto para imputación automática: $${totalEs}* (es indispensable transferir con el centavo exacto que figura ahí).\n` +
-          `Una vez transferido, envíanos la foto del comprobante por aquí.\n\n` +
-          `💳 *¿Preferís pagar con tarjeta / efectivo (Rapipago/PagoFácil)?*\n` +
-          `Podés hacerlo desde aquí (puede incluir recargo):\n${mpLink}\n\n` +
-          `🔄 *¿Quieres adherirte al Débito Automático?* Hazlo desde aquí:\n${debitoLink}\n\n` +
-          `¡Muchas gracias!`;
+          `💸 Puedes transferir al alias: *interfastsm*\n\n` +
+          `📱 *¡Nuevo Portal Interfast!*\n` +
+          `Gestioná tu cuenta y servicios técnicos desde la App. Accedé mediante este link:\n` +
+          `👉 https://interfast-backend-95ww.onrender.com/portal\n\n` +
+          `¡Muchas gracias por elegirnos! 🚀`;
         msg = obfuscateMessage(msg);
 
         const isSent = await sendWhatsAppMessage(targetPhone, msg);
