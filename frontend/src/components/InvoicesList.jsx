@@ -949,6 +949,11 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                               <>
                                 <div className="font-semibold">{new Date(inv.payments[0].paymentDate).toLocaleDateString('es-AR')}</div>
                                 <div className="text-[10px] text-slate-400">{new Date(inv.payments[0].paymentDate).toLocaleTimeString('es-AR', {timeStyle: 'short'})} hs</div>
+                                {(inv.payments[0].mpPaymentId || inv.payments[0].externalTransactionId) && (
+                                  <div className="text-[9px] text-slate-500 font-mono mt-0.5" title="Nro de Operación">
+                                    Op: {inv.payments[0].mpPaymentId || inv.payments[0].externalTransactionId}
+                                  </div>
+                                )}
                               </>
                             )
                             : '-'}

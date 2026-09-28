@@ -535,6 +535,11 @@ export default function DailyCash() {
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-slate-800">{item.title}</div>
                       <div className="text-xs font-medium text-slate-400 uppercase mt-0.5">{item.category.replace('_', ' ')}</div>
+                      {item.externalTransactionId && (
+                        <div className="text-[10px] text-slate-500 font-mono mt-1" title="Nro de Operación">
+                          Op: {item.externalTransactionId}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded inline-block">
