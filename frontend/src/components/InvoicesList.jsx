@@ -612,7 +612,13 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
       return false;
     }
 
-    if (term && !clientName.includes(term) && !clientDni.includes(term) && !inv.id.toString().includes(term)) {
+    const hasMatchingPayment = (inv.payments || []).some(p => 
+      (p.mpPaymentId && p.mpPaymentId.toLowerCase().includes(term)) ||
+      (p.externalTransactionId && p.externalTransactionId.toLowerCase().includes(term)) ||
+      (p.id && p.id.toString().includes(term))
+    );
+
+    if (term && !clientName.includes(term) && !clientDni.includes(term) && !inv.id.toString().includes(term) && !hasMatchingPayment) {
       return false;
     }
 
