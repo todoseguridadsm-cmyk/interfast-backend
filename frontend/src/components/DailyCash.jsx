@@ -168,7 +168,8 @@ export default function DailyCash() {
       amount: p.amountPaid,
       date: new Date(p.paymentDate),
       user: paymentOperator,
-      operator: null
+      operator: null,
+      externalTransactionId: p.mpPaymentId || p.externalTransactionId || null
     });
   });
 
@@ -204,7 +205,8 @@ export default function DailyCash() {
       amount: m.amount,
       date: new Date(m.createdAt),
       user: movementOperator,
-      operator: m.operator ? m.operator.toUpperCase() : null
+      operator: m.operator ? m.operator.toUpperCase() : null,
+      externalTransactionId: m.externalTransactionId || null
     });
   });
 
@@ -303,6 +305,7 @@ export default function DailyCash() {
       'Tipo':     item.type === 'IN' ? 'INGRESO' : 'EGRESO',
       'Categoría': item.category,
       'Concepto': item.title,
+      'Nro Operación': item.externalTransactionId || '',
       'Origen/Operador': item.user,
       'Monto ($)': Number(item.amount.toFixed(2))
     }));
