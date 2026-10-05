@@ -37,7 +37,8 @@ import {
   Sparkles,
   ExternalLink,
   PhoneCall,
-  DollarSign
+  DollarSign,
+  RefreshCw
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://interfast-backend-95ww.onrender.com';
@@ -594,6 +595,14 @@ export default function ClientPortal() {
               <span className="hidden sm:inline">Instalar App</span>
             </button>
             <button
+              onClick={() => fetchClientData(token, false)}
+              disabled={loading}
+              title="Actualizar Datos"
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-emerald-500/15 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button
               onClick={handleLogout}
               title="Cerrar Sesión"
               className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-rose-400 hover:bg-rose-500/15 transition-all"
@@ -748,14 +757,22 @@ export default function ClientPortal() {
               </div>
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 text-center shadow-lg">
+            <div className="bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 text-center shadow-lg flex flex-col items-center">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 mb-3 shadow-[0_0_20px_rgba(16,185,129,0.25)]">
                 <CheckCircle2 size={30} />
               </div>
               <h3 className="text-2xl font-black text-white">¡Estás al día!</h3>
-              <p className="text-sm text-slate-400 mt-2">
+              <p className="text-sm text-slate-400 mt-2 mb-6 max-w-sm">
                 No registras facturas pendientes de pago en este momento. ¡Muchas gracias por tu puntualidad!
               </p>
+              <button
+                onClick={() => fetchClientData(token, false)}
+                disabled={loading}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 shadow-md"
+              >
+                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                Actualizar Mis Datos
+              </button>
             </div>
           )}
         </section>
