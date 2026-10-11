@@ -110,19 +110,26 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
     const difference = transactionAmount - expectedExactAmount;
 
     await prisma.$transaction(async (tx) => {
+      const firstInvoiceAmount = difference >= 5.0 ? expectedExactAmount : transactionAmount;
+
       await tx.payment.create({
         data: {
-          amountPaid: transactionAmount,
+          amountPaid: firstInvoiceAmount,
           method: 'MERCADOPAGO',
           operator: operator,
           mpPaymentId: String(paymentId),
-          invoiceId: matchedInvoice.id
+          invoiceId: matchedInvoice.id,
+          paymentDate: new Date(paymentDate)
         }
       });
 
       await tx.invoice.update({
         where: { id: matchedInvoice.id },
         data: { status: 'PAID', operator: operator }
+      });
+
+      await tx.cutoffList.deleteMany({
+        where: { invoiceId: matchedInvoice.id }
       });
 
       await tx.cashMovement.create({
@@ -137,10 +144,58 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
       });
 
       if (difference >= 5.0) {
-        await tx.client.update({
-          where: { id: matchedInvoice.clientId },
-          data: { walletBalance: { increment: difference } }
+        let remainingCredit = difference;
+
+        // Buscar otras facturas pendientes del cliente ordenadas cronológicamente (cascada automática)
+        const otherPendingInvoices = await tx.invoice.findMany({
+          where: {
+            clientId: matchedInvoice.clientId,
+            id: { not: matchedInvoice.id },
+            status: 'PENDING'
+          },
+          orderBy: [{ year: 'asc' }, { month: 'asc' }]
         });
+
+        for (const nextInv of otherPendingInvoices) {
+          if (remainingCredit < 5.0) break;
+
+          const nextTier = getInvoiceTierStatus(nextInv, new Date(paymentDate));
+          const nextTargetAmount = nextTier.totalAmount;
+
+          if (remainingCredit >= (nextTargetAmount - 5.0)) {
+            const amountToApply = Math.min(remainingCredit, nextTargetAmount);
+            await tx.payment.create({
+              data: {
+                amountPaid: amountToApply,
+                method: 'MERCADOPAGO',
+                operator: operator,
+                invoiceId: nextInv.id,
+                paymentDate: new Date(paymentDate)
+              }
+            });
+
+            await tx.invoice.update({
+              where: { id: nextInv.id },
+              data: { status: 'PAID', operator: operator }
+            });
+
+            await tx.cutoffList.deleteMany({
+              where: { invoiceId: nextInv.id }
+            });
+
+            remainingCredit = Math.max(0, remainingCredit - nextTargetAmount);
+            console.log(`✅ [Cascada Automática MP] Factura #${nextInv.id} (${nextInv.month}/${nextInv.year}) saldada automáticamente para ${matchedInvoice.client.name}`);
+          } else {
+            break;
+          }
+        }
+
+        if (remainingCredit >= 5.0) {
+          await tx.client.update({
+            where: { id: matchedInvoice.clientId },
+            data: { walletBalance: { increment: remainingCredit } }
+          });
+        }
       } else if (difference <= -5.0) {
         const remainingDebt = Math.abs(difference);
         await tx.invoice.create({
@@ -175,6 +230,11 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
           }).catch(() => { });
         }
       }
+
+      await tx.client.update({
+        where: { id: matchedInvoice.clientId },
+        data: { status: 'ACTIVE' }
+      });
     });
     console.log(`✅ Conciliado Cliente ${matchedInvoice.client.name} | Pago: $${transactionAmount}`);
     return { status: 'success', matchedInvoice };
