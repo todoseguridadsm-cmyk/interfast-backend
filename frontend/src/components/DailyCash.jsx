@@ -168,8 +168,15 @@ export default function DailyCash() {
       const res = await axios.post(`${API}/api/bank/upload-roela-report`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const { breakdown, movement } = res.data;
-      alert(`¡Éxito Banco Roela!\nPeríodo: ${breakdown?.period || 'Extracto'}\nComisiones: $${breakdown?.comisiones}\nImpuestos: $${breakdown?.impuestos}\nTotal Neto registrado: $${movement?.amount}`);
+      // Desglose procesado del extracto
+      const { breakdown, totalEgresos, totalIngresosPropios } = res.data;
+      const transfTxt = (breakdown?.transferenciasPropias || [])
+        .map(t => `  • +$${Number(t.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })} (${t.concepto})`)
+        .join('\n');
+      const debitosTxt = (breakdown?.debitosDirectos || [])
+        .map(d => `  • -$${Number(d.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 })} (${d.concepto})`)
+        .join('\n');
+      alert(`¡Éxito Banco Roela!\nPeríodo: ${breakdown?.period || 'Extracto'}\n` + (transfTxt ? `Transferencias Propias Acreditadas (MP -> Roela): +$${Number(totalIngresosPropios || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n${transfTxt}\n` : '') + `Comisiones e Impuestos Netos: -$${Number(breakdown?.comisionesEImpuestos || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n` + (debitosTxt ? `Débitos Directos Efectivos:\n${debitosTxt}\n` : '') + `Total Egresos registrados: -$${Number(totalEgresos || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
       setShowRoelaModal(false);
       setRoelaFile(null);
       fetchCash();
