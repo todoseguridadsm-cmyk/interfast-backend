@@ -12,6 +12,12 @@ export default function POSCaja() {
   const [clientInvoices, setClientInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [payModal, setPayModal] = useState({ show: false, inv: null, amount: '' });
+  const [roelaOpNumber, setRoelaOpNumber] = useState('');
+  const [roelaPaymentDate, setRoelaPaymentDate] = useState(() => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  });
 
   const getLoggedInOperator = () => {
     const userStr = localStorage.getItem('user');
@@ -64,6 +70,10 @@ export default function POSCaja() {
   const handlePayClick = (inv) => {
     setOperator(getLoggedInOperator());
     setPaymentChannel('EFECTIVO');
+    setRoelaOpNumber('');
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    setRoelaPaymentDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
     setPayModal({ show: true, inv, amount: inv.totalAmount });
   };
 
@@ -71,18 +81,32 @@ export default function POSCaja() {
     e.preventDefault();
     setLoading(true);
     try {
-      const methodStr = paymentChannel === 'BANCO_ROELA' 
-        ? 'BANCO_ROELA' 
-        : paymentChannel === 'MERCADOPAGO' 
-        ? 'MERCADOPAGO' 
-        : 'CASH_' + operator;
+      if (paymentChannel === 'BANCO_ROELA') {
+        if (!roelaOpNumber.trim()) {
+          alert('Por favor ingresa el Número de Operación de Banco Roela.');
+          setLoading(false);
+          return;
+        }
 
-      await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
-        amountPaid: parseFloat(payModal.amount) || 0,
-        lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
-        totalRequired: parseFloat(payModal.inv.totalAmount) || parseFloat(payModal.amount) || 0,
-        method: methodStr
-      });
+        await axios.post('https://interfast-backend-95ww.onrender.com/api/bank/roela-manual-payment', {
+          clientId: selectedClient.id,
+          invoiceId: payModal.inv.id,
+          amountPaid: parseFloat(payModal.amount) || 0,
+          paymentDate: roelaPaymentDate ? new Date(roelaPaymentDate).toISOString() : new Date().toISOString(),
+          operationNumber: roelaOpNumber.trim()
+        });
+      } else {
+        const methodStr = paymentChannel === 'MERCADOPAGO' 
+          ? 'MERCADOPAGO' 
+          : 'CASH_' + operator;
+
+        await axios.put(`https://interfast-backend-95ww.onrender.com/api/invoices/${payModal.inv.id}/pay`, {
+          amountPaid: parseFloat(payModal.amount) || 0,
+          lateFeeApplied: parseFloat(payModal.inv.calculatedLateFee) || 0,
+          totalRequired: parseFloat(payModal.inv.totalAmount) || parseFloat(payModal.amount) || 0,
+          method: methodStr
+        });
+      }
 
       setPayModal({ show: false, inv: null, amount: '' });
       await fetchData();
@@ -94,7 +118,7 @@ export default function POSCaja() {
       
     } catch (error) {
       console.error(error);
-      alert('Error registrando cobro.');
+      alert('Error registrando cobro: ' + (error.response?.data?.error || error.message));
     }
     setLoading(false);
   };
@@ -468,6 +492,36 @@ export default function POSCaja() {
                     <option value="VICTOR">Víctor</option>
                     <option value="MATIAS">Matías</option>
                   </select>
+                </div>
+              )}
+
+              {paymentChannel === 'BANCO_ROELA' && (
+                <div className="space-y-3 bg-slate-900/80 p-4 rounded-2xl border border-blue-500/30">
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-blue-300 mb-1.5 flex items-center gap-1.5">
+                      <span>#</span> N° de Operación Bancaria *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: ROELA-1845 o 982341"
+                      value={roelaOpNumber}
+                      onChange={(e) => setRoelaOpNumber(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-blue-200 text-xs font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-blue-300 mb-1.5 flex items-center gap-1.5">
+                      <span>📅</span> Fecha y Hora de Transferencia *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={roelaPaymentDate}
+                      onChange={(e) => setRoelaPaymentDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-blue-200 text-xs font-mono font-bold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-400"
+                    />
+                  </div>
                 </div>
               )}
 

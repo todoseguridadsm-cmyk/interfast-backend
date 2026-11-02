@@ -3013,22 +3013,26 @@ app.get('/api/cash/daily', checkPermission('CAJA'), async (req, res) => {
     let startOfDay, endOfDay;
 
     if (date && endDate) {
-      const [year, month, day] = date.split('-');
-      const [eyear, emonth, eday] = endDate.split('-');
-      startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-      endOfDay = new Date(Date.UTC(eyear, emonth - 1, eday, 23, 59, 59, 999));
+      const [year, month, day] = date.split('-').map(Number);
+      const [eyear, emonth, eday] = endDate.split('-').map(Number);
+      // Horario Argentina (UTC-3): 00:00:00 ART = 03:00:00 UTC
+      startOfDay = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+      // 23:59:59.999 ART = 02:59:59.999 UTC del día siguiente
+      endOfDay = new Date(Date.UTC(eyear, emonth - 1, eday + 1, 2, 59, 59, 999));
     } else if (date) {
-      const [year, month, day] = date.split('-');
-      startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-      endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+      const [year, month, day] = date.split('-').map(Number);
+      startOfDay = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+      endOfDay = new Date(Date.UTC(year, month - 1, day + 1, 2, 59, 59, 999));
     } else {
-      startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
+      const arNow = getArgentinaDate(new Date());
+      const y = arNow.getFullYear();
+      const m = arNow.getMonth();
+      const d = arNow.getDate();
+      startOfDay = new Date(Date.UTC(y, m, d, 3, 0, 0, 0));
+      endOfDay = new Date(Date.UTC(y, m, d + 1, 2, 59, 59, 999));
     }
 
-    console.log(`Parsed Range: ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
+    console.log(`Parsed Range (Argentina UTC-3): ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`);
 
     const payments = await prisma.payment.findMany({
       where: {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Wallet, ArrowDownCircle, ArrowUpCircle, PlusCircle, Filter, Calendar, Download, TrendingDown, User, Landmark } from 'lucide-react';
+import { Wallet, ArrowDownCircle, ArrowUpCircle, PlusCircle, Filter, Calendar, Download, TrendingDown, User, Landmark, Search, X, Hash, Clock, CheckCircle2, AlertCircle, Building2, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const API = 'https://interfast-backend-95ww.onrender.com';
@@ -35,6 +35,104 @@ export default function DailyCash() {
   const [showRoelaModal, setShowRoelaModal] = useState(false);
   const [roelaFile, setRoelaFile] = useState(null);
   const [roelaLoading, setRoelaLoading] = useState(false);
+
+  // Banco Roela Manual Payment Modal state
+  const [showManualRoelaModal, setShowManualRoelaModal] = useState(false);
+  const [roelaClients, setRoelaClients] = useState([]);
+  const [roelaInvoices, setRoelaInvoices] = useState([]);
+  const [roelaSearch, setRoelaSearch] = useState('');
+  const [roelaSelectedClient, setRoelaSelectedClient] = useState(null);
+  const [roelaSelectedInvoiceId, setRoelaSelectedInvoiceId] = useState('');
+  const [roelaPaymentDate, setRoelaPaymentDate] = useState(() => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  });
+  const [roelaOpNumber, setRoelaOpNumber] = useState('');
+  const [roelaAmount, setRoelaAmount] = useState('');
+  const [roelaSubmitting, setRoelaSubmitting] = useState(false);
+  const [loadingClients, setLoadingClients] = useState(false);
+
+  const handleOpenManualRoela = async () => {
+    setShowManualRoelaModal(true);
+    setRoelaSearch('');
+    setRoelaSelectedClient(null);
+    setRoelaSelectedInvoiceId('');
+    setRoelaOpNumber('');
+    setRoelaAmount('');
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    setRoelaPaymentDate(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
+
+    if (roelaClients.length === 0) {
+      setLoadingClients(true);
+      try {
+        const [cliRes, invRes] = await Promise.all([
+          axios.get(`${API}/api/clients`),
+          axios.get(`${API}/api/invoices`)
+        ]);
+        setRoelaClients(cliRes.data || []);
+        setRoelaInvoices(invRes.data || []);
+      } catch (err) {
+        console.error('Error cargando clientes:', err);
+      }
+      setLoadingClients(false);
+    }
+  };
+
+  const handleSelectRoelaClient = (client) => {
+    setRoelaSelectedClient(client);
+    setRoelaSearch('');
+    const clientPendingInvs = roelaInvoices.filter(i => i.clientId === client.id && i.status !== 'PAID');
+    if (clientPendingInvs.length > 0) {
+      const defaultInv = clientPendingInvs[0];
+      setRoelaSelectedInvoiceId(String(defaultInv.id));
+      const expectedAmt = defaultInv.priceV4 || defaultInv.priceV3 || defaultInv.priceV1 || defaultInv.originalAmount || '';
+      setRoelaAmount(String(expectedAmt));
+    } else {
+      setRoelaSelectedInvoiceId('');
+      setRoelaAmount('');
+    }
+  };
+
+  const handleInvoiceChange = (invId) => {
+    setRoelaSelectedInvoiceId(invId);
+    if (!invId) return;
+    const inv = roelaInvoices.find(i => i.id === parseInt(invId));
+    if (inv) {
+      const expectedAmt = inv.priceV4 || inv.priceV3 || inv.priceV1 || inv.originalAmount || '';
+      setRoelaAmount(String(expectedAmt));
+    }
+  };
+
+  const handleManualRoelaSubmit = async (e) => {
+    e.preventDefault();
+    if (!roelaSelectedClient) return alert('Por favor selecciona un cliente de la lista.');
+    if (!roelaOpNumber.trim()) return alert('El Número de Operación es obligatorio para asentar la conciliación.');
+    if (!roelaAmount || parseFloat(roelaAmount) <= 0) return alert('Ingresa un monto válido mayor a $0.');
+
+    setRoelaSubmitting(true);
+    try {
+      const res = await axios.post(`${API}/api/bank/roela-manual-payment`, {
+        clientId: roelaSelectedClient.id,
+        invoiceId: roelaSelectedInvoiceId ? parseInt(roelaSelectedInvoiceId) : undefined,
+        amountPaid: parseFloat(roelaAmount),
+        paymentDate: roelaPaymentDate ? new Date(roelaPaymentDate).toISOString() : new Date().toISOString(),
+        operationNumber: roelaOpNumber.trim()
+      });
+
+      alert(`✅ ¡Pago Banco Roela Registrado con Éxito!\n\nCliente: ${roelaSelectedClient.name}\nMonto: $${parseFloat(roelaAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}\nN° Op: ${roelaOpNumber.trim()}\nImpacto: Asentado en Caja Banco Roela y Caja General.`);
+
+      setShowManualRoelaModal(false);
+      if (roelaSelectedInvoiceId) {
+        setRoelaInvoices(prev => prev.map(inv => inv.id === parseInt(roelaSelectedInvoiceId) ? { ...inv, status: 'PAID' } : inv));
+      }
+      fetchCash();
+    } catch (err) {
+      alert('Error registrando pago Roela: ' + (err.response?.data?.error || err.message));
+    }
+    setRoelaSubmitting(false);
+  };
 
   const handleMpUpload = async (e) => {
     e.preventDefault();
@@ -336,6 +434,9 @@ export default function DailyCash() {
           </button>
           <button onClick={() => setShowRoelaModal(true)} className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-3 rounded-xl font-bold shadow-sm transition-all active:scale-95 flex items-center gap-2 text-sm">
             🏛️ Subir Excel BR
+          </button>
+          <button onClick={handleOpenManualRoela} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-3 rounded-xl font-bold shadow-md shadow-indigo-200 transition-all active:scale-95 flex items-center gap-2 text-sm">
+            🏦 Cargar Pago Roela
           </button>
           <button onClick={exportToExcel} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold shadow-md shadow-emerald-200 transition-all active:scale-95 flex items-center gap-2 text-sm">
             <Download size={18} /> Exportar Excel
@@ -713,6 +814,216 @@ export default function DailyCash() {
                 <button type="button" onClick={() => setShowRoelaModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold p-3 rounded-xl text-xs uppercase transition-all">Cancelar</button>
                 <button type="submit" disabled={roelaLoading} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3 rounded-xl shadow-lg text-xs uppercase transition-all disabled:opacity-50">
                   {roelaLoading ? 'Cargando...' : 'Procesar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CARGA MANUAL BANCO ROELA ── */}
+      {showManualRoelaModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95">
+            {/* Header del Modal */}
+            <div className="bg-gradient-to-r from-indigo-700 to-indigo-900 p-6 text-white flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-indigo-500/30 rounded-xl text-lg">🏦</span>
+                  <h3 className="font-black text-xl tracking-tight">Carga Manual - Banco Roela</h3>
+                </div>
+                <p className="text-xs text-indigo-200 mt-1">
+                  Imputa el pago a la factura del cliente y asienta en Caja Roela y Caja General con N° de Operación.
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowManualRoelaModal(false)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleManualRoelaSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Buscador de Cliente */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <User size={14} className="text-indigo-600" />
+                  Cliente *
+                </label>
+                
+                {roelaSelectedClient ? (
+                  <div className="bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl p-3 flex justify-between items-center">
+                    <div>
+                      <p className="font-black text-slate-800 text-sm">{roelaSelectedClient.name}</p>
+                      <p className="text-xs font-semibold text-slate-500">
+                        DNI: {roelaSelectedClient.dni} | ID #{roelaSelectedClient.id} {roelaSelectedClient.businessName ? `• ${roelaSelectedClient.businessName}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRoelaSelectedClient(null);
+                        setRoelaSelectedInvoiceId('');
+                        setRoelaAmount('');
+                      }}
+                      className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={roelaSearch}
+                        onChange={e => setRoelaSearch(e.target.value)}
+                        placeholder={loadingClients ? "Cargando clientes..." : "Buscar por nombre o DNI (ej: Diaz Belen)..."}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                    </div>
+
+                    {roelaSearch.trim().length > 1 && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto z-20 divide-y divide-slate-100">
+                        {roelaClients
+                          .filter(c => {
+                            const term = roelaSearch.toLowerCase();
+                            return (c.name || '').toLowerCase().includes(term) || String(c.dni || '').includes(term);
+                          })
+                          .slice(0, 10)
+                          .map(c => {
+                            const pendingCount = roelaInvoices.filter(i => i.clientId === c.id && i.status !== 'PAID').length;
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleSelectRoelaClient(c)}
+                                className="w-full text-left p-3 hover:bg-indigo-50/60 transition-colors flex justify-between items-center"
+                              >
+                                <div>
+                                  <span className="font-bold text-slate-800 text-sm block">{c.name}</span>
+                                  <span className="text-xs text-slate-400">DNI: {c.dni}</span>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${pendingCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                                  {pendingCount > 0 ? `${pendingCount} impaga(s)` : 'Al día'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        {roelaClients.filter(c => (c.name || '').toLowerCase().includes(roelaSearch.toLowerCase()) || String(c.dni || '').includes(roelaSearch)).length === 0 && (
+                          <div className="p-4 text-center text-xs text-slate-400 font-semibold">
+                            No se encontraron clientes con "{roelaSearch}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Selector de Factura */}
+              {roelaSelectedClient && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText size={14} className="text-indigo-600" />
+                    Factura a Imputar
+                  </label>
+                  {roelaInvoices.filter(i => i.clientId === roelaSelectedClient.id && i.status !== 'PAID').length > 0 ? (
+                    <select
+                      value={roelaSelectedInvoiceId}
+                      onChange={e => handleInvoiceChange(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-semibold rounded-xl px-3.5 py-2.5 outline-none focus:border-indigo-500 cursor-pointer"
+                    >
+                      {roelaInvoices
+                        .filter(i => i.clientId === roelaSelectedClient.id && i.status !== 'PAID')
+                        .map(inv => (
+                          <option key={inv.id} value={inv.id}>
+                            Factura #{inv.id} (Mes {inv.month}/{inv.year}) - Importe: ${(inv.priceV4 || inv.priceV3 || inv.priceV1 || inv.originalAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
+                      <AlertCircle size={14} />
+                      El cliente no tiene facturas impagas. El monto se cargará como <strong>saldo a favor en su billetera</strong>.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Grid: Fecha y N° Operación */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock size={14} className="text-indigo-600" />
+                    Fecha y Hora del Pago *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={roelaPaymentDate}
+                    onChange={e => setRoelaPaymentDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-all"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Fecha en que impactó en Roela</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <Hash size={14} className="text-indigo-600" />
+                    N° de Operación / Comprobante *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: ROELA-1845 o 984521"
+                    value={roelaOpNumber}
+                    onChange={e => setRoelaOpNumber(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 transition-all font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Trazabilidad y control duplicados</span>
+                </div>
+              </div>
+
+              {/* Monto Abonado */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <Landmark size={14} className="text-indigo-600" />
+                  Monto Abonado ($) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xl">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={roelaAmount}
+                    onChange={e => setRoelaAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-slate-50 border-2 border-indigo-100 focus:border-indigo-500 focus:bg-white text-indigo-950 text-2xl font-black font-mono rounded-2xl py-3 pl-10 pr-4 outline-none transition-all text-center"
+                  />
+                </div>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="pt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualRoelaModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold p-3.5 rounded-xl text-xs uppercase transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={roelaSubmitting || !roelaSelectedClient || !roelaOpNumber}
+                  className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3.5 rounded-xl shadow-lg shadow-indigo-200 text-xs uppercase tracking-wide transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {roelaSubmitting ? 'Asentando Pago...' : 'Confirmar Pago Roela'}
                 </button>
               </div>
             </form>
