@@ -270,6 +270,23 @@ export default function ClientsList() {
   };
 
 
+  const handleSendDebitoWhatsApp = async (client) => {
+    if (!client.phone) return alert('Este cliente no tiene teléfono registrado.');
+    if (!window.confirm(`¿Enviar link de Suscripción a Débito Automático de Mercado Pago por WhatsApp a ${client.name}?`)) return;
+    try {
+      const subRes = await axios.get(`https://interfast-backend-95ww.onrender.com/api/bot/debito-automatico?clientId=${client.id}`);
+      const subLink = subRes.data?.subscriptionLink;
+      const planAmount = subRes.data?.planAmount || client.plan?.priceV1 || 23990;
+      if (!subLink) return alert('No se pudo generar el link de suscripción.');
+      const phone = client.phone.replace(/\D/g, '');
+      const message = `Hola ${client.name}! 👋🏻\n\nTe compartimos tu enlace exclusivo de *Adhesión al Pago Automático de Mercado Pago* para tu servicio de Internet Interfast:\n\n💳 *Suscribite desde aquí:*\n${subLink}\n\n💰 *Abono mensual actual:* $${Number(planAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}\n\n✅ Al adherirte con tu tarjeta o cuenta de Mercado Pago, tu cuota se debitará automáticamente cada mes sin recargos ni gestiones manuales.\n\n¡Muchas gracias!`;
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/bot/send-custom-message', { phone, message });
+      alert(res.data.message || 'Link de suscripción enviado por WhatsApp con éxito.');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error enviando link de suscripción por WhatsApp');
+    }
+  };
+
   const exportToExcel = () => {
     if (clients.length === 0) return alert("No hay clientes para exportar.");
     
@@ -555,7 +572,7 @@ export default function ClientsList() {
                           <CreditCard size={14} />
                         </button>
                       )}
-                      <button className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-green-50 cursor-pointer" title="Enviar WhatsApp">
+                      <button onClick={() => handleSendDebitoWhatsApp(client)} className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center justify-center p-1 rounded hover:bg-green-50 cursor-pointer" title="Enviar Suscripción Débito Automático MP por WhatsApp">
                         <MessageCircle size={14} />
                       </button>
                       {canManageClients && (

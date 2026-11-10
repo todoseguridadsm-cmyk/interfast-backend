@@ -406,6 +406,21 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
       .catch(err => alert(err.response?.data?.error || 'Error enviando WhatsApp'));
   };
 
+  const debitoWhatsApp = (inv) => {
+    if (!inv.client?.phone) {
+      alert('Este cliente no tiene teléfono registrado.');
+      return;
+    }
+    if (!window.confirm(`¿Enviar Link de Suscripción a Pago Automático de MercadoPago por WhatsApp a ${inv.client.name}?`)) return;
+    const phone = inv.client.phone.replace(/\D/g, '');
+    const debitoLink = `https://interfast-backend-95ww.onrender.com/api/invoices/${inv.id}/mercadopago/debito`;
+    const baseEs = Number(inv.originalAmount || inv.priceV1 || 23990).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+    const message = `Hola ${inv.client.name}! 👋🏻\n\nTe compartimos el enlace de *Adhesión al Pago Automático de Mercado Pago* para tu servicio de Internet Interfast:\n\n💳 *Suscribite desde aquí:*\n${debitoLink}\n\n💰 *Abono mensual base:* $${baseEs}\n\n✅ Al adherirte con tu tarjeta o cuenta de Mercado Pago, tu cuota mensual se debitará automáticamente sin recargos ni gestiones manuales.\n\n¡Muchas gracias!`;
+    axios.post('https://interfast-backend-95ww.onrender.com/api/bot/send-custom-message', { phone, message })
+      .then(res => alert(res.data.message || 'Suscripción enviada por WhatsApp'))
+      .catch(err => alert(err.response?.data?.error || 'Error enviando WhatsApp'));
+  };
+
   const generatePDF = (inv) => {
     const doc = new jsPDF();
     
@@ -992,6 +1007,15 @@ const getInvoiceActiveVencimiento = (inv, checkDate = new Date()) => {
                                 title="Link MercadoPago"
                               >
                                 <CreditCard size={14} /> <span className="hidden 2xl:inline">Link MP</span>
+                              </button>
+                            )}
+                            {inv.status === 'PENDING' && (
+                              <button
+                                onClick={() => debitoWhatsApp(inv)}
+                                className="text-indigo-600 hover:text-indigo-800 transition-colors p-1.5 px-2 rounded-lg hover:bg-indigo-50 bg-white border border-indigo-200 flex items-center gap-1 font-bold text-xs"
+                                title="Enviar Suscripción a Pago Automático MP por WhatsApp"
+                              >
+                                <CreditCard size={14} /> <span className="hidden 2xl:inline">Suscripción MP</span>
                               </button>
                             )}
                             {inv.status === 'PENDING' && (

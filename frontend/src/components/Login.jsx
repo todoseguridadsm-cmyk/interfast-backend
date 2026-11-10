@@ -130,7 +130,7 @@ export default function Login() {
               }`} size={18} />
               <input 
                 type="text" 
-                inputMode="numeric"
+                inputMode="text"
                 value={username} 
                 onChange={e => setUsername(e.target.value)}
                 onFocus={() => setFocusedField('user')}
@@ -161,7 +161,7 @@ export default function Login() {
               }`} size={18} />
               <input 
                 type={showPassword ? 'text' : 'password'}
-                inputMode="numeric"
+                inputMode="text"
                 value={password} 
                 onChange={e => setPassword(e.target.value)}
                 onFocus={() => setFocusedField('pass')}
