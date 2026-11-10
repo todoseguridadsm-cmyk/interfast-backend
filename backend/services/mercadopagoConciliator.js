@@ -53,47 +53,64 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
   }
 
   // Si el DNI sigue vacío pero el email está, podríamos usar el email (Mercado Pago a veces manda el email pero no el nombre)
-  const payerEmail = mpPayment.payer?.email || '';
+  const payerEmail = (mpPayment.payer?.email || '').trim().toLowerCase();
 
   const payerRaw = `${extractedFirstName} ${extractedLastName} ${mpPayment.description || ''} ${payerEmail}`.trim();
   const payerClean = payerRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const payerWords = new Set(payerClean.split(/[^a-z0-9]+/).filter(Boolean));
   const payerDniRaw = extractedDni.replace(/\D/g, '');
+
+  const hasTokenMatch = (tok) => {
+    if (payerWords.has(tok)) return true;
+    // Solo permitir coincidencia de subcadena en email/texto continuo si el apellido/token tiene >= 5 letras (evita "sar" dentro de "lasar")
+    return tok.length >= 5 && payerClean.includes(tok);
+  };
 
   let matchedInvoice = null;
 
+  // PASADA 1 (Prioridad Máxima): Coincidencia por DNI / CUIT o Email exacto del cliente
   for (const inv of pendingInvoices) {
     const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
-    if (cDni.length >= 7 && payerDniRaw.length >= 7) {
+    if (cDni.length >= 7 && cDni !== '11111111' && payerDniRaw.length >= 7) {
       if (payerDniRaw.includes(cDni) || cDni.includes(payerDniRaw)) {
         matchedInvoice = inv; break;
       }
     }
-
-    const clientClean = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-    const clientTokens = clientClean.split(/\s+/).filter(w => w.length >= 3);
-    const matchingTokens = clientTokens.filter(tok => payerClean.includes(tok)).length;
-    if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
+    const cEmail = String(inv.client?.email || '').trim().toLowerCase();
+    if (cEmail && cEmail.length >= 6 && payerEmail && cEmail === payerEmail) {
       matchedInvoice = inv; break;
     }
+  }
 
-    const obs = (inv.client?.observation || '');
-    const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
-
-    let aliasMatched = false;
-    for (const alias of rawAliases) {
-      const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-      if (aliasClean === payerClean || levenshteinDistance(aliasClean, payerClean) <= 2) {
-        aliasMatched = true; break;
+  // PASADA 2: Coincidencia por Nombre o Alias en Observaciones (con tokens únicos sin duplicados como "Sar Sar")
+  if (!matchedInvoice) {
+    for (const inv of pendingInvoices) {
+      const clientClean = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const clientTokens = [...new Set(clientClean.split(/\s+/).filter(w => w.length >= 3))];
+      const matchingTokens = clientTokens.filter(hasTokenMatch).length;
+      if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
+        matchedInvoice = inv; break;
       }
 
-      const aliasTokens = aliasClean.split(/\s+/).filter(w => w.length >= 3);
-      const matchedAliasTokens = aliasTokens.filter(tok => payerClean.includes(tok)).length;
-      if (aliasTokens.length > 0 && (matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
-        aliasMatched = true; break;
+      const obs = (inv.client?.observation || '');
+      const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
+
+      let aliasMatched = false;
+      for (const alias of rawAliases) {
+        const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        if (aliasClean === payerClean || levenshteinDistance(aliasClean, payerClean) <= 2) {
+          aliasMatched = true; break;
+        }
+
+        const aliasTokens = [...new Set(aliasClean.split(/\s+/).filter(w => w.length >= 3))];
+        const matchedAliasTokens = aliasTokens.filter(hasTokenMatch).length;
+        if (aliasTokens.length > 0 && (matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
+          aliasMatched = true; break;
+        }
       }
+
+      if (aliasMatched) { matchedInvoice = inv; break; }
     }
-
-    if (aliasMatched) { matchedInvoice = inv; break; }
   }
 
   if (matchedInvoice) {
