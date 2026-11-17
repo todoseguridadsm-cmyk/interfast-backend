@@ -2127,7 +2127,7 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
       clients = [client];
     } else {
       clients = await prisma.client.findMany({
-        where: { status: 'ACTIVE', isVip: false },
+        where: { status: 'ACTIVE' },
         include: { plan: true }
       });
     }
@@ -2151,7 +2151,8 @@ app.post('/api/invoices/generate', checkPermission('FACTURACION'), async (req, r
     const processedInvoiceIds = [];
 
     for (let client of clients) {
-      if (!client.plan || (client.isVip && !clientId)) continue;
+      const planBaseAmount = client.plan ? (client.plan.priceV1 || client.plan.totalPrice || 0) : 0;
+      if (!client.plan || (planBaseAmount <= 0 && !clientId)) continue;
 
       // [INICIO MODIFICACIÓN REGLA 14 - Motor de Retenciones]
       if (client.promoEndDate && client.regularPlanId) {
@@ -2427,7 +2428,7 @@ app.post('/api/invoices/mass-cutoff', authenticateToken, async (req, res) => {
     const pendingInvoices = await prisma.invoice.findMany({
       where: {
         status: 'PENDING',
-        client: { status: 'ACTIVE' } // Solo a los que no esten suspendidos ya
+        client: { status: 'ACTIVE', isVip: false } // Solo a los que no esten suspendidos ni exentos de corte (VIP)
       },
       include: { client: true }
     });
