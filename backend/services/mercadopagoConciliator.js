@@ -173,7 +173,18 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
     const difference = transactionAmount - expectedExactAmount;
 
     await prisma.$transaction(async (tx) => {
-      const firstInvoiceAmount = difference >= 5.0 ? expectedExactAmount : transactionAmount;
+      // Buscar si el cliente tiene otras facturas pendientes para cascada real (2 o más meses juntos)
+      const otherPendingInvoices = await tx.invoice.findMany({
+        where: {
+          clientId: matchedInvoice.clientId,
+          id: { not: matchedInvoice.id },
+          status: 'PENDING'
+        },
+        orderBy: [{ year: 'asc' }, { month: 'asc' }]
+      });
+
+      const canCascadeNext = otherPendingInvoices.length > 0 && difference >= ((otherPendingInvoices[0].priceV1 || otherPendingInvoices[0].originalAmount) - 100);
+      const firstInvoiceAmount = canCascadeNext ? expectedExactAmount : transactionAmount;
 
       await tx.payment.create({
         data: {
@@ -206,18 +217,8 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
         }
       });
 
-      if (difference >= 5.0) {
+      if (canCascadeNext) {
         let remainingCredit = difference;
-
-        // Buscar otras facturas pendientes del cliente ordenadas cronológicamente (cascada automática)
-        const otherPendingInvoices = await tx.invoice.findMany({
-          where: {
-            clientId: matchedInvoice.clientId,
-            id: { not: matchedInvoice.id },
-            status: 'PENDING'
-          },
-          orderBy: [{ year: 'asc' }, { month: 'asc' }]
-        });
 
         for (const nextInv of otherPendingInvoices) {
           if (remainingCredit < 5.0) break;
@@ -225,8 +226,8 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
           const nextTier = getInvoiceTierStatus(nextInv, new Date(paymentDate));
           const nextTargetAmount = nextTier.totalAmount;
 
-          if (remainingCredit >= (nextTargetAmount - 5.0)) {
-            const amountToApply = Math.min(remainingCredit, nextTargetAmount);
+          if (remainingCredit >= (nextTargetAmount - 100.0)) {
+            const amountToApply = remainingCredit;
             await tx.payment.create({
               data: {
                 amountPaid: amountToApply,
@@ -246,18 +247,11 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
               where: { invoiceId: nextInv.id }
             });
 
-            remainingCredit = Math.max(0, remainingCredit - nextTargetAmount);
+            remainingCredit = Math.max(0, remainingCredit - amountToApply);
             console.log(`✅ [Cascada Automática MP] Factura #${nextInv.id} (${nextInv.month}/${nextInv.year}) saldada automáticamente para ${matchedInvoice.client.name}`);
           } else {
             break;
           }
-        }
-
-        if (remainingCredit >= 5.0) {
-          await tx.client.update({
-            where: { id: matchedInvoice.clientId },
-            data: { walletBalance: { increment: remainingCredit } }
-          });
         }
       } else if (difference <= -5.0) {
         const remainingDebt = Math.abs(difference);

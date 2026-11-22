@@ -15,23 +15,17 @@ function getInvoiceTierStatus(inv, checkDate = new Date()) {
   const invMonth = inv.month || (inv.dueDate ? new Date(inv.dueDate).getMonth() + 1 : (arNow.getMonth() + 1));
   const invYear = inv.year || (inv.dueDate ? new Date(inv.dueDate).getFullYear() : arNow.getFullYear());
 
-  // Días de corte por defecto: Día 10 para V1, Día 15 para V2, Día 20 para V3
-  let day1 = 10;
-  let day2 = 15;
-  let day3 = 20;
+  const extractArDay = (dt, fallbackDay) => {
+    if (!dt) return fallbackDay;
+    const dObj = new Date(dt);
+    if (isNaN(dObj.getTime())) return fallbackDay;
+    const arD = getArgentinaDate(dObj);
+    return arD.getDate();
+  };
 
-  if (inv.dueDate1) {
-    const d1Obj = new Date(inv.dueDate1);
-    if (!isNaN(d1Obj.getTime())) day1 = d1Obj.getDate();
-  }
-  if (inv.dueDate2) {
-    const d2Obj = new Date(inv.dueDate2);
-    if (!isNaN(d2Obj.getTime())) day2 = d2Obj.getDate();
-  }
-  if (inv.dueDate3) {
-    const d3Obj = new Date(inv.dueDate3);
-    if (!isNaN(d3Obj.getTime())) day3 = d3Obj.getDate();
-  }
+  let day1 = extractArDay(inv.dueDate1, 10);
+  let day2 = extractArDay(inv.dueDate2, 15);
+  let day3 = extractArDay(inv.dueDate3, 20);
 
   // Límites en horario de Argentina: fin del día respectivo (23:59:59.999)
   const limit1 = new Date(invYear, invMonth - 1, day1, 23, 59, 59, 999);
