@@ -24,6 +24,7 @@ const levenshteinDistance = (a, b) => {
 };
 
 const { getInvoiceTierStatus } = require('../utils/tierHelper');
+const mikrotik = require('../mikrotik');
 
 const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, paymentId, operator = 'MERCADOPAGO_WEBHOOK') => {
   // Check if it already exists to prevent duplicate processing
@@ -288,11 +289,34 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
         }
       }
 
+      await tx.cutoffList.deleteMany({
+        where: {
+          OR: [
+            { invoiceId: matchedInvoice.id },
+            { clientId: matchedInvoice.clientId }
+          ]
+        }
+      });
+
       await tx.client.update({
         where: { id: matchedInvoice.clientId },
         data: { status: 'ACTIVE' }
       });
     });
+
+    // Rehabilitar automáticamente el servicio en MikroTik quitando la IP de la lista 'Morosos'
+    if (matchedInvoice.client && matchedInvoice.client.ipNumber) {
+      try {
+        const targetNode = matchedInvoice.client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
+        if (targetNode) {
+          await mikrotik.removeIpFromCutoffList(matchedInvoice.client.ipNumber, targetNode);
+          console.log(`✅ [MikroTik Auto-Restore] IP ${matchedInvoice.client.ipNumber} (${matchedInvoice.client.name}) quitada de 'Morosos' en nodo ${targetNode}`);
+        }
+      } catch (mkErr) {
+        console.error(`⚠️ Error removiendo IP ${matchedInvoice.client.ipNumber} de MikroTik tras pago MP:`, mkErr.message || mkErr);
+      }
+    }
+
     console.log(`✅ Conciliado Cliente ${matchedInvoice.client.name} | Pago: $${transactionAmount}`);
     return { status: 'success', matchedInvoice };
   } else {

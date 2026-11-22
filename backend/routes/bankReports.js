@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const xlsx = require('xlsx');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
+const mikrotik = require('../mikrotik');
 
 // =========================================================================
 // UPLOAD MANUAL DE EXTRACTO BANCO ROELA (COMISIONES E IMPUESTOS BANCARIOS)
@@ -527,11 +528,22 @@ router.post('/bank/roela-manual-payment', async (req, res) => {
       }
     });
 
-    // 8. Activar cliente
+    // 8. Activar cliente y rehabilitar en MikroTik si estaba cortado
     await prisma.client.update({
       where: { id: client.id },
       data: { status: 'ACTIVE' }
     });
+
+    if (client.ipNumber) {
+      try {
+        const targetNode = client.mainNode || (await prisma.node.findFirst({ orderBy: { id: 'asc' } }))?.name;
+        if (targetNode) {
+          await mikrotik.removeIpFromCutoffList(client.ipNumber, targetNode);
+        }
+      } catch (mkErr) {
+        console.error(`⚠️ Error removiendo IP ${client.ipNumber} de MikroTik tras pago Banco Roela:`, mkErr.message || mkErr);
+      }
+    }
 
     // 9. Asentar en CashMovement (Impacta en Caja General y Caja Banco Roela)
     const cashMov = await prisma.cashMovement.create({
