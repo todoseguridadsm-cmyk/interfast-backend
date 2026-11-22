@@ -28,24 +28,43 @@ export default function BroadcastList() {
   const [filteredClients, setFilteredClients] = useState([]);
   const [selectedClientIds, setSelectedClientIds] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [includeSuspended, setIncludeSuspended] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const fetchNodesAndPanels = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const [resNodes, resPanels] = await Promise.all([
+        axios.get('https://interfast-backend-95ww.onrender.com/api/nodes', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('https://interfast-backend-95ww.onrender.com/api/panels', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setNodes(resNodes.data);
+      setPanels(resPanels.data);
+    } catch (error) { 
+      console.error("Error cargando nodos/paneles", error); 
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const [resNodes, resPanels] = await Promise.all([
-          axios.get('https://interfast-backend-95ww.onrender.com/api/nodes', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('https://interfast-backend-95ww.onrender.com/api/panels', { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        setNodes(resNodes.data);
-        setPanels(resPanels.data);
-      } catch (error) { 
-        console.error("Error cargando nodos/paneles", error); 
-      }
-    };
-    fetchData();
+    fetchNodesAndPanels();
   }, []);
+
+  const handleSyncMikrotikPanels = async () => {
+    setIsSyncing(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/panels/sync-mikrotik', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(res.data.message || 'Sincronización completada.');
+      await fetchNodesAndPanels();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error al sincronizar paneles desde MikroTik.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
     const fetchFilteredClients = async () => {
@@ -68,7 +87,11 @@ export default function BroadcastList() {
         }
 
         if (res && res.data) {
-          const validClients = res.data.filter(c => c.status === 'ACTIVE' && c.phone && c.phone.length > 8);
+          const validClients = res.data.filter(c => {
+            const statusOk = includeSuspended ? (c.status === 'ACTIVE' || c.status === 'SUSPENDED') : c.status === 'ACTIVE';
+            const cleanPhone = (c.phone || '').replace(/\D/g, '');
+            return statusOk && cleanPhone.length >= 8;
+          });
           setFilteredClients(validClients);
           setSelectedClientIds(new Set(validClients.map(c => c.id)));
         }
@@ -78,7 +101,7 @@ export default function BroadcastList() {
     };
 
     fetchFilteredClients();
-  }, [scope, selectedNode, selectedPanel]);
+  }, [scope, selectedNode, selectedPanel, includeSuspended]);
 
   const toggleClientSelection = (id) => {
     const newSelection = new Set(selectedClientIds);
@@ -118,17 +141,14 @@ export default function BroadcastList() {
     
     setIsSending(true);
     try {
-      await axios.post('https://interfast-backend-95ww.onrender.com/api/bot/broadcast-segmented', 
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/bot/broadcast-segmented', 
         { clientIds: Array.from(selectedClientIds), message }, 
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
-      alert('🚀 ¡Campaña de difusión iniciada exitosamente en segundo plano!');
+      alert(`🚀 ${res.data.message || '¡Campaña de difusión iniciada exitosamente en segundo plano!'}`);
       setMessage(''); 
-      setScope('ALL'); 
-      setSelectedNode(''); 
-      setSelectedPanel('');
     } catch (error) { 
-      alert('Error al iniciar la difusión. Verifica la conexión con el servidor.'); 
+      alert(error.response?.data?.error || 'Error al iniciar la difusión. Verifica la conexión con el servidor.'); 
     } finally { 
       setIsSending(false); 
     }
@@ -252,9 +272,20 @@ export default function BroadcastList() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Filter size={12} className="text-cyan-400" />
-                      Panel Sectorial (Opcional)
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Filter size={12} className="text-cyan-400" />
+                        Panel Sectorial (Opcional)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSyncMikrotikPanels}
+                        disabled={isSyncing}
+                        className="text-[10px] text-cyan-400 hover:text-cyan-200 underline cursor-pointer disabled:opacity-50"
+                        title="Sincronizar asignación de clientes desde MikroTik"
+                      >
+                        {isSyncing ? 'Sincronizando...' : '🔄 Sincronizar MikroTik'}
+                      </button>
                     </label>
                     <select 
                       value={selectedPanel} 
@@ -262,10 +293,20 @@ export default function BroadcastList() {
                       disabled={!selectedNode} 
                       className="w-full bg-[#040814] border border-slate-700 text-slate-200 rounded-xl p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
-                      <option value="">Todos los paneles del nodo...</option>
-                      {availablePanels.map(p => <option key={p.id} value={p.id} className="bg-slate-900 text-white">{p.name}</option>)}
+                      <option value="">Todos los paneles del nodo ({availablePanels.length})...</option>
+                      {availablePanels.map(p => <option key={p.id} value={p.id} className="bg-slate-900 text-white">{p.name} ({p.ipAddress})</option>)}
                     </select>
                   </div>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeSuspended}
+                      onChange={(e) => setIncludeSuspended(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-cyan-500 bg-slate-900 border-slate-700 cursor-pointer"
+                    />
+                    <span>Incluir clientes suspendidos conectados a este panel</span>
+                  </label>
                 </div>
               )}
 
@@ -302,37 +343,75 @@ export default function BroadcastList() {
                   />
                 </div>
 
-                {/* Quick Helper formatting buttons */}
-                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  <span className="text-[11px] text-slate-500 font-bold uppercase">Formato Rápido:</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setMessage(prev => prev + ' *texto en negrita* ')}
-                    className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
-                  >
-                    *Negrita*
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setMessage(prev => prev + ' _texto en cursiva_ ')}
-                    className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
-                  >
-                    _Cursiva_
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setMessage(prev => prev + ' ⚠️ AVISO IMPORTANTE: ')}
-                    className="text-[11px] bg-slate-900 hover:bg-amber-950/60 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/30 transition-colors cursor-pointer"
-                  >
-                    ⚠️ Aviso
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setMessage(prev => prev + ' 📡 INTERFAST: ')}
-                    className="text-[11px] bg-slate-900 hover:bg-blue-950/60 text-blue-300 px-2.5 py-1 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
-                  >
-                    📡 Firma
-                  </button>
+                {/* Quick Helper formatting buttons & Incident Templates */}
+                <div className="space-y-2 mt-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-slate-500 font-bold uppercase">Plantillas Rápidas:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nodeName = nodes.find(n => n.id === parseInt(selectedNode))?.name || '{nodo}';
+                        const panelName = panels.find(p => p.id === parseInt(selectedPanel))?.name || '{panel}';
+                        setMessage(`Hola {nombre}! ⚠️\n\nTe informamos desde *INTERFAST* que hemos detectado un inconveniente técnico en el *Panel Sectorial ${panelName}* del nodo *${nodeName}* que abastece tu conexión.\n\n🛠️ Nuestro equipo técnico ya se encuentra trabajando en el lugar para restablecer el servicio a la brevedad. Te avisaremos por este medio apenas quede normalizado.\n\n¡Muchas gracias por tu paciencia!`);
+                      }}
+                      className="text-[11px] bg-amber-950/50 hover:bg-amber-900/70 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/40 font-semibold transition-colors cursor-pointer"
+                    >
+                      ⚠️ Caída de Panel Sectorial
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nodeName = nodes.find(n => n.id === parseInt(selectedNode))?.name || '{nodo}';
+                        setMessage(`Hola {nombre}! 🔧\n\nTe informamos desde *INTERFAST* que estamos realizando tareas de mantenimiento en el nodo *${nodeName}*.\n\nDurante los próximos minutos podrías experimentar intermitencias breves en el servicio. Nuestro equipo ya está finalizando las tareas.\n\n¡Disculpá las molestias y muchas gracias!`);
+                      }}
+                      className="text-[11px] bg-cyan-950/50 hover:bg-cyan-900/70 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/40 font-semibold transition-colors cursor-pointer"
+                    >
+                      🔧 Mantenimiento en Nodo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nodeName = nodes.find(n => n.id === parseInt(selectedNode))?.name || '{nodo}';
+                        const panelName = panels.find(p => p.id === parseInt(selectedPanel))?.name || '{panel}';
+                        setMessage(`Hola {nombre}! ✅\n\nTe informamos desde *INTERFAST* que el servicio en el *Panel ${panelName}* (Nodo *${nodeName}*) ya ha sido *totalmente restablecido*.\n\n💡 En caso de aún no navegar, te recomendamos desenchufar tu router y antena de la corriente eléctrica por 30 segundos y volver a conectarlos.\n\n¡Muchas gracias por tu paciencia!`);
+                      }}
+                      className="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/70 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-500/40 font-semibold transition-colors cursor-pointer"
+                    >
+                      ✅ Servicio Restablecido
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-slate-500 font-bold uppercase">Variables y Formato:</span>
+                    <button 
+                      type="button" 
+                      onClick={() => setMessage(prev => prev + '{nombre}')}
+                      className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
+                    >
+                      {'{nombre}'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setMessage(prev => prev + '{nodo}')}
+                      className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
+                    >
+                      {'{nodo}'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setMessage(prev => prev + '{panel}')}
+                      className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
+                    >
+                      {'{panel}'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setMessage(prev => prev + ' *texto en negrita* ')}
+                      className="text-[11px] bg-slate-900 hover:bg-cyan-950/60 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/30 font-mono transition-colors cursor-pointer"
+                    >
+                      *Negrita*
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -403,7 +482,7 @@ export default function BroadcastList() {
                         {client.name}
                       </div>
                       <div className="text-[10px] text-slate-400 font-mono truncate">
-                        TK{String(client.id).padStart(3, '0')} • {client.phone || 'Sin tel'}
+                        TK{String(client.id).padStart(3, '0')} • {client.phone || 'Sin tel'} {client.panelId ? `• ${client.panelId}` : ''}
                       </div>
                     </div>
                   </label>

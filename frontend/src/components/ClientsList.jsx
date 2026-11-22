@@ -12,6 +12,8 @@ export default function ClientsList() {
   const [clients, setClients] = useState([]);
   const [plans, setPlans] = useState([]);
   const [nodes, setNodes] = useState([]);
+  const [panels, setPanels] = useState([]);
+  const [isSyncingPanels, setIsSyncingPanels] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     dni: '', name: '', businessName: '', email: '', phone: '', phone2: '', observation: '', address: '', fiscalAddress: '', 
@@ -74,6 +76,28 @@ export default function ClientsList() {
   const handleEdit = (client) => {
     setEditingId(client.id);
     const hasActivePromo = !!(client.promoEndDate && client.regularPlanId);
+
+    let initialNodeRefId = client.nodeRefId ? parseInt(client.nodeRefId) : '';
+    let initialPanelRefId = client.panelRefId ? parseInt(client.panelRefId) : '';
+
+    if (initialPanelRefId && !initialNodeRefId && panels.length > 0) {
+      const matchPanel = panels.find(p => p.id === initialPanelRefId);
+      if (matchPanel) initialNodeRefId = matchPanel.nodeId;
+    }
+
+    if (!initialNodeRefId && client.mainNode && nodes.length > 0) {
+      const matchNode = nodes.find(n => n.name.trim().toLowerCase() === client.mainNode.trim().toLowerCase());
+      if (matchNode) initialNodeRefId = matchNode.id;
+    }
+
+    if (!initialPanelRefId && client.panelId && panels.length > 0) {
+      const matchPanel = panels.find(p => p.name.trim().toLowerCase() === client.panelId.trim().toLowerCase());
+      if (matchPanel) {
+        initialPanelRefId = matchPanel.id;
+        if (!initialNodeRefId) initialNodeRefId = matchPanel.nodeId;
+      }
+    }
+
     setFormData({
       dni: client.dni || '',
       name: client.name || '',
@@ -88,8 +112,8 @@ export default function ClientsList() {
       province: client.province || '',
       zipCode: client.zipCode || '',
       mainNode: client.mainNode || '',
-      nodeRefId: client.nodeRefId || '',
-      panelRefId: client.panelRefId || '',
+      nodeRefId: initialNodeRefId,
+      panelRefId: initialPanelRefId,
       panelId: client.panelId || '',
       ipNumber: client.ipNumber || '',
       planId: client.planId || '',
@@ -146,10 +170,36 @@ export default function ClientsList() {
       .catch(err => console.error(err));
   };
 
+  const fetchPanels = () => {
+    axios.get('https://interfast-backend-95ww.onrender.com/api/panels')
+      .then(res => setPanels(res.data))
+      .catch(err => console.error(err));
+  };
+
+  const handleSyncPanelsFromMikrotik = async () => {
+    if (!window.confirm('¿Sincronizar automáticamente el Nodo y Panel Sectorial de todos los clientes leyendo las tablas Wireless Registration y Neighbors de los MikroTik?')) return;
+    setIsSyncingPanels(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('https://interfast-backend-95ww.onrender.com/api/panels/sync-mikrotik', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(res.data.message || 'Sincronización completada.');
+      fetchClients();
+      fetchPanels();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Error al sincronizar paneles desde MikroTik.');
+    } finally {
+      setIsSyncingPanels(false);
+    }
+  };
+
   useEffect(() => {
     fetchClients();
     fetchPlans();
     fetchNodes();
+    fetchPanels();
   }, []);
 
 // Replaced handleInputChange above
@@ -177,6 +227,8 @@ export default function ClientsList() {
 
     const payload = {
       ...formData,
+      nodeRefId: formData.nodeRefId ? parseInt(formData.nodeRefId) : null,
+      panelRefId: formData.panelRefId ? parseInt(formData.panelRefId) : null,
       planId: formData.planId ? parseInt(formData.planId) : null,
       regularPlanId: formData.isPromo && formData.regularPlanId ? parseInt(formData.regularPlanId) : null,
       promoEndDate: formData.isPromo && formData.promoEndDate ? formData.promoEndDate : null
@@ -410,6 +462,17 @@ export default function ClientsList() {
         </div>
         <div className="flex gap-3">
           {canManageClients && (
+            <button
+              onClick={handleSyncPanelsFromMikrotik}
+              disabled={isSyncingPanels}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Detectar y asignar Panel Sectorial automáticamente desde MikroTik"
+            >
+              {isSyncingPanels ? <Loader2 size={16} className="animate-spin" /> : <Server size={16} />}
+              Sincronizar Paneles
+            </button>
+          )}
+          {canManageClients && (
             <label className="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer" title="Importar Planilla Excel">
               <Download className="rotate-180" size={16} />
               Importar
@@ -498,7 +561,8 @@ export default function ClientsList() {
                   </td>
                   <td className="px-2 py-2 text-[11px] font-mono text-slate-500 whitespace-nowrap">
                     <span className="font-bold block text-slate-700 leading-tight">{client.ipNumber || '---'}</span>
-                    {client.mainNode && <span className="text-[9px] text-slate-400 block truncate max-w-[85px] leading-tight">{client.mainNode}</span>}
+                    {client.mainNode && <span className="text-[9px] text-slate-500 font-semibold block truncate max-w-[115px] leading-tight">{client.mainNode}</span>}
+                    {client.panelId && <span className="text-[8px] text-cyan-700 bg-cyan-50 border border-cyan-200 px-1 rounded inline-block truncate max-w-[115px] leading-tight mt-0.5" title={`Panel Sectorial: ${client.panelId}`}>{client.panelId}</span>}
                     <div className="flex gap-0.5 mt-0.5">
                       {client.hasRouter && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded font-bold">RTR</span>}
                       {client.hasMast && <span className="text-[8px] bg-sky-100 text-sky-700 px-1 rounded font-bold">MST</span>}
@@ -720,15 +784,23 @@ export default function ClientsList() {
                       <label className="block text-sm font-medium text-slate-700 mb-1">Nodo Matriz</label>
                       <select 
                         name="nodeRefId" 
-                        value={formData.nodeRefId || ''} 
+                        value={formData.nodeRefId ? String(formData.nodeRefId) : ''} 
                         onChange={(e) => {
-                          setFormData({ ...formData, nodeRefId: parseInt(e.target.value), panelRefId: '' });
+                          const nId = e.target.value ? parseInt(e.target.value) : '';
+                          const nodeObj = nodes.find(n => n.id === nId);
+                          setFormData({
+                            ...formData,
+                            nodeRefId: nId,
+                            mainNode: nodeObj ? nodeObj.name : '',
+                            panelRefId: '',
+                            panelId: ''
+                          });
                         }} 
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium"
                       >
                         <option value="">Seleccione un nodo...</option>
                         {nodes.map(node => (
-                          <option key={node.id} value={node.id}>{node.name}</option>
+                          <option key={node.id} value={String(node.id)}>{node.name}</option>
                         ))}
                       </select>
                     </div>
@@ -736,15 +808,22 @@ export default function ClientsList() {
                       <label className="block text-xs font-medium text-slate-700 mb-1">Panel Sectorial</label>
                       <select 
                         name="panelRefId" 
-                        value={formData.panelRefId || ''} 
-                        onChange={(e) => setFormData({ ...formData, panelRefId: parseInt(e.target.value) })} 
+                        value={formData.panelRefId ? String(formData.panelRefId) : ''} 
+                        onChange={(e) => {
+                          const pId = e.target.value ? parseInt(e.target.value) : '';
+                          const panelObj = panels.find(p => p.id === pId);
+                          setFormData({
+                            ...formData,
+                            panelRefId: pId,
+                            panelId: panelObj ? panelObj.name : ''
+                          });
+                        }} 
                         disabled={!formData.nodeRefId} 
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white text-slate-900 font-medium disabled:bg-slate-50 disabled:cursor-not-allowed"
                       >
                         <option value="">Seleccione un panel...</option>
-                        {/* Se asume que la variable 'panels' está en el estado superior */}
-                        {(window.panels || []).filter(p => p.nodeId === formData.nodeRefId).map(panel => (
-                          <option key={panel.id} value={panel.id}>{panel.name}</option>
+                        {panels.filter(p => !formData.nodeRefId || p.nodeId === parseInt(formData.nodeRefId)).map(panel => (
+                          <option key={panel.id} value={String(panel.id)}>{panel.name} ({panel.ipAddress})</option>
                         ))}
                       </select>
                     </div>
@@ -755,32 +834,36 @@ export default function ClientsList() {
                   </div>
                   
                   {/* Integración Winbox/WebFig para acceso rápido al Panel (Regla 8) */}
-                  {formData.panelRef && (
-                    <div className="flex flex-wrap items-center gap-3 mt-4">
-                      <a 
-                        href={`winbox://${formData.panelRef.ipAddress}?user=${formData.panelRef.user}&pass=${formData.panelRef.password}`}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
-                        title="Lanzar aplicación nativa Winbox"
-                      >
-                        <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 inline-block mr-2 rounded-full" />
-                        Abrir en Winbox
-                      </a>
-                      <a 
-                        href={`http://${formData.panelRef.ipAddress}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
-                        title="Abrir interfaz web del equipo"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="2" y1="12" x2="22" y2="12"></line>
-                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                        </svg>
-                        WebFig
-                      </a>
-                    </div>
-                  )}
+                  {(() => {
+                    const selectedPanelObj = panels.find(p => p.id === parseInt(formData.panelRefId));
+                    if (!selectedPanelObj) return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                        <a 
+                          href={`winbox://${selectedPanelObj.ipAddress}?user=${selectedPanelObj.user || 'AProuter'}&pass=${selectedPanelObj.password || 'Bran5570'}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                          title="Lanzar aplicación nativa Winbox"
+                        >
+                          <img src="/winbox.jpg" alt="Winbox" className="w-5 h-5 inline-block mr-2 rounded-full" />
+                          Abrir Panel en Winbox ({selectedPanelObj.ipAddress})
+                        </a>
+                        <a 
+                          href={`http://${selectedPanelObj.ipAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                          title="Abrir interfaz web del equipo"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                          </svg>
+                          WebFig
+                        </a>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="md:col-span-12 border-t border-slate-100 pt-3 mt-1">

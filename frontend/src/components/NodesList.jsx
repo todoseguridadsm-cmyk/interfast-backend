@@ -21,6 +21,7 @@ import {
 
 export default function NodesList() {
   const [nodes, setNodes] = useState([]);
+  const [panels, setPanels] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNode, setEditingNode] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +43,7 @@ export default function NodesList() {
 
   useEffect(() => {
     fetchNodes();
+    fetchPanels();
   }, []);
 
   const fetchNodes = async () => {
@@ -50,6 +52,15 @@ export default function NodesList() {
       setNodes(res.data);
     } catch (error) {
       console.error('Error fetching nodes:', error);
+    }
+  };
+
+  const fetchPanels = async () => {
+    try {
+      const res = await axios.get('https://interfast-backend-95ww.onrender.com/api/panels');
+      setPanels(res.data);
+    } catch (error) {
+      console.error('Error fetching panels:', error);
     }
   };
 
@@ -286,6 +297,29 @@ export default function NodesList() {
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Activo
                     </span>
+                  </div>
+                </div>
+
+                {/* Paneles Sectoriales asociados al Nodo */}
+                <div className="mb-4 p-3 bg-[#030814]/80 border border-cyan-500/20 rounded-2xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase font-bold text-cyan-400 flex items-center gap-1">
+                      <Radio size={12} /> Paneles Sectoriales ({panels.filter(p => p.nodeId === node.id).length})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                    {panels.filter(p => p.nodeId === node.id).map(panel => (
+                      <span
+                        key={panel.id}
+                        className="text-[10px] font-mono bg-cyan-950/70 text-cyan-200 border border-cyan-500/30 px-2 py-0.5 rounded-lg"
+                        title={`IP Panel: ${panel.ipAddress}`}
+                      >
+                        {panel.name} <span className="text-cyan-400/70">({panel.ipAddress})</span>
+                      </span>
+                    ))}
+                    {panels.filter(p => p.nodeId === node.id).length === 0 && (
+                      <span className="text-[10px] text-slate-500 italic">Sin paneles registrados</span>
+                    )}
                   </div>
                 </div>
               </div>

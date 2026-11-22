@@ -1100,15 +1100,44 @@ app.post('/api/clients/filter', async (req, res) => {
   try {
     const { nodeId, panelId } = req.body;
     let whereClause = { status: { not: 'BAJA' } };
+    const andConditions = [];
 
     if (nodeId) {
-      whereClause.nodeRefId = parseInt(nodeId);
-      // Panel es estrictamente opcional, si viene vacío no lo usamos.
-      if (panelId) {
-        whereClause.panelRefId = parseInt(panelId);
+      const parsedNodeId = parseInt(nodeId);
+      const nodeRecord = !isNaN(parsedNodeId)
+        ? await prisma.node.findUnique({ where: { id: parsedNodeId } })
+        : null;
+      if (nodeRecord) {
+        andConditions.push({
+          OR: [
+            { nodeRefId: parsedNodeId },
+            { mainNode: { equals: nodeRecord.name, mode: 'insensitive' } }
+          ]
+        });
+      } else if (!isNaN(parsedNodeId)) {
+        andConditions.push({ nodeRefId: parsedNodeId });
       }
-    } else if (panelId) {
-      whereClause.panelRefId = parseInt(panelId);
+    }
+
+    if (panelId) {
+      const parsedPanelId = parseInt(panelId);
+      const panelRecord = !isNaN(parsedPanelId)
+        ? await prisma.panel.findUnique({ where: { id: parsedPanelId } })
+        : null;
+      if (panelRecord) {
+        andConditions.push({
+          OR: [
+            { panelRefId: parsedPanelId },
+            { panelId: { equals: panelRecord.name, mode: 'insensitive' } }
+          ]
+        });
+      } else if (!isNaN(parsedPanelId)) {
+        andConditions.push({ panelRefId: parsedPanelId });
+      }
+    }
+
+    if (andConditions.length > 0) {
+      whereClause.AND = andConditions;
     }
 
     const clients = await prisma.client.findMany({
@@ -1118,6 +1147,7 @@ app.post('/api/clients/filter', async (req, res) => {
     });
     res.json(clients);
   } catch (error) {
+    console.error('Error en /api/clients/filter:', error);
     res.status(500).json({ error: 'Error al filtrar clientes' });
   }
 });
@@ -1433,7 +1463,7 @@ app.post('/api/clients', async (req, res) => {
 
     const dataPayload = { 
       dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, city, province, zipCode, 
-      mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, panelId, ipNumber, planId, 
+      mainNode, nodeRefId: nodeRefId ? parseInt(nodeRefId) : null, panelRefId: panelRefId ? parseInt(panelRefId) : null, panelId, ipNumber, planId, 
       regularPlanId: req.body.regularPlanId ? parseInt(req.body.regularPlanId) : null,
       promoEndDate: parsedPromoEndDate,
       cuit, taxCondition, status: status || 'ACTIVE', hasRouter, hasMast, registrationDate: parsedRegistrationDate, 
@@ -1547,7 +1577,7 @@ app.put('/api/clients/:id', async (req, res) => {
 
     const updateData = { 
       dni, name, businessName, email, phone, phone2, observation, address, fiscalAddress, 
-      city, province, zipCode, mainNode, nodeRefId: nodeRefId || null, panelRefId: panelRefId || null, 
+      city, province, zipCode, mainNode, nodeRefId: nodeRefId ? parseInt(nodeRefId) : null, panelRefId: panelRefId ? parseInt(panelRefId) : null, 
       panelId, ipNumber, planId: planId !== undefined ? (planId ? parseInt(planId) : null) : undefined, 
       cuit, taxCondition, status, hasRouter, hasMast, 
       registrationDate: parsedRegistrationDate, 
@@ -1755,9 +1785,205 @@ app.get('/api/nodes', async (req, res) => {
 
 app.get('/api/panels', async (req, res) => {
   try {
-    const panels = await prisma.panel.findMany({ orderBy: { name: 'asc' } });
+    const panels = await prisma.panel.findMany({
+      include: { node: true },
+      orderBy: [{ nodeId: 'asc' }, { name: 'asc' }]
+    });
     res.json(panels);
   } catch (error) { res.status(500).json({ error: 'Error fetching panels' }); }
+});
+app.post('/api/panels', async (req, res) => {
+  try {
+    const { name, ipAddress, nodeId, port, webPort, user, password } = req.body;
+    const panel = await prisma.panel.create({
+      data: {
+        name,
+        ipAddress,
+        nodeId: parseInt(nodeId),
+        port: port ? parseInt(port) : 8728,
+        webPort: webPort ? parseInt(webPort) : 80,
+        user: user || 'AProuter',
+        password: password || 'Bran5570'
+      }
+    });
+    res.json(panel);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+app.put('/api/panels/:id', async (req, res) => {
+  try {
+    const { name, ipAddress, nodeId, port, webPort, user, password } = req.body;
+    const panel = await prisma.panel.update({
+      where: { id: parseInt(req.params.id) },
+      data: {
+        name,
+        ipAddress,
+        nodeId: nodeId ? parseInt(nodeId) : undefined,
+        port: port ? parseInt(port) : undefined,
+        webPort: webPort ? parseInt(webPort) : undefined,
+        user,
+        password
+      }
+    });
+    res.json(panel);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+app.delete('/api/panels/:id', async (req, res) => {
+  try {
+    await prisma.panel.delete({ where: { id: parseInt(req.params.id) } });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// Sincronización automática de Paneles Sectoriales y Clientes desde MikroTik (Wireless Registration + Neighbors + Bridge)
+app.post('/api/panels/sync-mikrotik', authenticateToken, async (req, res) => {
+  try {
+    const nodes = await prisma.node.findMany({ where: { isActive: true }, orderBy: { id: 'asc' } });
+    const panels = await prisma.panel.findMany({ orderBy: { id: 'asc' } });
+    const dbClients = await prisma.client.findMany({ where: { status: { not: 'BAJA' } } });
+
+    const panelByName = new Map(panels.map(p => [p.name, p]));
+    const ipToPanelName = new Map();
+    const macToPanelName = new Map();
+
+    // Mapa conocido de puertos dedicados por panel
+    const bridgePortByPanelName = new Map([
+      ['Ap_Mant_Irrigacion1', 'ether3'],
+      ['OMNI_IRRIGACION', 'ether4'],
+      ['Ap_Mant_Irrigacion2', 'ether5'],
+      ['AP_NORTE_VIALIDAD3', 'ether7'],
+      ['OMNI_LASBOVEDAS', 'ether5-CLIENTE_TORRE'],
+      ['Ap_Mant_Oeste_Las_Bovedas', 'ether2-LAN'],
+      ['OMNI_PROCREAR', 'eth6-Omni'],
+      ['Ap_Mant_Procrear_Sur', 'eth2-MantSur'],
+      ['Ap_Mant_Procrear_Norte2', 'eth4-MantNorte'],
+      ['AP1_LACOLONIAFA', 'ether3-AP1'],
+      ['AP2_LACOLONIAFA', 'ether5-AP2'],
+      ['AP3_LACOLONIAFA', 'ether2-AP3'],
+      ['AP4_LACOLONIAFA', 'ether6-AP4']
+    ]);
+
+    for (const n of nodes) {
+      let conn = null;
+      try {
+        conn = await mikrotik.connectToMikrotik(n.name);
+        const client = conn.client;
+        const neighbors = await client.rosApi.write('/ip/neighbor/print').catch(() => []);
+        const arps = await client.rosApi.write('/ip/arp/print').catch(() => []);
+        const bridgeHosts = await client.rosApi.write('/interface/bridge/host/print').catch(() => []);
+
+        const macToBridgePort = new Map();
+        bridgeHosts.forEach(bh => {
+          if (bh['mac-address'] && bh['on-interface']) {
+            macToBridgePort.set(bh['mac-address'].toUpperCase(), bh['on-interface']);
+          }
+        });
+
+        const nodePanels = panels.filter(p => p.nodeId === n.id);
+
+        // 1. Consultar Wireless Registration Table via REST API en los paneles del nodo
+        for (const p of nodePanels) {
+          if (!p.ipAddress) continue;
+          try {
+            const restRes = await client.rosApi.write('/tool/fetch', [
+              `=url=http://${p.ipAddress}/rest/interface/wireless/registration-table`,
+              `=user=${p.user || 'AProuter'}`,
+              `=password=${p.password || 'Bran5570'}`,
+              '=output=user'
+            ]);
+            const finishObj = restRes.find(r => r.data);
+            if (finishObj && finishObj.data) {
+              const regList = JSON.parse(finishObj.data);
+              if (Array.isArray(regList)) {
+                for (const reg of regList) {
+                  const mac = (reg['mac-address'] || '').toUpperCase();
+                  const lastIp = (reg['last-ip'] || '').trim();
+                  if (mac) macToPanelName.set(mac, p.name);
+                  if (lastIp && lastIp.startsWith('192.168.')) ipToPanelName.set(lastIp, p.name);
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        // 2. Mapear por puerto de Bridge / Neighbors
+        const dedicatedPortToPanel = new Map();
+        for (const p of nodePanels) {
+          const bp = bridgePortByPanelName.get(p.name);
+          if (bp) dedicatedPortToPanel.set(bp, p.name);
+        }
+
+        for (const nb of neighbors) {
+          const ip = (nb.address || '').trim();
+          const mac = (nb['mac-address'] || '').toUpperCase();
+          if (!ip || ip.startsWith('172.18.') || ip.startsWith('10.')) continue;
+          if (ipToPanelName.has(ip)) continue;
+          if (mac && macToPanelName.has(mac)) {
+            ipToPanelName.set(ip, macToPanelName.get(mac));
+            continue;
+          }
+          const rawPort = macToBridgePort.get(mac) || nb.interface || '';
+          const cleanPort = rawPort.split(',')[0].trim();
+          if (dedicatedPortToPanel.has(cleanPort)) {
+            ipToPanelName.set(ip, dedicatedPortToPanel.get(cleanPort));
+          } else if (n.name === 'Borde' && cleanPort === 'LAN') {
+            ipToPanelName.set(ip, 'OMNI_TORRE_PRINCIPAL');
+          }
+        }
+
+        for (const arp of arps) {
+          const ip = (arp.address || '').trim();
+          const mac = (arp['mac-address'] || '').toUpperCase();
+          if (!ip || ip.startsWith('172.18.') || ip.startsWith('10.') || ip.startsWith('192.168.1.')) continue;
+          if (ipToPanelName.has(ip)) continue;
+          if (mac && macToPanelName.has(mac)) {
+            ipToPanelName.set(ip, macToPanelName.get(mac));
+            continue;
+          }
+          const rawPort = macToBridgePort.get(mac) || arp.interface || '';
+          const cleanPort = rawPort.split(',')[0].trim();
+          if (dedicatedPortToPanel.has(cleanPort)) {
+            ipToPanelName.set(ip, dedicatedPortToPanel.get(cleanPort));
+          } else if (n.name === 'Borde' && cleanPort === 'LAN') {
+            ipToPanelName.set(ip, 'OMNI_TORRE_PRINCIPAL');
+          }
+        }
+      } catch (e) {
+        console.error(`Error sincronizando paneles en nodo ${n.name}:`, e.message);
+      } finally {
+        if (conn && conn.client) conn.client.close();
+      }
+    }
+
+    let updatedCount = 0;
+    for (const c of dbClients) {
+      const ip = (c.ipNumber || '').trim();
+      const detectedPanelName = ip ? ipToPanelName.get(ip) : null;
+      if (detectedPanelName && panelByName.has(detectedPanelName)) {
+        const panelObj = panelByName.get(detectedPanelName);
+        if (c.panelRefId !== panelObj.id || c.panelId !== panelObj.name || c.nodeRefId !== panelObj.nodeId) {
+          const nodeObj = nodes.find(x => x.id === panelObj.nodeId);
+          await prisma.client.update({
+            where: { id: c.id },
+            data: {
+              panelRefId: panelObj.id,
+              panelId: panelObj.name,
+              nodeRefId: panelObj.nodeId,
+              mainNode: nodeObj ? nodeObj.name : c.mainNode
+            }
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Sincronización MikroTik completada. ${ipToPanelName.size} IPs detectadas en vivo, ${updatedCount} clientes actualizados.`
+    });
+  } catch (error) {
+    console.error('Error en /api/panels/sync-mikrotik:', error);
+    res.status(500).json({ error: 'Error sincronizando paneles desde MikroTik: ' + error.message });
+  }
 });
 app.post('/api/nodes', async (req, res) => {
   try {
@@ -6085,28 +6311,32 @@ const obfuscateText = (text) => {
   return text + randomSpaces + randomChar;
 };
 
-app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOPORTE'), async (req, res) => {
+app.post('/api/bot/broadcast-segmented', authenticateToken, async (req, res) => {
   try {
     const { clientIds, message } = req.body;
     if (!message) return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
     if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
       return res.status(400).json({ error: 'Debe seleccionar al menos un cliente.' });
     }
+    if (waStatus !== 'CONNECTED') {
+      return res.status(400).json({ error: 'El Robot de WhatsApp no está conectado. Verifica el estado en el Centro de Control.' });
+    }
 
+    const parsedIds = clientIds.map(id => parseInt(id)).filter(id => !isNaN(id));
     const clients = await prisma.client.findMany({
-      where: { id: { in: clientIds } },
-      select: { id: true, phone: true, name: true }
+      where: { id: { in: parsedIds } },
+      select: { id: true, phone: true, name: true, mainNode: true, panelId: true }
     });
 
-    const validClients = clients.filter(c => c.phone && c.phone.length > 8);
+    const validClients = clients.filter(c => c.phone && c.phone.replace(/\D/g, '').length >= 8);
 
     if (validClients.length === 0) {
-      return res.status(404).json({ error: 'No se encontraron clientes activos con teléfono válido en este segmento.' });
+      return res.status(404).json({ error: 'No se encontraron clientes con teléfono válido en este segmento.' });
     }
 
     res.json({
       success: true,
-      message: 'Difusión inicializada correctamente. El envío se realizará en segundo plano.',
+      message: `Difusión inicializada correctamente para ${validClients.length} destinatarios. El envío se realizará en segundo plano con protección Anti-Ban (15-25s entre mensajes).`,
       totalTargets: validClients.length
     });
 
@@ -6117,15 +6347,22 @@ app.post('/api/bot/broadcast-segmented', authenticateToken, checkPermission('SOP
       for (let i = 0; i < validClients.length; i++) {
         const client = validClients[i];
         try {
-          const personalizedMsg = message.replace(/{nombre}/gi, client.name || 'Cliente');
+          const personalizedMsg = message
+            .replace(/{nombre}/gi, client.name || 'Cliente')
+            .replace(/{nodo}/gi, client.mainNode || 'su zona')
+            .replace(/{panel}/gi, client.panelId || 'su sector');
           const safeMessage = obfuscateText(personalizedMsg);
 
-          await sendWhatsAppMessage(client.phone, safeMessage);
+          const isSent = await sendWhatsAppMessage(client.phone, safeMessage);
 
-          console.log(`[Motor Anti-Ban] Mensaje despachado a ${client.phone} (Cliente ID: ${client.id})`);
-          sentCount++;
+          if (isSent) {
+            console.log(`[Motor Anti-Ban] Mensaje despachado a ${client.phone} (Cliente ID: ${client.id} - ${client.name})`);
+            sentCount++;
+          } else {
+            console.error(`[Motor Anti-Ban] No se pudo confirmar entrega a ${client.phone} (Cliente ID: ${client.id})`);
+          }
 
-          if (sentCount % 40 === 0 && i !== validClients.length - 1) {
+          if ((i + 1) % 40 === 0 && i !== validClients.length - 1) {
             console.log(`[Motor Anti-Ban] Límite de ráfaga alcanzado (40 mensajes). Enfriamiento de 90s...`);
             await sleep(90000);
           } else if (i !== validClients.length - 1) {
