@@ -119,6 +119,10 @@ export default function NodesList() {
     window.location.assign(`winbox://${node.host}?user=${node.user}&pass=${node.password}`);
   };
 
+  const openWinboxPanel = (panel) => {
+    window.location.assign(`winbox://${panel.ipAddress}?user=${panel.user || 'AProuter'}&pass=${panel.password || 'Bran5570'}`);
+  };
+
   const filteredNodes = useMemo(() => {
     return nodes.filter(n => 
       n.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -306,16 +310,34 @@ export default function NodesList() {
                     <span className="text-[10px] uppercase font-bold text-cyan-400 flex items-center gap-1">
                       <Radio size={12} /> Paneles Sectoriales ({panels.filter(p => p.nodeId === node.id).length})
                     </span>
+                    <span className="text-[9px] text-slate-500 font-medium">Clic en panel para Winbox</span>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar">
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                     {panels.filter(p => p.nodeId === node.id).map(panel => (
-                      <span
+                      <div
                         key={panel.id}
-                        className="text-[10px] font-mono bg-cyan-950/70 text-cyan-200 border border-cyan-500/30 px-2 py-0.5 rounded-lg"
-                        title={`IP Panel: ${panel.ipAddress}`}
+                        className="inline-flex items-center gap-1 bg-cyan-950/70 hover:bg-cyan-900/90 border border-cyan-500/30 hover:border-cyan-400 px-2 py-1 rounded-lg transition-all group"
                       >
-                        {panel.name} <span className="text-cyan-400/70">({panel.ipAddress})</span>
-                      </span>
+                        <button
+                          type="button"
+                          onClick={() => openWinboxPanel(panel)}
+                          className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-200 hover:text-white cursor-pointer"
+                          title={`Abrir panel ${panel.name} (${panel.ipAddress}) en Winbox`}
+                        >
+                          <img src="/winbox.jpg" alt="Winbox" className="w-3 h-3 rounded-full opacity-80 group-hover:opacity-100" />
+                          <span className="font-semibold">{panel.name}</span>
+                          <span className="text-cyan-400/80 text-[9px]">({panel.ipAddress})</span>
+                        </button>
+                        <a
+                          href={`http://${panel.ipAddress}:${panel.webPort || 80}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400/50 hover:text-cyan-200 p-0.5"
+                          title={`Abrir WebFig de ${panel.name}`}
+                        >
+                          <ExternalLink size={10} />
+                        </a>
+                      </div>
                     ))}
                     {panels.filter(p => p.nodeId === node.id).length === 0 && (
                       <span className="text-[10px] text-slate-500 italic">Sin paneles registrados</span>
@@ -381,20 +403,38 @@ export default function NodesList() {
               <tbody className="divide-y divide-slate-800/80 text-xs">
                 {filteredNodes.map(node => (
                   <tr key={node.id} className="hover:bg-[#09162e]/80 transition-colors">
-                    <td className="px-6 py-4 font-bold text-white flex items-center gap-2.5">
-                      <button 
-                        onClick={() => openWinbox(node)}
-                        className="p-1.5 bg-[#030814] border border-cyan-500/40 rounded-lg text-cyan-400 hover:text-white transition-colors cursor-pointer"
-                        title="Abrir en Winbox"
-                      >
-                        <Wifi size={16} />
-                      </button>
-                      <span 
-                        onClick={() => openWinbox(node)} 
-                        className="cursor-pointer hover:text-cyan-300 transition-colors"
-                      >
-                        {node.name}
-                      </span>
+                    <td className="px-6 py-4 font-bold text-white">
+                      <div className="flex items-center gap-2.5">
+                        <button 
+                          onClick={() => openWinbox(node)}
+                          className="p-1.5 bg-[#030814] border border-cyan-500/40 rounded-lg text-cyan-400 hover:text-white transition-colors cursor-pointer"
+                          title="Abrir en Winbox"
+                        >
+                          <Wifi size={16} />
+                        </button>
+                        <span 
+                          onClick={() => openWinbox(node)} 
+                          className="cursor-pointer hover:text-cyan-300 transition-colors"
+                        >
+                          {node.name}
+                        </span>
+                      </div>
+                      {/* Paneles sectoriales asociados en fila */}
+                      {panels.filter(p => p.nodeId === node.id).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2 max-w-sm">
+                          {panels.filter(p => p.nodeId === node.id).map(panel => (
+                            <button
+                              key={panel.id}
+                              onClick={() => openWinboxPanel(panel)}
+                              className="text-[9px] font-mono bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/30 hover:border-cyan-400 text-cyan-200 px-1.5 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
+                              title={`Abrir panel ${panel.name} (${panel.ipAddress}) en Winbox`}
+                            >
+                              <img src="/winbox.jpg" alt="Winbox" className="w-2.5 h-2.5 rounded-full inline" />
+                              <span>{panel.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 font-mono text-cyan-300">{node.host}</td>
                     <td className="px-6 py-4 font-mono text-slate-400">
