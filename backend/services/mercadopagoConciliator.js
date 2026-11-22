@@ -67,50 +67,96 @@ const processMercadoPagoPayment = async (prisma, mpPayment, transactionAmount, p
   };
 
   let matchedInvoice = null;
+  const paymentDateForMatch = mpPayment.date_approved || mpPayment.date_created || new Date();
+  const getCents999ForMatch = (cId) => (((parseInt(cId, 10) % 999) + 1) / 100);
+  const getCents1000ForMatch = (cId) => ((parseInt(cId, 10) % 1000) / 100);
 
-  // PASADA 1 (Prioridad Máxima): Coincidencia por DNI / CUIT o Email exacto del cliente
+  const hasExactCentsForInvoice = (inv) => {
+    const tierAmt = getInvoiceTierStatus(inv, new Date(paymentDateForMatch)).totalAmount;
+    const c999 = getCents999ForMatch(inv.clientId);
+    const c1000 = getCents1000ForMatch(inv.clientId);
+    return (
+      Math.abs(transactionAmount - (tierAmt + c999)) < 0.015 ||
+      Math.abs(transactionAmount - (tierAmt + c1000)) < 0.015
+    );
+  };
+
+  const pickBestInvoiceByAmount = (candidates) => {
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0];
+    // 1. Si una de las cuentas candidatas (por DNI, Titular u Observaciones) coincide EXACTAMENTE con los centavos identificatorios del cliente (ej. .70 de Escudero Melina #169 vs .20 de Gerardo Luna #219), tiene prioridad absoluta:
+    const exactCentMatches = candidates.filter(hasExactCentsForInvoice);
+    if (exactCentMatches.length === 1) return exactCentMatches[0];
+
+    const pool = exactCentMatches.length > 1 ? exactCentMatches : candidates;
+    // 2. Priorizar la factura cuyo monto esperado sea más cercano al monto transferido
+    return pool.slice().sort((a, b) => {
+      const amtA = getInvoiceTierStatus(a, new Date(paymentDateForMatch)).totalAmount;
+      const amtB = getInvoiceTierStatus(b, new Date(paymentDateForMatch)).totalAmount;
+      const diffA = Math.abs(transactionAmount - amtA);
+      const diffB = Math.abs(transactionAmount - amtB);
+      if (Math.abs(diffA - diffB) > 100) return diffA - diffB;
+      return (a.year - b.year) || (a.month - b.month) || (a.id - b.id);
+    })[0];
+  };
+
+  // PASADA 1 (DNI / CUIT o Email exacto) + PASADA 2 (Nombre o Alias en Observaciones)
+  const pass1Candidates = [];
+  const pass2Candidates = [];
+
   for (const inv of pendingInvoices) {
+    let matchedPass1 = false;
     const cDni = String(inv.client?.dni || '').replace(/\D/g, '');
     if (cDni.length >= 7 && cDni !== '11111111' && payerDniRaw.length >= 7) {
       if (payerDniRaw.includes(cDni) || cDni.includes(payerDniRaw)) {
-        matchedInvoice = inv; break;
+        matchedPass1 = true;
       }
     }
     const cEmail = String(inv.client?.email || '').trim().toLowerCase();
-    if (cEmail && cEmail.length >= 6 && payerEmail && cEmail === payerEmail) {
-      matchedInvoice = inv; break;
+    if (!matchedPass1 && cEmail && cEmail.length >= 6 && payerEmail && cEmail === payerEmail) {
+      matchedPass1 = true;
     }
+    if (matchedPass1) {
+      pass1Candidates.push(inv);
+    }
+
+    const clientClean = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const clientTokens = [...new Set(clientClean.split(/\s+/).filter(w => w.length >= 3))];
+    const matchingTokens = clientTokens.filter(hasTokenMatch).length;
+    if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
+      pass2Candidates.push(inv);
+      continue;
+    }
+
+    const obs = (inv.client?.observation || '');
+    const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
+
+    let aliasMatched = false;
+    for (const alias of rawAliases) {
+      const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      if (aliasClean === payerClean || levenshteinDistance(aliasClean, payerClean) <= 2) {
+        aliasMatched = true; break;
+      }
+
+      const aliasTokens = [...new Set(aliasClean.split(/\s+/).filter(w => w.length >= 3))];
+      const matchedAliasTokens = aliasTokens.filter(hasTokenMatch).length;
+      if (aliasTokens.length > 0 && (matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
+        aliasMatched = true; break;
+      }
+    }
+
+    if (aliasMatched) pass2Candidates.push(inv);
   }
 
-  // PASADA 2: Coincidencia por Nombre o Alias en Observaciones (con tokens únicos sin duplicados como "Sar Sar")
-  if (!matchedInvoice) {
-    for (const inv of pendingInvoices) {
-      const clientClean = (inv.client?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-      const clientTokens = [...new Set(clientClean.split(/\s+/).filter(w => w.length >= 3))];
-      const matchingTokens = clientTokens.filter(hasTokenMatch).length;
-      if (matchingTokens >= 2 || (clientTokens.length === 1 && matchingTokens === 1)) {
-        matchedInvoice = inv; break;
-      }
-
-      const obs = (inv.client?.observation || '');
-      const rawAliases = obs.split(/[|\n]/).map(s => s.replace(/^.*MP:\s*/i, '').trim()).filter(s => s.length > 2);
-
-      let aliasMatched = false;
-      for (const alias of rawAliases) {
-        const aliasClean = alias.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-        if (aliasClean === payerClean || levenshteinDistance(aliasClean, payerClean) <= 2) {
-          aliasMatched = true; break;
-        }
-
-        const aliasTokens = [...new Set(aliasClean.split(/\s+/).filter(w => w.length >= 3))];
-        const matchedAliasTokens = aliasTokens.filter(hasTokenMatch).length;
-        if (aliasTokens.length > 0 && (matchedAliasTokens >= 2 || (aliasTokens.length === 1 && matchedAliasTokens === 1))) {
-          aliasMatched = true; break;
-        }
-      }
-
-      if (aliasMatched) { matchedInvoice = inv; break; }
-    }
+  // Si en Pasada 2 (Observaciones/Nombre) hay una cuenta con coincidencia EXACTA de centavos identificatorios (ej. Gerardo Luna pagando .70 por Escudero Melina #169), priorizarla:
+  const allUniqueCandidates = [...new Map([...pass1Candidates, ...pass2Candidates].map(i => [i.id, i])).values()];
+  const exactCentInAll = allUniqueCandidates.filter(hasExactCentsForInvoice);
+  if (exactCentInAll.length === 1) {
+    matchedInvoice = exactCentInAll[0];
+  } else if (pass1Candidates.length > 0) {
+    matchedInvoice = pickBestInvoiceByAmount(pass1Candidates);
+  } else if (pass2Candidates.length > 0) {
+    matchedInvoice = pickBestInvoiceByAmount(pass2Candidates);
   }
 
   if (matchedInvoice) {
